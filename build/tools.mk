@@ -15,7 +15,7 @@ include $(TOP)/build/param.mk
 COPTS=-g
 CFLAGS=$(COPTS) -std=gnu99 -ffreestanding -Wall -I$(TOP)/arch/$(ARCH)/include -I$(TOP)/include
 
-OBJS=$(SRCS_C:.c=.o) $(SRCS_S:.s=.o)
+OBJS=$(SRCS_S:.s=.o) $(SRCS_C:.c=.o)
 
 .PHONY: clean
 
