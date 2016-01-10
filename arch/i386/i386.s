@@ -27,11 +27,13 @@ stack_top:
 
 # Bootstrap page table
 .section .bootstrap_pgtbl, "aw", @nobits
+.global pg_dir
 pg_dir:
 	.rept 1024
 	.word 0
 	.endr
 
+.global pt_c0000000
 pt_c0000000:
 	.rept 1024
 	.word 0
