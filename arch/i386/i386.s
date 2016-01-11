@@ -95,6 +95,10 @@ _start:
 	movl %cr0, %eax
 	orl $0x80000000, %eax
 	movl %eax, %cr0
+	jmp .highmem
+
+.section .text
+.highmem:
 
 	# We'll create a C entry point called kernel_main and call it here.
 	call kernel_main
@@ -109,8 +113,3 @@ _start:
 .Lhang:
 	hlt
 	jmp .Lhang
-
-# Set the size of the _start symbol to the current location '.' minus its start.
-# This is useful when debugging or when you implement call tracing.
-.size _start, . - _start
-
