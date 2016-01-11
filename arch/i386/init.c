@@ -4,16 +4,13 @@
 
 extern uint32_t pg_dir[1024];
 extern uint32_t pt_00000000[1024];
-extern uint32_t pt_c0000000[1024];
 
 BOOTSTRAP_CODE void bootstrap_paging_init()
 {
 	int i;
-	pg_dir[0] = ((uint32_t)pt_00000000) | 0x3;
-	pg_dir[768] = ((uint32_t)pt_c0000000) | 0x3;
+	pg_dir[0] = pg_dir[768] = ((uint32_t)pt_00000000) | 0x3;
 	for(i=0; i<1024; i++) {
 		pt_00000000[i] = (i * 4096) | 0x3;
-		pt_c0000000[i] = (i * 4096) | 0x3;
 	}
 }
 
@@ -34,6 +31,7 @@ static char * mem_type(int type)
 	return "Unknown";
 }
 
+extern int _bootstrap_end[1024][1];
 void arch_init(struct stream * stream)
 {
 	int i = 0;
@@ -46,6 +44,7 @@ void arch_init(struct stream * stream)
 			break;
 		}
 	}
+	stream_printf(stream, "Bootstrap end - 0x%p\n", _bootstrap_end);
 }
 
 #if INTERFACE
