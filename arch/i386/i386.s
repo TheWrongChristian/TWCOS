@@ -27,12 +27,21 @@ stack_top:
 
 # Bootstrap page table
 .section .bootstrap_pgtbl, "aw", @nobits
+.align 4096
 .global pg_dir
 pg_dir:
 	.rept 1024
 	.word 0
 	.endr
 
+.align 4096
+.global pt_00000000
+pt_00000000:
+	.rept 1024
+	.word 0
+	.endr
+
+.align 4096
 .global pt_c0000000
 pt_c0000000:
 	.rept 1024
@@ -79,6 +88,13 @@ _start:
 
 	# Initialize the page table and page directory
 	call bootstrap_paging_init
+
+	# Turn on paging
+	movl $pg_dir, %eax
+	movl %eax, %cr3
+	movl %cr0, %eax
+	orl $0x80000000, %eax
+	movl %eax, %cr0
 
 	# We'll create a C entry point called kernel_main and call it here.
 	call kernel_main
