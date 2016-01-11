@@ -3,13 +3,16 @@
 #include "init.h"
 
 extern uint32_t pg_dir[1024];
+extern uint32_t pt_00000000[1024];
 extern uint32_t pt_c0000000[1024];
 
 BOOTSTRAP_CODE void bootstrap_paging_init()
 {
 	int i;
+	pg_dir[0] = ((uint32_t)pt_00000000) | 0x3;
 	pg_dir[768] = ((uint32_t)pt_c0000000) | 0x3;
 	for(i=0; i<1024; i++) {
+		pt_00000000[i] = (i * 4096) | 0x3;
 		pt_c0000000[i] = (i * 4096) | 0x3;
 	}
 }

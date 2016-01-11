@@ -14,7 +14,11 @@ SECTIONS
 	   early in the image or the bootloader won't recognize the file format. */
 	.bootstrap ALIGN(4K) :
 	{
-		*(.bootstrap)
+		*(.bootstrap_data)
+		*(.bootstrap_code)
+	}
+	.bootstrap_aligned ALIGN(4K) :
+	{
 		*(.bootstrap_stack)
 		*(.bootstrap_pgtbl)
 	}
