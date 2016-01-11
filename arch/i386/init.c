@@ -41,7 +41,7 @@ void arch_init(struct stream * stream)
 		multiboot_memory_map_t * mmap = multiboot_mmap(i);
 
 		if (mmap) {
-			stream_printf(stream, "Map %d - 0x%x%x (%d) %s\n", i, mmap->addr >> 32, mmap->addr & 0xffffffff, (int)mmap->len, mem_type(mmap->type) );
+			stream_printf(stream, "Map %d - 0x%x (%d) %s\n", i, (int)mmap->addr, (int)mmap->len, mem_type(mmap->type) );
 		} else {
 			break;
 		}
