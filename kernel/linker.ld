@@ -44,7 +44,7 @@ SECTIONS
 		*(.data)
 	}
 
-	/* Read-write data (uninitialized) and stack */
+	/* Read-write data (uninitialized) */
 	.bss ALIGN(4K) : AT(ADDR(.bss) - 0xc0000000)
 	{
 		*(COMMON)
@@ -53,4 +53,6 @@ SECTIONS
 
 	/* The compiler may produce other sections, by default it will put them in
 	   a segment with the same name. Simply add stuff here as needed. */
+	. -= 0xc0000000;
+	_bootstrap_end = ALIGN(4K);
 }
