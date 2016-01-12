@@ -20,8 +20,14 @@
 #endif
 #endif
  
+static jmp_buf jb;
+
+static void do_throw()
+{
+	longjmp(jb, 1);
+}
+
 void kernel_main() {
-	jmp_buf jb;
 	/* Initialize console interface */
 	struct stream * console = console_stream();
 
@@ -29,7 +35,7 @@ void kernel_main() {
  
 	if (0 == setjmp(jb)) {
 		stream_printf(console, "Hello, kernel World 1!\n");
-		longjmp(jb, 1);
+		do_throw();
 	} else {
 		stream_printf(console, "Hello, kernel World 2!\n");
 	}
