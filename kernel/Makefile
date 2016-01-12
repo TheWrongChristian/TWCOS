@@ -1,6 +1,6 @@
 include $(TOP)/build/tools.mk
 
-SRCS_C=kernel.c
+SRCS_C=kernel.c core.c
 
 all:: kernel
 
@@ -11,3 +11,6 @@ kernel: $(OBJS)
 clean::
 	rm -rf isodir
 	rm -f $(OBJS) kernel boot.iso
+
+includes::
+	$(MAKEHEADERS) $(SRCS_C)
