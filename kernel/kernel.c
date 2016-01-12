@@ -1,6 +1,4 @@
-#if !defined(__cplusplus)
 #include <stdbool.h> /* C doesn't have booleans by default. */
-#endif
 #include <stddef.h>
 #include <stdint.h>
 
@@ -22,9 +20,6 @@
 #endif
 #endif
  
-#if defined(__cplusplus)
-extern "C" /* Use C linkage for kernel_main. */
-#endif
 void kernel_main() {
 	jmp_buf jb;
 	/* Initialize console interface */

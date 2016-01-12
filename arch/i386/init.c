@@ -31,7 +31,8 @@ static char * mem_type(int type)
 	return "Unknown";
 }
 
-extern int _bootstrap_end[1024][1];
+extern char _bootstrap_end[4096][1];
+
 void arch_init(struct stream * stream)
 {
 	int i = 0;
@@ -40,6 +41,16 @@ void arch_init(struct stream * stream)
 
 		if (mmap) {
 			stream_printf(stream, "Map %d - 0x%x (%d) %s\n", i, (int)mmap->addr, (int)mmap->len, mem_type(mmap->type) );
+			if (MULTIBOOT_MEMORY_AVAILABLE == mmap->type) {
+				/*
+				 * Add the memory to the pool of available
+				 * memory.
+				 */
+				uint32_t page = mmap->addr >> 12;
+				uint32_t count = mmap->len >> 12;
+
+				page_add(page, count);
+			}
 		} else {
 			break;
 		}

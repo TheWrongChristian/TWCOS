@@ -53,6 +53,7 @@ SECTIONS
 
 	/* The compiler may produce other sections, by default it will put them in
 	   a segment with the same name. Simply add stuff here as needed. */
+	_bootstrap_nextalloc = .;
 	. -= 0xc0000000;
-	_bootstrap_end = ALIGN(4K);
+	_bootstrap_end = .; 
 }
