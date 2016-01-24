@@ -37,4 +37,8 @@ void kernel_main() {
 	} else {
 		stream_printf(console, "Hello, kernel World 2!\n");
 	}
+
+	for(int i=0; i<20; i++) {
+		stream_printf(console, "Line %d\n", i);
+	}
 }
