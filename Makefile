@@ -30,3 +30,6 @@ gdb: all
 	echo target remote localhost:1234 | tee .gdbinit
 	echo symbol-file kernel/kernel | tee -a .gdbinit
 	gdbtui
+
+includes::
+	$(MAKEHEADERS) `find . -name \*.c`

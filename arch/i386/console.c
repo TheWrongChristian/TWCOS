@@ -6,8 +6,6 @@
 
 #include <setjmp.h>
 
-#include <libk/libk.h>
-
 #include "console.h"
  
 /* This tutorial will only work for the 32-bit ix86 targets. */

@@ -1,6 +1,7 @@
 #include <libk/libk.h>
-
 #include "init.h"
+#include <kernel/kernel.h>
+
 
 extern uint32_t pg_dir[1024];
 extern uint32_t pt_00000000[1024];
@@ -31,7 +32,13 @@ static char * mem_type(int type)
 	return "Unknown";
 }
 
-extern char _bootstrap_end[4096][1];
+extern char _bootstrap_end[1];
+static char * nextalloc;
+
+void arch_bootstrap_nextalloc(char * p)
+{
+	nextalloc = p - 0xc0000000;
+}
 
 void arch_init(struct stream * stream)
 {
@@ -49,7 +56,7 @@ void arch_init(struct stream * stream)
 				uint32_t page = mmap->addr >> 12;
 				uint32_t count = mmap->len >> 12;
 
-				page_add(page, count);
+				page_add_range(page, count);
 			}
 		} else {
 			break;

@@ -9,6 +9,7 @@ SECTIONS
 	/* Begin putting sections at 1 MiB, a conventional place for kernels to be
 	   loaded at by the bootloader. */
 	. = 1M;
+	_bootstrap_start = .; 
 
 	/* First put the multiboot header, as it is required to be put very early
 	   early in the image or the bootloader won't recognize the file format. */
@@ -24,7 +25,9 @@ SECTIONS
 	}
 
 	/* Rest of the kernel lives in high memory */
+	_kernel_offset_bootstrap = .;
 	. += 0xc0000000;
+	_kernel_offset = .;
 
 	/* Next we'll put the .text section. */
 	.text ALIGN(4K) : AT(ADDR(.text) - 0xc0000000)

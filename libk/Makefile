@@ -1,4 +1,4 @@
-include $(TOP)/build/tools.mk
+include ../build/tools.mk
 
 SRCS_C=stream.c
 HDRS=$(SRCS_C:.c=.h)
