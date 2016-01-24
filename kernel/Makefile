@@ -1,6 +1,6 @@
-include $(TOP)/build/tools.mk
+include ../build/tools.mk
 
-SRCS_C=kernel.c core.c
+SRCS_C=main.c core.c
 
 all:: kernel
 
@@ -8,9 +8,14 @@ all:: kernel
 kernel: $(OBJS)
 	$(CC) -T linker.ld -o kernel -ffreestanding -O2 -nostdlib $(OBJS) -L$(TOP)/lib -larch -lk -lgcc
 
+kernel.h:
+	$(MAKEHEADERS) -h $(SRCS_C) $(TOP)/arch/$(ARCH)/arch/arch.h > kernel.h
+
 clean::
 	rm -rf isodir
 	rm -f $(OBJS) kernel boot.iso
 
-includes::
+includes:: kernel.h
 	$(MAKEHEADERS) $(SRCS_C)
+	mkdir -p $(TOP)/include/kernel
+	$(CP) kernel.h $(TOP)/include/kernel/kernel.h

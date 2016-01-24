@@ -2,11 +2,9 @@
 #include <stddef.h>
 #include <stdint.h>
 
-#include <console.h>
 #include <setjmp.h>
 
-#include <libk/libk.h>
-#include <arch/arch.h>
+#include "main.h"
 
 /* Check if the compiler thinks we are targeting the wrong operating system. */
 #if 0
@@ -32,7 +30,7 @@ void kernel_main() {
 	struct stream * console = console_stream();
 
 	arch_init(console);
- 
+
 	if (0 == setjmp(jb)) {
 		stream_printf(console, "Hello, kernel World 1!\n");
 		do_throw();

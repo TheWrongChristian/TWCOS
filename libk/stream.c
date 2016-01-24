@@ -1,6 +1,5 @@
 #include <stdarg.h>
-
-#include <arch/arch.h>
+#include <stdint.h>
 
 #include "stream.h"
 

@@ -1,7 +1,5 @@
 #include <stddef.h>
 
-#include <arch/arch.h>
-
 #include "core.h"
 
 extern char _bootstrap_nextalloc;
@@ -15,27 +13,36 @@ static void * localalloc(size_t size)
 	size += (ALIGNMENT-1);
 	size &= (~(ALIGNMENT-1));
 	nextalloc += size;
+	arch_bootstrap_nextalloc(nextalloc);
 
 	return m;
 }
 
 /*
+ * Page usage record
+ */
+struct page_usage {
+	asid as;
+	void * rmap;
+};
+
+/*
  * Up to 32 maps
  */
 struct kernel_mmap {
-	uint32_t base;
+	page_t base;
 	int count;
 	int free;
-	uint32_t * map;
+	struct page_usage * map;
 };
 static int mmap_count = 0;
 static struct kernel_mmap mmap[32];
 
-void page_add(uint32_t base, uint32_t count)
+void page_add_range(page_t base, uint32_t count)
 {
 	mmap[mmap_count].base = base;
 	mmap[mmap_count].count = count;
-	mmap[mmap_count].free = count;
+	mmap[mmap_count].free = 0;
 	mmap[mmap_count].map = localalloc(sizeof(*mmap[mmap_count].map) * count);
 	mmap_count++;
 }

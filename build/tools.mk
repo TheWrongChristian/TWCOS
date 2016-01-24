@@ -1,5 +1,5 @@
 ifndef TOP
-error TOP not defined
+TOP=..
 endif
 
 TOOLS=$(TOP)/tools/bin
