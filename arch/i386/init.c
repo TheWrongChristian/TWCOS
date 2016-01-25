@@ -40,14 +40,14 @@ void arch_bootstrap_nextalloc(char * p)
 	nextalloc = p - 0xc0000000;
 }
 
-void arch_init(struct stream * stream)
+void arch_init()
 {
 	int i = 0;
 	for(;;i++) {
 		multiboot_memory_map_t * mmap = multiboot_mmap(i);
 
 		if (mmap) {
-			stream_printf(stream, "Map %d - 0x%x (%d) %s\n", i, (int)mmap->addr, (int)mmap->len, mem_type(mmap->type) );
+			kernel_printk("Map %d - 0x%x (%d) %s\n", i, (int)mmap->addr, (int)mmap->len, mem_type(mmap->type) );
 			if (MULTIBOOT_MEMORY_AVAILABLE == mmap->type) {
 				/*
 				 * Add the memory to the pool of available
@@ -62,7 +62,7 @@ void arch_init(struct stream * stream)
 			break;
 		}
 	}
-	stream_printf(stream, "Bootstrap end - 0x%p\n", _bootstrap_end);
+	kernel_printk("Bootstrap end - 0x%p\n", _bootstrap_end);
 }
 
 #if INTERFACE

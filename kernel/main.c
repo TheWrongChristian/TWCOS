@@ -27,18 +27,14 @@ static void do_throw()
 
 void kernel_main() {
 	/* Initialize console interface */
-	struct stream * console = console_stream();
-
-	arch_init(console);
+	arch_init();
 
 	if (0 == setjmp(jb)) {
-		stream_printf(console, "Hello, kernel World 1!\n");
+		kernel_printk("Hello, kernel World 1!\n");
 		do_throw();
 	} else {
-		stream_printf(console, "Hello, kernel World 2!\n");
+		kernel_printk("Hello, kernel World 2!\n");
 	}
 
-	for(int i=0; i<20; i++) {
-		stream_printf(console, "Line %d\n", i);
-	}
+	pci_scan();
 }

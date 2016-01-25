@@ -1,6 +1,6 @@
 include ../build/tools.mk
 
-SRCS_C=main.c core.c
+SRCS_C=main.c core.c pci.c printk.c
 
 all:: kernel
 
