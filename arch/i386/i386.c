@@ -46,3 +46,10 @@ void invlpg(void* m)
 	/* Clobber memory to avoid optimizer re-ordering access before invlpg, which may cause nasty bugs. */
 	asm volatile ( "invlpg (%0)" : : "b"(m) : "memory" );
 }
+
+extern uint16_t idt[4][256];
+
+static void i386_init()
+{
+	
+}

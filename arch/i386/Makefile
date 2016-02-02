@@ -1,6 +1,6 @@
 include ../../build/tools.mk
 
-SRCS_S=asm.s setjmp.s
+SRCS_S=asm.S setjmp.S
 SRCS_C=console.c multiboot.c init.c vmap.c i386.c pci.c
 HDRS_C=$(SRCS_C:.c=.h)
 
