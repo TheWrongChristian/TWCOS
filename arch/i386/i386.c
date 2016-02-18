@@ -41,7 +41,7 @@ void cpuid(int code, uint32_t* a, uint32_t* d)
 	asm volatile ( "cpuid" : "=a"(*a), "=d"(*d) : "0"(code) : "ebx", "ecx" );
 }
 
-static inline void lidt(void* base, uint16_t size)
+static void lidt(void* base, uint16_t size)
 {   // This function works in 32 and 64bit mode
     struct {
         uint16_t length;
@@ -97,6 +97,7 @@ void i386_set_idt( int i, void * p, uint16_t flags )
 #define PIC1_DATA       (PIC1+1)
 #define PIC2_COMMAND    PIC2
 #define PIC2_DATA       (PIC2+1)
+#define PIC_EOI		0x20
 
  
 #define ICW1_ICW4	0x01		/* ICW4 (not) needed */
@@ -119,6 +120,14 @@ arguments:
 */
 static void io_wait()
 {
+}
+
+static void PIC_eoi(int irq)
+{
+	if(irq >= 8)
+		outb(PIC2_COMMAND,PIC_EOI);
+
+	outb(PIC1_COMMAND,PIC_EOI);
 }
 
 static void PIC_remap(int offset1, int offset2)
@@ -178,9 +187,19 @@ void arch_idle()
 	}
 }
 
-void i386_isr(uint32_t num, uint32_t * state)
+int i386_isr(uint32_t num, uint32_t * state)
 {
-	kernel_printk("ISR %d\n", num);
-	cli();
-	hlt();
+	int errorcode = 0;
+
+	if (num<32) {
+		kernel_printk("ISR %d\n", num);
+	} else if (num<48) {
+		int irq = num - 32;
+		kernel_printk("IRQ %d\n", irq);
+		PIC_eoi(irq);
+	} else {
+		kernel_printk("ISR %d\n", num);
+	}
+
+	return errorcode;
 }
