@@ -62,6 +62,8 @@ void arch_init()
 			break;
 		}
 	}
+	i386_init();
+	pci_scan();
 	kernel_printk("Bootstrap end - 0x%p\n", _bootstrap_end);
 }
 
