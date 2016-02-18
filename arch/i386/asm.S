@@ -16,6 +16,7 @@
 .long FLAGS
 .long CHECKSUM
 
+.section .data
 .global idt
 idt:
 	.rept 512
@@ -116,7 +117,26 @@ _start:
 	hlt
 	jmp .Lhang
 
-#define ISR(num) \
-.global isr ## num
-isr ## num:
+.global isr
+.type isr, @function
+isr:
+	cld
+	call i386_isr
+	addl $4, %esp
+	popl %ecx
+	cmpl $31, %ecx
+	jg 0f
+	movl $0x00000000, %eax
+	bt %eax, %ecx
+	jae 0f
 
+	# We have an error code - pop it
+	popa
+	addl $4, %esp
+	iret
+0:
+	# No error code, just return
+	popa
+	iret
+
+#include "isr.inc"

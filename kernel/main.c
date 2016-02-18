@@ -29,12 +29,14 @@ void kernel_main() {
 	/* Initialize console interface */
 	arch_init();
 
+#if 0
 	if (0 == setjmp(jb)) {
 		kernel_printk("Hello, kernel World 1!\n");
 		do_throw();
 	} else {
 		kernel_printk("Hello, kernel World 2!\n");
 	}
+#endif
 
-	pci_scan();
+	arch_idle();
 }
