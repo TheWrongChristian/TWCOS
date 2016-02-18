@@ -19,7 +19,10 @@
 .section .data
 .global idt
 idt:
-	.rept 512
+	.rept 256
+	.word 0
+	.word 0
+	.word 0
 	.word 0
 	.endr
 

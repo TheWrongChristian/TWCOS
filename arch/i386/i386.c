@@ -155,7 +155,7 @@ void i386_init()
 	int i;
 
 	/* Default trap gates for all */
-	for(i=0;isr_labels[i]; i++) {
+	for(i=0;i<sizeof(idt)/sizeof(idt[0]); i++) {
 		i386_set_idt(i, isr_labels[i], 0x8f00);
 	}
 
@@ -180,7 +180,7 @@ void arch_idle()
 
 void i386_isr(uint32_t num, uint32_t * state)
 {
-	kernel_printk("ISR %s\n", num);
+	kernel_printk("ISR %d\n", num);
 	cli();
 	hlt();
 }
