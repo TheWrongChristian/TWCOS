@@ -129,7 +129,9 @@ isr:
 	popl %ecx
 	cmpl $31, %ecx
 	jg 0f
-	movl $0x00000000, %eax
+	# Bit map of exceptions with error codes
+	# 00010000100111110100000000b = 0x109F40
+	movl $0x109F40, %eax
 	bt %eax, %ecx
 	jae 0f
 
