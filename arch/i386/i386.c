@@ -79,6 +79,10 @@ void * isr_labels[] = {
 #include "isr_labels.h"
 };
 
+enum regs { ISR_REG_EDI, ISR_REG_ESI, ISR_REG_EBP, ISR_REG_ESP, ISR_REG_EBX, ISR_REG_EDX, ISR_REG_ECX, ISR_REG_EAX };
+typedef void (*isr_t)(uint32_t i, uint32_t * state);
+
+
 void i386_set_idt( int i, void * p, uint16_t flags )
 {
 	uint32_t d = (uint32_t)p;
@@ -98,6 +102,8 @@ void i386_set_idt( int i, void * p, uint16_t flags )
 #define PIC2_COMMAND    PIC2
 #define PIC2_DATA       (PIC2+1)
 #define PIC_EOI		0x20
+
+#define PIC_IRQ_BASE	0x20
 
  
 #define ICW1_ICW4	0x01		/* ICW4 (not) needed */
@@ -159,6 +165,137 @@ static void PIC_remap(int offset1, int offset2)
 	outb(PIC2_DATA, a2);
 }
 
+static void i386_de(uint32_t num, uint32_t * state)
+{
+}
+
+static void i386_db(uint32_t num, uint32_t * state)
+{
+}
+
+static void i386_nmi(uint32_t num, uint32_t * state)
+{
+}
+
+static void i386_bp(uint32_t num, uint32_t * state)
+{
+}
+
+static void i386_of(uint32_t num, uint32_t * state)
+{
+}
+
+static void i386_br(uint32_t num, uint32_t * state)
+{
+}
+
+static void i386_ud(uint32_t num, uint32_t * state)
+{
+}
+
+static void i386_nm(uint32_t num, uint32_t * state)
+{
+}
+
+static void i386_df(uint32_t num, uint32_t * state)
+{
+}
+
+static void i386_ts(uint32_t num, uint32_t * state)
+{
+}
+
+static void i386_np(uint32_t num, uint32_t * state)
+{
+}
+
+static void i386_ss(uint32_t num, uint32_t * state)
+{
+}
+
+static void i386_gp(uint32_t num, uint32_t * state)
+{
+}
+
+static void i386_pf(uint32_t num, uint32_t * state)
+{
+}
+
+static void i386_mf(uint32_t num, uint32_t * state)
+{
+}
+
+static void i386_ac(uint32_t num, uint32_t * state)
+{
+}
+
+static void i386_mc(uint32_t num, uint32_t * state)
+{
+}
+
+static void i386_xm(uint32_t num, uint32_t * state)
+{
+}
+
+static void i386_ve(uint32_t num, uint32_t * state)
+{
+}
+
+static void i386_sx(uint32_t num, uint32_t * state)
+{
+}
+
+static uint32_t irq_flag = 0;
+static void i386_irq(uint32_t num, uint32_t * state)
+{
+	int irq = num - PIC_IRQ_BASE;
+
+	irq_flag |= (1 << irq);
+
+	PIC_eoi(irq);
+}
+
+static int wait_irq()
+{
+	int mask = 1;
+	int irq = 0;
+
+	while(0 == irq_flag) {
+		hlt();
+	}
+
+	for(; irq<16; irq++) {
+		if (irq_flag && mask) {
+			cli();
+			irq_flag &= ~mask;
+			sti();
+			return irq;
+		}
+		mask <<= 1;
+	}
+	return 0;
+}
+
+static isr_t itable[256] = {
+	i386_de, i386_db, i386_nmi, i386_bp,
+	i386_of, i386_br, i386_ud, i386_nm,
+
+	i386_df, 0, i386_ts, i386_np,
+	i386_ss, i386_gp, i386_pf, 0,
+
+	i386_mf, i386_ac, i386_mc, i386_xm,
+	i386_ve, 0, 0, 0,
+
+	0, 0, 0, 0,
+	0, 0, i386_sx, 0,
+
+	i386_irq, i386_irq, i386_irq, i386_irq,
+	i386_irq, i386_irq, i386_irq, i386_irq,
+
+	i386_irq, i386_irq, i386_irq, i386_irq,
+	i386_irq, i386_irq, i386_irq, i386_irq
+};
+
 void i386_init()
 {
 	int i;
@@ -169,13 +306,15 @@ void i386_init()
 	}
 
 	/* Configure interrupt gates for irqs */
-	for(i=32;i<48; i++) {
+	for(i=PIC_IRQ_BASE;i<PIC_IRQ_BASE+16; i++) {
 		i386_set_idt(i, isr_labels[i], 0x8e00);
 	}
 
+	/* Configure the sensible interrupt table */
+
 	lidt(idt,sizeof(idt));
 
-	PIC_remap(32, 40);
+	PIC_remap(PIC_IRQ_BASE, PIC_IRQ_BASE+16);
 
 	sti();
 }
@@ -183,23 +322,19 @@ void i386_init()
 void arch_idle()
 {
 	while(1) {
-		hlt();
+		int irq = wait_irq();
+		kernel_printk("IRQ %d\n", irq);
 	}
 }
 
-int i386_isr(uint32_t num, uint32_t * state)
+static void unhandled_isr(uint32_t num, uint32_t * state)
 {
-	int errorcode = 0;
+	kernel_printk("UNHANDLED ISR %d\n", num);
+}
 
-	if (num<32) {
-		kernel_printk("ISR %d\n", num);
-	} else if (num<48) {
-		int irq = num - 32;
-		kernel_printk("IRQ %d\n", irq);
-		PIC_eoi(irq);
-	} else {
-		kernel_printk("ISR %d\n", num);
-	}
+void i386_isr(uint32_t num, uint32_t * state)
+{
+	isr_t isr = itable[num] ? itable[num] : unhandled_isr;
 
-	return errorcode;
+	isr(num, state);
 }
