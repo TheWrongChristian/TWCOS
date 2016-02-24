@@ -101,12 +101,26 @@ static void console_cursor(int row, int col)
 }
  
 void console_putchar_nocursor(char c) {
-	if ('\n' == c) {
-		console_column = 0;
+	switch(c) {
+	case '\n':
 		if (++console_row == VGA_HEIGHT) {
 			console_scroll();
 		}
-	} else {
+		/* Fall through */
+	case '\r':
+		console_column = 0;
+		break;
+	case '\b':
+		console_column -= 1;
+		if (console_column<0) {
+			console_column = 0;
+		}
+		break;
+	case '\t':
+		console_column += 8;
+		console_column &= ~7;
+		break;
+	default:
 		console_putentryat(c, console_color, console_column, console_row);
 		if (++console_column == VGA_WIDTH) {
 			console_column = 0;
