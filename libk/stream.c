@@ -101,6 +101,9 @@ int stream_vprintf(struct stream * stream, const char * fmt, va_list ap)
 			case '%':
 				stream_putc(stream, '%');
 				break;
+			case 'c':
+				stream_putc(stream, va_arg(ap, int));
+				break;
 			case 'd':
 			case 'i':
 				stream_putint(stream, 10, va_arg(ap, int));

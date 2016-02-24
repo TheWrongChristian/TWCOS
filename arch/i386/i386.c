@@ -257,7 +257,6 @@ static void i386_irq(uint32_t num, uint32_t * state)
 
 static int wait_irq()
 {
-	int mask = 1;
 	int irq = 0;
 
 	while(0 == irq_flag) {
@@ -265,14 +264,15 @@ static int wait_irq()
 	}
 
 	for(; irq<16; irq++) {
+		int mask = 1<<irq;
 		if (irq_flag && mask) {
 			cli();
 			irq_flag &= ~mask;
 			sti();
 			return irq;
 		}
-		mask <<= 1;
 	}
+
 	return 0;
 }
 
@@ -321,9 +321,12 @@ void i386_init()
 
 void arch_idle()
 {
+	int i = 0;
+	static char wheel[] = {'|', '/', '-', '\\' };
 	while(1) {
 		int irq = wait_irq();
-		kernel_printk("IRQ %d\n", irq);
+		kernel_printk("%c\r", wheel[i]);
+		i=(i+1)&3;
 	}
 }
 
