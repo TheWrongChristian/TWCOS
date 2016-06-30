@@ -100,7 +100,10 @@ static void console_cursor(int row, int col)
 	outb(0x3D5, (unsigned char )((position>>8)&0xFF));
 }
  
-void console_putchar_nocursor(char c) {
+void console_putchar_nocursor(char c)
+{
+	int i;
+
 	switch(c) {
 	case '\n':
 		if (++console_row == VGA_HEIGHT) {
@@ -117,8 +120,21 @@ void console_putchar_nocursor(char c) {
 		}
 		break;
 	case '\t':
+		i = console_column;
 		console_column += 8;
 		console_column &= ~7;
+		if (console_column>=VGA_WIDTH) {
+			i=0;
+			console_column -= VGA_WIDTH;
+			if (++console_row == VGA_HEIGHT) {
+				console_scroll();
+			}
+		}
+
+		for(;i<console_column; i++) {
+			console_putentryat(' ', console_color, console_column, console_row);
+		}
+
 		break;
 	default:
 		console_putentryat(c, console_color, console_column, console_row);

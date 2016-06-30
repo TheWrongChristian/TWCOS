@@ -325,8 +325,16 @@ void arch_idle()
 	static char wheel[] = {'|', '/', '-', '\\' };
 	while(1) {
 		int irq = wait_irq();
-		kernel_printk("%c\r", wheel[i]);
-		i=(i+1)&3;
+
+		switch(irq) {
+		case 0:
+			kernel_printk("%c\r", wheel[i]);
+			i=(i+1)&3;
+			break;
+		case 1:
+			kernel_printk("\n");
+			break;
+		}
 	}
 }
 

@@ -47,7 +47,7 @@ void arch_init()
 		multiboot_memory_map_t * mmap = multiboot_mmap(i);
 
 		if (mmap) {
-			kernel_printk("Map %d - 0x%x (%d) %s\n", i, (int)mmap->addr, (int)mmap->len, mem_type(mmap->type) );
+			kernel_printk("Map %d -\t0x%x\t(%d)\t%s\n", i, (int)mmap->addr, (int)mmap->len, mem_type(mmap->type) );
 			if (MULTIBOOT_MEMORY_AVAILABLE == mmap->type) {
 				/*
 				 * Add the memory to the pool of available
