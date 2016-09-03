@@ -50,8 +50,49 @@ static size_t console_row;
 static size_t console_column;
 static uint8_t console_color;
 static uint16_t* console_buffer;
- 
+
+static uint8_t keyq [256];
+#define keyq_ptr(i) ((i)%sizeof(keyq))
+static int keyhead;
+static int keytail;
+
+
+/*
+ * Called in interrupt context
+ */
+static void keyb_isr()
+{
+	uint8_t scancode = inb(0x60);
+	int head = keyhead;
+
+	if (keyq_ptr(head+1) != keyq_ptr(keytail)) {
+		keyq[keyq_ptr(head++)] = scancode;
+	}
+	keyhead = head;
+}
+
+
+int keyq_empty()
+{
+	return (keyhead == keytail);
+}
+
+uint8_t keyq_get()
+{
+	uint8_t scancode = 0;
+
+	cli();
+	if (keyq_ptr(keyhead) != keyq_ptr(keytail)) {
+		scancode = keyq[keyq_ptr(keytail++)];
+	}
+	sti();
+
+	return scancode;
+}
+
 void console_initialize() {
+	add_irq(1, keyb_isr);
+	keyhead = keytail = 0;
 	console_row = 0;
 	console_column = 0;
 	console_color = make_color(COLOR_LIGHT_GREY, COLOR_BLACK);
@@ -195,4 +236,3 @@ struct stream * console_stream()
 
         return &sconsole;
 }
-
