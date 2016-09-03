@@ -1,6 +1,7 @@
 #include <stdint.h>
 
 #include "i386.h"
+#include "console.h"
 
 /* Basic port I/O */
 void outb(uint16_t port, uint8_t v)
@@ -245,6 +246,15 @@ static void i386_sx(uint32_t num, uint32_t * state)
 {
 }
 
+#if INTERFACE
+typedef void (*irq_func)();
+#endif
+static irq_func irq_table[] =  {
+	0, 0, 0, 0,
+	0, 0, 0, 0,
+	0, 0, 0, 0,
+	0, 0, 0, 0 };
+
 static uint32_t irq_flag = 0;
 static void i386_irq(uint32_t num, uint32_t * state)
 {
@@ -252,7 +262,18 @@ static void i386_irq(uint32_t num, uint32_t * state)
 
 	irq_flag |= (1 << irq);
 
+	if (irq_table[irq]) {
+		irq_table[irq]();
+	}
+
 	PIC_eoi(irq);
+}
+
+irq_func add_irq(int irq, irq_func handler)
+{
+	irq_func old = irq_table[irq];
+	irq_table[irq] = handler;
+	return old;
 }
 
 static int wait_irq()
@@ -265,7 +286,7 @@ static int wait_irq()
 
 	for(; irq<16; irq++) {
 		int mask = 1<<irq;
-		if (irq_flag && mask) {
+		if (irq_flag & mask) {
 			cli();
 			irq_flag &= ~mask;
 			sti();
@@ -331,9 +352,13 @@ void arch_idle()
 			kernel_printk("%c\r", wheel[i]);
 			i=(i+1)&3;
 			break;
-		case 1:
-			kernel_printk("\n");
+		default:
+			kernel_printk("%d\n", irq);
 			break;
+		}
+		uint8_t scancode = keyq_get();
+		if (scancode) {
+			kernel_printk("%x\n", scancode);
 		}
 	}
 }
