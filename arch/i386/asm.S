@@ -31,9 +31,15 @@ idt:
 // room for a small temporary stack by creating a symbol at the bottom of it,
 // then allocating 16384 bytes for it, and finally creating a symbol at the top.
 .section .bootstrap_stack, "aw", @nobits
+bootstrap_stack_bottom:
+.skip 4096 # 16 KiB
+bootstrap_stack_top:
+
+.section .data, "aw", @nobits
 stack_bottom:
-.skip 16384 # 16 KiB
+.skip 4096 # 16 KiB
 stack_top:
+
 
 // Bootstrap page table
 .section .bootstrap_pgtbl, "aw", @nobits
@@ -80,7 +86,7 @@ _start:
 
 	# To set up a stack, we simply set the esp register to point to the top of
 	# our stack (as it grows downwards).
-	movl $stack_top, %esp
+	movl $bootstrap_stack_top, %esp
 
 	# We are now ready to actually execute C code.
 	# Save multiboot info for later use
@@ -105,6 +111,7 @@ _start:
 
 .section .text
 .highmem:
+	movl $stack_top, %esp
 
 	# We'll create a C entry point called kernel_main and call it here.
 	call kernel_main
@@ -143,5 +150,12 @@ isr:
 	# No error code, just return
 	popa
 	iret
+
+.global lcs
+.type isr, @function
+lcs:
+	ljmp $0x8, $1f
+1:
+	ret
 
 #include "isr.inc"

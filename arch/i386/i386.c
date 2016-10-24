@@ -1,4 +1,5 @@
 #include <stdint.h>
+#include <stdarg.h>
 
 #include "i386.h"
 #include "console.h"
@@ -52,6 +53,29 @@ static void lidt(void* base, uint16_t size)
     asm ( "lidt %0" : : "m"(IDTR) );  // let the compiler choose an addressing mode
 }
 
+extern void lcs();
+
+static void lgdt(void * base, uint16_t size)
+{
+    struct {
+        uint16_t length;
+        void*    base;
+    } __attribute__((packed)) GDTR = { size, base };
+ 
+    asm ( "lgdt %0" : : "m"(GDTR) );  // let the compiler choose an addressing mode
+	lcs();
+	asm volatile("movw %0, %%ds" : : "a"(0x10));
+	asm volatile("movw %0, %%es" : : "a"(0x10));
+	asm volatile("movw %0, %%fs" : : "a"(0x10));
+	asm volatile("movw %0, %%gs" : : "a"(0x10));
+	asm volatile("movw %0, %%ss" : : "a"(0x10));
+}
+
+static void ltr(uint16_t offset)
+{
+	asm volatile("ltr %0" : : "a"(offset));
+}
+
 void sti()
 {
 	asm volatile("sti");
@@ -65,6 +89,13 @@ void cli()
 void hlt()
 {
 	asm volatile("hlt");
+}
+
+void hang()
+{
+	while(1) {
+		hlt();
+	}
 }
 
 void invlpg(void* m)
@@ -91,6 +122,47 @@ void i386_set_idt( int i, void * p, uint16_t flags )
 	idt[i][1] = 0x8;
 	idt[i][2] = flags;
 	idt[i][3] = d >> 16;
+}
+
+#define GDT_RW 0x00000200
+#define GDT_EX 0x00000800
+#define GDT_P  0x00008000
+#define GDT_G  0x00800000
+#define GDT_Sz 0x00400000
+#define GDT_R3 0x00006000
+
+static uint8_t gdt[][8] = {
+	{ 0 },
+	{ 0 },
+	{ 0 },
+	{ 0 },
+	{ 0 },
+	{ 0 },
+};
+
+static uint32_t tss[104] = { 0 };
+
+static void encodeGdtEntry( uint8_t * entry, void * pbase, uint32_t size, uint8_t type )
+{
+	uint32_t base = (uint32_t)pbase;
+
+	if (size>0xffff) {
+		size >>= 12;
+		entry[6] = 0xc0;
+	} else {
+		entry[6] = 0x40;
+	}
+
+	entry[0] = size & 0xff;
+	entry[1] = (size>>8) & 0xff;
+	entry[6] |= (size>>16) & 0xf;
+
+	entry[2] = (base) & 0xff;
+	entry[3] = (base >> 8) & 0xff;
+	entry[4] = (base >> 16) & 0xff;
+	entry[7] = (base >> 24) & 0xff;
+
+	entry[5] = type;
 }
 
 /* reinitialize the PIC controllers, giving them specified vector offsets
@@ -164,6 +236,11 @@ static void PIC_remap(int offset1, int offset2)
  
 	outb(PIC1_DATA, a1);   // restore saved masks.
 	outb(PIC2_DATA, a2);
+}
+
+static void i386_unhandled(uint32_t num, uint32_t * state)
+{
+	kernel_panic("Unhandled exception: %d\n", num);
 }
 
 static void i386_de(uint32_t num, uint32_t * state)
@@ -284,6 +361,7 @@ static int wait_irq()
 		hlt();
 	}
 
+	kernel_printk("  Got interrupt\r");
 	for(; irq<16; irq++) {
 		int mask = 1<<irq;
 		if (irq_flag & mask) {
@@ -297,6 +375,26 @@ static int wait_irq()
 	return 0;
 }
 
+static isr_t itable[256] = {
+	i386_unhandled, i386_unhandled, i386_unhandled, i386_unhandled,
+	i386_unhandled, i386_unhandled, i386_unhandled, i386_unhandled,
+
+	i386_unhandled, 0, i386_unhandled, i386_unhandled,
+	i386_unhandled, i386_unhandled, i386_unhandled, 0,
+
+	i386_unhandled, i386_unhandled, i386_unhandled, i386_unhandled,
+	i386_unhandled, 0, 0, 0,
+
+	0, 0, 0, 0,
+	0, 0, i386_unhandled, 0,
+
+	i386_irq, i386_irq, i386_irq, i386_irq,
+	i386_irq, i386_irq, i386_irq, i386_irq,
+
+	i386_irq, i386_irq, i386_irq, i386_irq,
+	i386_irq, i386_irq, i386_irq, i386_irq
+};
+#if 0
 static isr_t itable[256] = {
 	i386_de, i386_db, i386_nmi, i386_bp,
 	i386_of, i386_br, i386_ud, i386_nm,
@@ -316,10 +414,20 @@ static isr_t itable[256] = {
 	i386_irq, i386_irq, i386_irq, i386_irq,
 	i386_irq, i386_irq, i386_irq, i386_irq
 };
+#endif
 
 void i386_init()
 {
 	int i;
+
+	encodeGdtEntry(gdt[0], 0, 0, 0);
+	encodeGdtEntry(gdt[1], 0, 0xffffffff, 0x9a);
+	encodeGdtEntry(gdt[2], 0, 0xffffffff, 0x92);
+	encodeGdtEntry(gdt[3], 0, 0xffffffff, 0x9a | 0x60);
+	encodeGdtEntry(gdt[4], 0, 0xffffffff, 0x92 | 0x60);
+	encodeGdtEntry(gdt[5], tss, sizeof(tss), 0x89);
+	lgdt(gdt, sizeof(gdt));
+	ltr(0x28);
 
 	/* Default trap gates for all */
 	for(i=0;i<sizeof(idt)/sizeof(idt[0]); i++) {
@@ -360,6 +468,16 @@ void arch_idle()
 		if (scancode) {
 			kernel_printk("%x\n", scancode);
 		}
+	}
+	kernel_panic("idle finished");
+}
+
+void arch_panic(const char * fmt, va_list ap)
+{
+	cli();
+	kernel_vprintk(fmt, ap);
+	while(1) {
+		hlt();
 	}
 }
 

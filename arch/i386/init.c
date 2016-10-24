@@ -1,3 +1,6 @@
+#include <stddef.h>
+#include <stdint.h>
+
 #include <libk/libk.h>
 #include "init.h"
 #include <kernel/kernel.h>
@@ -32,18 +35,36 @@ static char * mem_type(int type)
 	return "Unknown";
 }
 
-extern char _bootstrap_end[1];
-static char * nextalloc;
+extern char _bootstrap_start;
+extern char _bootstrap_end;
+extern char _bootstrap_nextalloc;
+static char * nextalloc = &_bootstrap_nextalloc;
 
-void arch_bootstrap_nextalloc(char * p)
+#define ALIGNMENT 16
+
+void * bootstrap_alloc(size_t size)
 {
-	nextalloc = p - 0xc0000000;
+        void * m = (void*)nextalloc;
+        size += (ALIGNMENT-1);
+        size &= (~(ALIGNMENT-1));
+        nextalloc += size;
+
+        return m;
+}
+
+void bootstrap_finish()
+{
+
 }
 
 void arch_init()
 {
-	int i = 0;
-	for(;;i++) {
+	int i;
+	ptrdiff_t koffset = &_bootstrap_nextalloc - &_bootstrap_end;
+	page_t pstart;
+	page_t pend;
+
+	for(i=0;;i++) {
 		multiboot_memory_map_t * mmap = multiboot_mmap(i);
 
 		if (mmap) {
@@ -62,9 +83,35 @@ void arch_init()
 			break;
 		}
 	}
+
+	pstart = ((uint32_t)&_bootstrap_start)>>12;
+	pend = ((uint32_t)(nextalloc-koffset))>>12;
+	for(i=0;;i++) {
+		multiboot_memory_map_t * mmap = multiboot_mmap(i);
+
+		if (mmap) {
+			if (MULTIBOOT_MEMORY_AVAILABLE == mmap->type) {
+				/*
+				 * Add the memory to the pool of available
+				 * memory.
+				 */
+				uint32_t page = mmap->addr >> 12;
+				uint32_t count = mmap->len >> 12;
+				int i;
+
+				for(i=0; i<count; i++, page++) {
+					if (page<pstart || page > pend) {
+						page_free(page);
+					}
+				}
+			}
+		} else {
+			break;
+		}
+	}
 	i386_init();
 	pci_scan();
-	kernel_printk("Bootstrap end - 0x%p\n", _bootstrap_end);
+	kernel_printk("Bootstrap end - 0x%p\n", &_bootstrap_end);
 }
 
 #if INTERFACE
