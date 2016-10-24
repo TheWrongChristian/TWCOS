@@ -26,10 +26,9 @@ clean::
 	rm -rf lib/*
 
 gdb: all
-	qemu-system-i386 -s -S -kernel kernel/kernel &
 	echo target remote localhost:1234 | tee .gdbinit
 	echo symbol-file kernel/kernel | tee -a .gdbinit
-	gdbtui
+	qemu-system-i386 -m 16 -s -S -kernel kernel/kernel & gdbtui
 
 includes::
 	$(MAKEHEADERS) `find . -name \*.c`

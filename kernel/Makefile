@@ -1,6 +1,6 @@
 include ../build/tools.mk
 
-SRCS_C=main.c core.c pci.c printk.c
+SRCS_C=main.c core.c pci.c printk.c panic.c
 
 all:: kernel
 
@@ -9,7 +9,7 @@ kernel: $(OBJS)
 	$(CC) -T linker.ld -o kernel -ffreestanding -O2 -nostdlib $(OBJS) -L$(TOP)/lib -larch -lk -lgcc
 
 kernel.h:
-	$(MAKEHEADERS) -h $(SRCS_C) $(TOP)/arch/$(ARCH)/arch/arch.h > kernel.h
+	$(MAKEHEADERS) -h $(SRCS_C) $(TOP)/arch/$(ARCH)/include/arch/arch.h > kernel.h
 
 clean::
 	rm -rf isodir
