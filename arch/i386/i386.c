@@ -324,6 +324,7 @@ static void i386_sx(uint32_t num, uint32_t * state)
 }
 
 #if INTERFACE
+#include <stdarg.h>
 typedef void (*irq_func)();
 #endif
 static irq_func irq_table[] =  {
