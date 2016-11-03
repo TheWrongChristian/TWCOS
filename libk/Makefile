@@ -1,6 +1,6 @@
 include ../build/tools.mk
 
-SRCS_C=stream.c
+SRCS_C=stream.c exception.c slab.c
 HDRS=$(SRCS_C:.c=.h)
 
 all:: libk.a libk.h
