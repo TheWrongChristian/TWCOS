@@ -9,6 +9,8 @@ typedef struct {
 	char * data;
 } slab_t;
 
+#endif
+
 slab_t slab_create(size_t esize)
 {
 	
