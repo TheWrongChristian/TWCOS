@@ -30,12 +30,23 @@ struct exception_frame {
 	/* Exception cause if thrown */
 	struct exception_cause * cause;
 };
+#if 0
+extern struct exception_def exception_def_Throwable;
+extern struct exception_def exception_def_Exception;
+extern struct exception_def exception_def_Error;
+#endif
 
 /*
  * Top level exception from which all others are derived
  */
-static struct exception_def exception_def_Throwable = { "Throwable", 0 };
 
-#define EXCEPTION_DEF(type,parent) static struct exception_def exception_def_ ## type = { #type, &ctk_exception_def_ ## parent }
+#define EXCEPTION_DEF(type,parent) static struct exception_def exception_def_ ## type = { #type, &exception_def_ ## parent }
+#if 0
+EXCEPTION_DEF(Exception, Throwable);
+EXCEPTION_DEF(Error, Throwable);
+#endif
 
 #endif
+struct exception_def exception_def_Throwable = { "Throwable", 0 };
+struct exception_def exception_def_Exception = { "Exception", &exception_def_Throwable };
+struct exception_def exception_def_Error = { "Error", &exception_def_Throwable };
