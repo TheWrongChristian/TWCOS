@@ -82,7 +82,7 @@ void * slab_alloc(slab_type_t * stype)
 				if (a & 0x33333333) slot += 2;
 				if (a & 0x55555555) slot += 1;
 
-				slab->available[i] &= ~(0x80000000 >> slot);
+				slab->available[i] &= ~(0x80000000 >> (slot-1));
 
 				return (char*)(slab+1) + slab->esize*slot;
 			}
@@ -113,7 +113,14 @@ void slab_free(void * p)
 void slab_test()
 {
 	slab_type_t t;
+	slab_type_t * t2;
+	void * p;
 
 	slab_type_create(&t, sizeof(t));
-	slab_free(slab_alloc(&t));
+	t2 = slab_alloc(&t);
+	slab_type_create(t2, 1270);
+	p = slab_alloc(t2);
+
+	slab_free(p);
+	slab_free(t2);
 }
