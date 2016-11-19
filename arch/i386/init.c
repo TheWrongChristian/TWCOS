@@ -2,8 +2,10 @@
 #include <stdint.h>
 
 #include <libk/libk.h>
-#include "init.h"
+#if 0
 #include <kernel/kernel.h>
+#endif
+#include "init.h"
 
 
 extern uint32_t pg_dir[1024];
@@ -52,9 +54,17 @@ void * bootstrap_alloc(size_t size)
         return m;
 }
 
-void bootstrap_finish()
+static void bootstrap_finish()
 {
+	nextalloc += ARCH_PAGE_SIZE;
+	nextalloc = (char*)((uint32_t)nextalloc & ~(ARCH_PAGE_SIZE-1));
+}
 
+void * arch_heap_page()
+{
+	void * p = nextalloc;
+	nextalloc += ARCH_PAGE_SIZE;
+	return p;
 }
 
 void arch_init()
@@ -111,7 +121,8 @@ void arch_init()
 	}
 	i386_init();
 	pci_scan();
-	kernel_printk("Bootstrap end - 0x%p\n", &_bootstrap_end);
+	bootstrap_finish();
+	kernel_printk("Bootstrap end - 0x%p\n", nextalloc);
 }
 
 #if INTERFACE

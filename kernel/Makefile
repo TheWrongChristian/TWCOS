@@ -6,7 +6,7 @@ all:: kernel
 
 .PHONY: kernel
 kernel: $(OBJS)
-	$(CC) -T linker.ld -o kernel -ffreestanding -O2 -nostdlib $(OBJS) -L$(TOP)/lib -larch -lk -lgcc
+	$(CC) -T linker.ld -o kernel -ffreestanding -O2 -nostdlib $(OBJS) -L$(TOP)/lib -lk -larch -lgcc
 
 kernel.h:
 	$(MAKEHEADERS) -h $(SRCS_C) $(TOP)/arch/$(ARCH)/include/arch/arch.h > kernel.h
