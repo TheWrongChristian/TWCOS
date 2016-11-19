@@ -327,6 +327,7 @@ static void i386_sx(uint32_t num, uint32_t * state)
 #include <stdarg.h>
 typedef void (*irq_func)();
 #define ARCH_PAGE_SIZE (1<<12)
+#define ARCH_PAGE_ALIGN(p) ((void*)((uint32_t)p & (0xffffffff << 12)))
 #endif
 static irq_func irq_table[] =  {
 	0, 0, 0, 0,
