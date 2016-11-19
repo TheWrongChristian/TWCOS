@@ -83,9 +83,3 @@ page_t page_alloc()
 	/* FIXME: Out of memory panic or exception */
 	return 0;
 }
-
-#if INTERFACE
-
-#define page_to_ptr(page) (void*)((long)page * ARCH_PAGE_SIZE)
-
-#endif
