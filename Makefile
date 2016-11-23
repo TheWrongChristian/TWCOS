@@ -2,19 +2,29 @@ TOP=$(CURDIR)
 
 ARCH=i386
 
-SUBDIRS=build arch/$(ARCH) libk kernel
+all::
 
+OBJS=$(SRCS_S:.S=.o) $(SRCS_C:.c=.o)
+SRCS_C :=
+SRCS_S :=
+
+subdir := build
+include $(subdir)/subdir.mk
+subdir := arch/$(ARCH)
+include $(subdir)/subdir.mk
+subdir := libk
+include $(subdir)/subdir.mk
+subdir := kernel
+include $(subdir)/subdir.mk
 
 include $(TOP)/build/tools.mk
 
 all:: lib boot.iso
 
-lib:
-	mkdir -p lib
+obj:
+	mkdir -p obj
 
 .PHONY: kernel
-kernel: build arch/$(ARCH) libk
-
 boot.iso: grub.cfg kernel
 	mkdir -p isodir/boot/grub
 	cp kernel/kernel isodir/boot/kernel
@@ -32,3 +42,5 @@ gdb: all
 
 includes::
 	$(MAKEHEADERS) `find . -name \*.c`
+
+-include $(OBJS:.o=.d)
