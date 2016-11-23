@@ -17,32 +17,10 @@ CFLAGS=$(COPTS) -std=gnu99 -ffreestanding -Wall -I$(TOP)/arch/$(ARCH)/include -I
 
 OBJS=$(SRCS_S:.S=.o) $(SRCS_C:.c=.o)
 
+%.d: %.c
+	$(CC) $(COPTS) $(CFLAGS) -M -MF $@ -MT $(@:.d=.o) $<
+
+%.d: %.S
+	$(CC) $(COPTS) $(CFLAGS) -M -MF $@ -MT $(@:.d=.o) $<
+
 .PHONY: clean
-
-.PHONY: all clean includes
-ifdef SUBDIRS
-
-all::
-	for d in $(SUBDIRS); \
-	do \
-		$(MAKE) -C $$d TOP=$(TOP) all; \
-	done
-
-includes::
-	for d in $(SUBDIRS); \
-	do \
-		$(MAKE) -C $$d TOP=$(TOP) includes; \
-	done
-
-clean::
-	for d in $(SUBDIRS); \
-	do \
-		$(MAKE) -C $$d TOP=$(TOP) clean; \
-	done
-else
-all::
-
-includes::
-
-clean::
-endif
