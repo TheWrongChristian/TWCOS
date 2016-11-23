@@ -16,16 +16,15 @@ subdir := libk
 include $(subdir)/subdir.mk
 subdir := kernel
 include $(subdir)/subdir.mk
+subdir := build
+include $(subdir)/tools.mk
 
-include $(TOP)/build/tools.mk
-
-all:: lib boot.iso
+all:: boot.iso
 
 obj:
 	mkdir -p obj
 
-.PHONY: kernel
-boot.iso: grub.cfg kernel
+boot.iso: grub.cfg kernel/kernel
 	mkdir -p isodir/boot/grub
 	cp kernel/kernel isodir/boot/kernel
 	cp grub.cfg isodir/boot/grub/grub.cfg
@@ -33,7 +32,7 @@ boot.iso: grub.cfg kernel
 
 .PHONY: clean
 clean::
-	rm -rf lib/* $(OBJS)
+	rm -rf $(OBJS) $(SRCS_C:.c=.h)
 
 gdb: all
 	echo target remote localhost:1234 | tee .gdbinit
