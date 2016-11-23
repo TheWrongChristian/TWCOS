@@ -2,5 +2,7 @@ SRCS_C += $(subdir)/main.c  $(subdir)/core.c  $(subdir)/pci.c  $(subdir)/printk.
 
 kernel: $(subdir)/kernel
 
-$(subdir)/kernel: $(OBJS)
-	$(CC) -T $(subdir)/linker.ld -o $@ -ffreestanding -O2 -nostdlib $(OBJS) -lgcc
+LD_SCRIPT := $(subdir)/linker.ld
+
+$(subdir)/kernel: $(OBJS) $(LD_SCRIPT)
+	$(CC) -T $(LD_SCRIPT) -o $@ -ffreestanding -O2 -nostdlib $(OBJS) -lgcc
