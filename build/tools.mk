@@ -17,10 +17,10 @@ CFLAGS=$(COPTS) -std=gnu99 -ffreestanding -Wall -I$(TOP)/arch/$(ARCH)/include -I
 
 OBJS=$(SRCS_S:.S=.o) $(SRCS_C:.c=.o)
 
-%.d: %.c
-	$(CC) $(COPTS) $(CFLAGS) -M -MF $@ -MT $(@:.d=.o) $<
+%.d: %.c %.h
+	$(CC) $(COPTS) $(CFLAGS) -M -MF $@ -MT $(@:.d=.o) -MG $<
 
 %.d: %.S
-	$(CC) $(COPTS) $(CFLAGS) -M -MF $@ -MT $(@:.d=.o) $<
+	$(CC) $(COPTS) $(CFLAGS) -M -MF $@ -MT $(@:.d=.o) -MG $<
 
 .PHONY: clean

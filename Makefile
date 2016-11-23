@@ -32,7 +32,7 @@ boot.iso: grub.cfg kernel/kernel
 
 .PHONY: clean
 clean::
-	rm -rf $(OBJS) $(SRCS_C:.c=.h)
+	rm -rf $(OBJS) $(SRCS_C:.c=.h) boot.iso
 
 gdb: all
 	echo target remote localhost:1234 | tee .gdbinit
@@ -40,6 +40,10 @@ gdb: all
 	qemu-system-i386 -m 16 -s -S -kernel kernel/kernel & gdbtui
 
 includes::
-	$(MAKEHEADERS) `find . -name \*.c`
+	rm -f $(SRCS_C:.c=.h)
+	$(MAKEHEADERS) $(SRCS_C)
 
 -include $(OBJS:.o=.d)
+
+clean::
+	rm -f $(OBJS:.o=.d)
