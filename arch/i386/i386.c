@@ -65,11 +65,11 @@ static void lgdt(void * base, uint16_t size)
  
     asm ( "lgdt %0" : : "m"(GDTR) );  // let the compiler choose an addressing mode
 	lcs();
-	asm volatile("movw %0, %%ds" : : "a"(0x10));
-	asm volatile("movw %0, %%es" : : "a"(0x10));
-	asm volatile("movw %0, %%fs" : : "a"(0x10));
-	asm volatile("movw %0, %%gs" : : "a"(0x10));
-	asm volatile("movw %0, %%ss" : : "a"(0x10));
+	asm volatile("movw %0, %%ds" : : "a"((short)0x10));
+	asm volatile("movw %0, %%es" : : "a"((short)0x10));
+	asm volatile("movw %0, %%fs" : : "a"((short)0x10));
+	asm volatile("movw %0, %%gs" : : "a"((short)0x10));
+	asm volatile("movw %0, %%ss" : : "a"((short)0x10));
 }
 
 static void ltr(uint16_t offset)

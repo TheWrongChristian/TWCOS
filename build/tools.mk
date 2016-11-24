@@ -19,7 +19,6 @@ OBJS=$(SRCS_S:.S=.o) $(SRCS_C:.c=.o)
 
 %.d: %.c %.h
 	$(CC) $(COPTS) $(CFLAGS) -M -MF $@ -MT $(@:.d=.o) -MG $<
-
 %.d: %.S
 	$(CC) $(COPTS) $(CFLAGS) -M -MF $@ -MT $(@:.d=.o) -MG $<
 
