@@ -83,3 +83,12 @@ page_t page_alloc()
 	/* FIXME: Out of memory panic or exception */
 	return 0;
 }
+
+void * page_valloc()
+{
+	page_t page = page_alloc();
+	void * p = arch_heap_page();
+	vmap_map(0, p, page, 1, 0);
+
+	return p;
+}

@@ -2,6 +2,7 @@
 #include <stdarg.h>
 
 #include "i386.h"
+#include "vmap.h"
 #include "console.h"
 
 /* Basic port I/O */
@@ -76,6 +77,11 @@ static void ltr(uint16_t offset)
 	asm volatile("ltr %0" : : "a"(offset));
 }
 
+void set_page_dir(page_t pgdir)
+{
+	asm volatile("movl %0, %%cr3" : : "a"(pgdir << ARCH_PAGE_SIZE_LOG2));
+}
+
 void sti()
 {
 	asm volatile("sti");
@@ -111,7 +117,7 @@ void * isr_labels[] = {
 #include "isr_labels.h"
 };
 
-enum regs { ISR_REG_EDI, ISR_REG_ESI, ISR_REG_EBP, ISR_REG_ESP, ISR_REG_EBX, ISR_REG_EDX, ISR_REG_ECX, ISR_REG_EAX };
+enum regs { ISR_REG_EDI, ISR_REG_ESI, ISR_REG_EBP, ISR_REG_ESP, ISR_REG_EBX, ISR_REG_EDX, ISR_REG_ECX, ISR_REG_EAX, ISR_REG_DS, ISR_ERRORCODE };
 typedef void (*isr_t)(uint32_t i, uint32_t * state);
 
 
@@ -297,6 +303,10 @@ static void i386_gp(uint32_t num, uint32_t * state)
 
 static void i386_pf(uint32_t num, uint32_t * state)
 {
+	void * cr2;
+
+	asm volatile("movl %%cr2, %0" : "=r"(cr2));
+	vmap_fault(cr2, state[ISR_ERRORCODE] & 0x2, state[ISR_ERRORCODE] & 0x4);
 }
 
 static void i386_mf(uint32_t num, uint32_t * state)
@@ -326,8 +336,7 @@ static void i386_sx(uint32_t num, uint32_t * state)
 #if INTERFACE
 #include <stdarg.h>
 typedef void (*irq_func)();
-#define ARCH_PAGE_SIZE (1<<12)
-#define ARCH_PAGE_ALIGN(p) ((void*)((uint32_t)p & (0xffffffff << 12)))
+#define ARCH_PAGE_ALIGN(p) ((void*)((uint32_t)p & (0xffffffff << ARCH_PAGE_SIZE_LOG2)))
 #endif
 static irq_func irq_table[] =  {
 	0, 0, 0, 0,
@@ -383,7 +392,7 @@ static isr_t itable[256] = {
 	i386_unhandled, i386_unhandled, i386_unhandled, i386_unhandled,
 
 	i386_unhandled, 0, i386_unhandled, i386_unhandled,
-	i386_unhandled, i386_unhandled, i386_unhandled, 0,
+	i386_unhandled, i386_unhandled, i386_pf, 0,
 
 	i386_unhandled, i386_unhandled, i386_unhandled, i386_unhandled,
 	i386_unhandled, 0, 0, 0,
@@ -489,9 +498,20 @@ static void unhandled_isr(uint32_t num, uint32_t * state)
 	kernel_printk("UNHANDLED ISR %d\n", num);
 }
 
-void i386_isr(uint32_t num, uint32_t * state)
+int i386_isr(uint32_t num, uint32_t * state)
 {
 	isr_t isr = itable[num] ? itable[num] : unhandled_isr;
 
 	isr(num, state);
+
+	switch(num) {
+	case 8:
+	case 10:
+	case 11:
+	case 12:
+	case 13:
+	case 14:
+		return 1;
+	}
+	return 0;
 }

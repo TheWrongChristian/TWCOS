@@ -35,7 +35,7 @@ bootstrap_stack_bottom:
 .skip 4096 # 16 KiB
 bootstrap_stack_top:
 
-.section .data, "aw", @nobits
+.section .data
 stack_bottom:
 .skip 4096 # 16 KiB
 stack_top:
@@ -131,24 +131,22 @@ _start:
 .type isr, @function
 isr:
 	cld
+	movw $0x10, %ax
+	movw %ax, %ds
 	call i386_isr
-	addl $4, %esp
-	popl %ecx
-	cmpl $31, %ecx
-	jg 0f
-	# Bit map of exceptions with error codes
-	# 00010000100111110100000000b = 0x109F40
-	movl $0x109F40, %eax
-	bt %eax, %ecx
-	jae 0f
+	addl $8, %esp
+	test %eax, %eax
+	jz 0f
 
 	# We have an error code - pop it
 	popa
+	popl %ds
 	addl $4, %esp
 	iret
 0:
 	# No error code, just return
 	popa
+	popl %ds
 	iret
 
 .global lcs

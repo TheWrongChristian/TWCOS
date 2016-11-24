@@ -36,9 +36,7 @@ static slab_t * slab_new(slab_type_t * stype)
 	int i;
 	int count = (ARCH_PAGE_SIZE - sizeof(slab_t)) / stype->esize;
 	/* Allocate and map page */
-	page_t page = page_alloc();
-	slab_t * slab = arch_heap_page();
-	vmap_map(0, slab, page);
+	slab_t * slab = page_valloc();
 
 	slab->esize = stype->esize;
 	slab->next = stype->first;
