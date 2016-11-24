@@ -16,16 +16,15 @@ subdir := libk
 include $(subdir)/subdir.mk
 subdir := kernel
 include $(subdir)/subdir.mk
+subdir := build
+include $(subdir)/tools.mk
 
-include $(TOP)/build/tools.mk
-
-all:: lib boot.iso
+all:: boot.iso
 
 obj:
 	mkdir -p obj
 
-.PHONY: kernel
-boot.iso: grub.cfg kernel
+boot.iso: grub.cfg kernel/kernel
 	mkdir -p isodir/boot/grub
 	cp kernel/kernel isodir/boot/kernel
 	cp grub.cfg isodir/boot/grub/grub.cfg
@@ -43,6 +42,11 @@ gdb: all
 includes::
 	rm -f $(SRCS_C:.c=.h)
 	$(MAKEHEADERS) $(SRCS_C)
+
+-include $(OBJS:.o=.d)
+
+clean::
+	rm -f $(OBJS:.o=.d)
 
 -include $(OBJS:.o=.d)
 
