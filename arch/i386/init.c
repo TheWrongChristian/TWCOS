@@ -120,6 +120,7 @@ void arch_init()
 		}
 	}
 	i386_init();
+	vmap_init();
 	pci_scan();
 	bootstrap_finish();
 	kernel_printk("Bootstrap end - 0x%p\n", nextalloc);

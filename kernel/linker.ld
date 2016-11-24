@@ -47,6 +47,12 @@ SECTIONS
 		*(.data)
 	}
 
+	/* Read-write page aligned data (uninitialized) */
+	.aligned ALIGN(4K) : AT(ADDR(.aligned) - 0xc0000000)
+	{
+		*(.aligned)
+	}
+
 	/* Read-write data (uninitialized) */
 	.bss ALIGN(4K) : AT(ADDR(.bss) - 0xc0000000)
 	{
