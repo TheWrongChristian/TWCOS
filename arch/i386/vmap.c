@@ -10,14 +10,17 @@
 
 extern char _kernel_offset_bootstrap[0];
 extern char _kernel_offset[0];
+extern uint32_t pg_dir[1024];
+extern uint32_t pt_00000000[1024];
 static __attribute__((section(".aligned"))) pte_t pgdirs[ASID_COUNT][1024];
+static __attribute__((section(".aligned"))) pte_t pgktbl[1024];
 
-#define VMAP_PAGE(add) ((char*)add - (&_kernel_offset-&_kernel_offset_bootstrap))
+#define VMAP_PAGE(add) ((page_t)add-(_kernel_offset-_kernel_offset_bootstrap) >> ARCH_PAGE_SIZE_LOG2)
 
 /*
  * Page dirs are at the top of the address space
  */
-static pte_t * pgtbls = (void *)(0xffffffff << (ARCH_PAGE_TABLE_SIZE_LOG2 + ASID_COUNT_LOG2));
+static pte_t * pgtbls = (void *)(0xffffffff << (2 + ARCH_PAGE_TABLE_SIZE_LOG2 + ASID_COUNT_LOG2));
 
 #if 0
 static asid asids[1 << ASID_COUNT_LOG2];
@@ -73,7 +76,7 @@ void vmap_map(asid vid, void * vaddress, page_t page, int rw, int user)
 {
 	if (vid) {
 		pte_t * pgtbl = vmap_get_pgtable(vid);
-		uint32_t pte = page | 0x1;
+		uint32_t pte = page << ARCH_PAGE_SIZE_LOG2 | 0x1;
 		if (rw) {
 			pte |= 0x2;
 		}
@@ -86,7 +89,7 @@ void vmap_map(asid vid, void * vaddress, page_t page, int rw, int user)
 		pte_t * pgtbl = pgtbls;
 
 		for(; i<ASID_COUNT; i++, pgtbl += ARCH_PAGE_TABLE_SIZE) {
-			uint32_t pte = page | 0x1;
+			uint32_t pte = page << ARCH_PAGE_SIZE_LOG2 | 0x1;
 			if (rw) {
 				pte |= 0x2;
 			}
@@ -95,6 +98,16 @@ void vmap_map(asid vid, void * vaddress, page_t page, int rw, int user)
 			}
 			pgtbl[(uint32_t)vaddress >> ARCH_PAGE_SIZE_LOG2] = pte;
 		}
+	}
+}
+
+void vmap_mapn(asid vid, int n, void * vaddress, page_t page, int rw, int user)
+{
+	int i = 0;
+	char * vp = vaddress;
+
+	for(i=0; i<n; i++, vp += ARCH_PAGE_SIZE) {
+		vmap_map(vid, vp, page+i, rw, user);
 	}
 }
 
@@ -113,17 +126,50 @@ static void vmap_test()
 {
 }
 
+extern char code_start[];
+extern char data_start[];
+
 void vmap_init()
 {
 	int d;
-	uint32_t pgdirs_p = (uint32_t)((char*)pgdirs-(_kernel_offset-_kernel_offset_bootstrap));
-	arch_heap_page();
+	int i;
+
+	char * p = code_start;
+	char * end = arch_heap_page();
+	unsigned int offset = _kernel_offset-_kernel_offset_bootstrap;
+	uint32_t pde = ((uint32_t)pgktbl)-offset | 0x3;
+	uint32_t pgdirs_p = (uint32_t)((char*)pgdirs-offset);
+	uint32_t pstart = (uint32_t)code_start - offset;
+	uint32_t pend = (uint32_t)end - offset;
+
+	/*
+	 * Map page tables into VM
+	 */
 	for(d=1024-ASID_COUNT; d<1024; d++) {
-		int i;
+		/* Bootstrap page table */
+		pg_dir[d] = pgdirs_p | 0x3;
+		/* Runtime page tables */
 		for(i=0; i<ASID_COUNT; i++) {
-			pgdirs[i][d] = pgdirs_p | 0x2 | 0x1;
+			pgdirs[i][d] = pgdirs_p | 0x3;
 		}
 		pgdirs_p += ARCH_PAGE_SIZE;
+	}
+	for(d=pstart & 0xfffff000; d<pend;d+=ARCH_PAGE_SIZE) {
+		pgktbl[d>>ARCH_PAGE_SIZE_LOG2] = d | 0x3;
+	}
+
+	/*
+	 * Map kernel image directory into VM
+	 */
+	for(i=0; i<ASID_COUNT; i++) {
+		pgdirs[i][(uint32_t)code_start >> (ARCH_PAGE_SIZE_LOG2+10)] = pde;
+	}
+	vmap_set_asid(0);
+	for(; p<data_start; p+=ARCH_PAGE_SIZE) {
+		vmap_map(0, p, (uint32_t)(p-offset) >> ARCH_PAGE_SIZE_LOG2, 0, 0);
+	}
+	for(; p<end; p+=ARCH_PAGE_SIZE) {
+		vmap_map(0, p, (uint32_t)(p-offset) >> ARCH_PAGE_SIZE_LOG2, 1, 0);
 	}
 	vmap_test();
 }
