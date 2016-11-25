@@ -91,12 +91,14 @@ uint8_t keyq_get()
 }
 
 void console_initialize() {
+	page_t fb = 0xb8;
 	add_irq(1, keyb_isr);
 	keyhead = keytail = 0;
 	console_row = 0;
 	console_column = 0;
 	console_color = make_color(COLOR_LIGHT_GREY, COLOR_BLACK);
 	console_buffer = (uint16_t*) 0xC00B8000;
+	vmap_mapn(0, 2, console_buffer, fb, 1, 0);
 	for (size_t y = 0; y < VGA_HEIGHT; y++) {
 		for (size_t x = 0; x < VGA_WIDTH; x++) {
 			const size_t index = y * VGA_WIDTH + x;

@@ -1,20 +1,19 @@
 #include <stddef.h>
 #include <stdint.h>
 
-#include <libk/libk.h>
-#if 0
-#include <kernel/kernel.h>
-#endif
 #include "init.h"
 
 
 extern uint32_t pg_dir[1024];
 extern uint32_t pt_00000000[1024];
+extern char _kernel_offset_bootstrap[0];
+extern char _kernel_offset[0];
 
 BOOTSTRAP_CODE void bootstrap_paging_init()
 {
 	int i;
-	pg_dir[0] = pg_dir[768] = ((uint32_t)pt_00000000) | 0x3;
+	uint32_t offset = _kernel_offset-_kernel_offset_bootstrap;
+	pg_dir[0] = pg_dir[offset >> 22] = ((uint32_t)pt_00000000) | 0x3;
 	for(i=0; i<1024; i++) {
 		pt_00000000[i] = (i * 4096) | 0x3;
 	}
@@ -78,7 +77,6 @@ void arch_init()
 		multiboot_memory_map_t * mmap = multiboot_mmap(i);
 
 		if (mmap) {
-			kernel_printk("Map %d -\t0x%x\t(%d)\t%s\n", i, (int)mmap->addr, (int)mmap->len, mem_type(mmap->type) );
 			if (MULTIBOOT_MEMORY_AVAILABLE == mmap->type) {
 				/*
 				 * Add the memory to the pool of available
@@ -123,6 +121,19 @@ void arch_init()
 	vmap_init();
 	pci_scan();
 	bootstrap_finish();
+#if 0
+	vmap_mapn(0, 0xa0, (char*)koffset, 0, 0, 0);
+	vmap_map(0, (void*)0x100000, 0x100, 0, 0);
+	for(i=0;;i++) {
+		multiboot_memory_map_t * mmap = multiboot_mmap(i);
+
+		if (mmap) {
+			kernel_printk("Map %d -\t0x%x\t(%d)\t%s\n", i, (int)mmap->addr, (int)mmap->len, mem_type(mmap->type) );
+		} else {
+			break;
+		}
+	}
+#endif
 	kernel_printk("Bootstrap end - 0x%p\n", nextalloc);
 }
 
