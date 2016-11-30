@@ -183,12 +183,4 @@ typedef void * asid;
 typedef uint32_t page_t;
 typedef uint32_t pte_t;
 
-/*
- * Sizes
- */
-#define ARCH_PAGE_SIZE_LOG2 12
-#define ARCH_PAGE_SIZE (1<<ARCH_PAGE_SIZE_LOG2)
-#define ARCH_PAGE_TABLE_SIZE_LOG2 20
-#define ARCH_PAGE_TABLE_SIZE (1<<ARCH_PAGE_TABLE_SIZE_LOG2)
-
 #endif /* INTERFACE */
