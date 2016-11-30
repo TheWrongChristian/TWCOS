@@ -455,6 +455,8 @@ void i386_init()
 
 	lidt(idt,sizeof(idt));
 
+	/* Craft the initial thread and stack */
+
 	PIC_remap(PIC_IRQ_BASE, PIC_IRQ_BASE+16);
 
 	sti();
@@ -515,3 +517,44 @@ int i386_isr(uint32_t num, uint32_t * state)
 	}
 	return 0;
 }
+
+thread_t * arch_get_thread()
+{
+	volatile thread_t ** stackbase = ARCH_GET_VPAGE(&stackbase);
+
+	return *stackbase;
+}
+
+int arch_atomic_postinc(int * p)
+{
+	int i;
+	cli();
+	i = *p;
+	*p = i+1;
+	sti();
+
+	return i;
+}
+
+
+#if INTERFACE
+
+/*
+ * Sizes
+ */
+#define ARCH_PAGE_SIZE_LOG2 12
+#define ARCH_PAGE_SIZE (1<<ARCH_PAGE_SIZE_LOG2)
+#define ARCH_PAGE_TABLE_SIZE_LOG2 20
+#define ARCH_PAGE_TABLE_SIZE (1<<ARCH_PAGE_TABLE_SIZE_LOG2)
+
+/*
+ * Pointers as integers
+ */
+typedef uint32_t ptri;
+
+/*
+ *
+ */
+#define ARCH_GET_VPAGE(p) ((void*)((ptri)(p) & ~(ARCH_PAGE_SIZE-1)))
+
+#endif
