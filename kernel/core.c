@@ -1,7 +1,6 @@
 #include <stddef.h>
 #include <stdint.h>
 
-#include <arch/arch.h>
 #include "core.h"
 
 /*
