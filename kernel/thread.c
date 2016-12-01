@@ -22,7 +22,7 @@ void tls_set(int key, void * p)
 	thread_t * thread = arch_get_thread();
 
 	check_not_null(thread, "Unable to get thread");
-	check_int_bounds(key, 1, TLS_MAX, "TLS key out of bounds");
+	check_int_bounds(key, 1, TLS_MAX-1, "TLS key out of bounds");
 
 	thread->tls[key] = p;
 }
@@ -32,7 +32,7 @@ void * tls_get(int key)
 	thread_t * thread = arch_get_thread();
 
 	check_not_null(thread, "Unable to get thread");
-	check_int_bounds(key, 1, TLS_MAX, "TLS key out of bounds");
+	check_int_bounds(key, 1, TLS_MAX-1, "TLS key out of bounds");
 
 	return thread->tls[key];
 }

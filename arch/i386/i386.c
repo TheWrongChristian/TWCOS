@@ -520,7 +520,7 @@ int i386_isr(uint32_t num, uint32_t * state)
 
 thread_t * arch_get_thread()
 {
-	volatile thread_t ** stackbase = ARCH_GET_VPAGE(&stackbase);
+	thread_t ** stackbase = ARCH_GET_VPAGE(&stackbase);
 
 	return *stackbase;
 }
