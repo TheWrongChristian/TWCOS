@@ -39,6 +39,7 @@ void kernel_main() {
 #endif
 
 	slab_test();
+	exception_test();
 
 	arch_idle();
 }

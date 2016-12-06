@@ -31,4 +31,5 @@ longjmp:
 	movl (%ecx), %ecx
 
 	// "return" to original address
-	jmp *%ecx
+	movl %ecx, (%esp)
+	ret
