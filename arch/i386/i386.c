@@ -428,9 +428,12 @@ static isr_t itable[256] = {
 };
 #endif
 
+static thread_t initial;
+
 void i386_init()
 {
 	int i;
+	thread_t ** stackbase = ARCH_GET_VPAGE(&stackbase);
 
 	encodeGdtEntry(gdt[0], 0, 0, 0);
 	encodeGdtEntry(gdt[1], 0, 0xffffffff, 0x9a);
@@ -456,6 +459,7 @@ void i386_init()
 	lidt(idt,sizeof(idt));
 
 	/* Craft the initial thread and stack */
+	*stackbase = &initial;
 
 	PIC_remap(PIC_IRQ_BASE, PIC_IRQ_BASE+16);
 

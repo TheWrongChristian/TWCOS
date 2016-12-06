@@ -3,13 +3,15 @@
 
 #if INTERFACE
 
+typedef int tls_key;
+
 #define TLS_MAX 32
 typedef struct {
 	void * tls[TLS_MAX];
 } thread_t;
 #endif
 
-static int tls_next = 1;
+static tls_key tls_next = 1;
 
 int tls_get_key()
 {
