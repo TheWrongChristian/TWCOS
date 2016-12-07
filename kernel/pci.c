@@ -113,8 +113,8 @@ void pci_probe_function(uint8_t bus, uint8_t device, uint8_t function)
 	}
 
 	if (0x6 == class && 0x4 == subclass) {
-		uint8_t bus = pci_secondary_bus(bus, device, function);
-		pci_scanbus(bus);
+		uint8_t bus2 = pci_secondary_bus(bus, device, function);
+		pci_scanbus(bus2);
 	}
 }
 
