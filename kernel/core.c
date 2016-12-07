@@ -31,7 +31,7 @@ void page_add_range(page_t base, uint32_t count)
 	mmap[mmap_count].base = base;
 	mmap[mmap_count].count = count;
 	mmap[mmap_count].free = 0;
-	mmap[mmap_count].available = bootstrap_alloc(bitmapsize);
+	mmap[mmap_count].available = bootstrap_alloc(sizeof(mmap[mmap_count].available[0]) * bitmapsize);
 	for(i=0; i<bitmapsize; i++) {
 		mmap[mmap_count].available[i] = 0;
 	}

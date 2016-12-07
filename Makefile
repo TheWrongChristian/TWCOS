@@ -34,10 +34,10 @@ boot.iso: grub.cfg kernel/kernel
 clean::
 	rm -rf $(OBJS) $(SRCS_C:.c=.h) boot.iso
 
-gdb: all
+qemu: all
 	echo target remote localhost:1234 | tee .gdbinit
 	echo symbol-file kernel/kernel | tee -a .gdbinit
-	qemu-system-i386 -m 16 -s -S -kernel kernel/kernel & gdbtui
+	qemu-system-i386 -m 16 -s -S -kernel kernel/kernel &
 
 includes::
 	rm -f $(SRCS_C:.c=.h)
