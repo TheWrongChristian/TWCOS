@@ -44,7 +44,7 @@ struct exception_frame {
 #define EXCEPTION_DEF(type,parent) static struct exception_def exception_def_ ## type = { #type, &exception_def_ ## parent }
 
 #define KTRY \
-	__builtin_setjmp(exception_push(__FILE__, __LINE__)->env); \
+	setjmp(exception_push(__FILE__, __LINE__)->env); \
 	while(!exception_finished(__FILE__, __LINE__)) \
 		if (exception_try())
 #define KCATCH(type) \
@@ -121,7 +121,7 @@ void exception_throw(struct exception_def * type, char * file, int line, char * 
 		vsnprintf(frame->cause->message, sizeof(frame->cause->message), message, ap);
 		va_end(ap);
 
-		__builtin_longjmp(frame->env, 1);
+		longjmp(frame->env, 1);
 	}
 }
 
