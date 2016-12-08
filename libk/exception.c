@@ -55,6 +55,7 @@ struct exception_frame {
 #define KTHROW(type,message) exception_throw(&exception_def_ ## type, __FILE__, __LINE__, message)
 #define KTHROWF(type,message, ...) exception_throw(&exception_def_ ## type, __FILE__, __LINE__, message, __VA_ARGS__ )
 
+EXCEPTION_DEF(TestException, Exception);
 
 #endif
 struct exception_def exception_def_Throwable = { "Throwable", 0 };
@@ -73,7 +74,7 @@ static slab_type_t causes;
 
 enum estates { EXCEPTION_NEW = 0, EXCEPTION_TRYING, EXCEPTION_CATCHING, EXCEPTION_FINISHING };
 
-exception_frame * exception_push(const char * file, int line)
+exception_frame * exception_push(char * file, int line)
 {
 	if (0 == exception_key) {
 		exception_key = tls_get_key();
@@ -118,6 +119,8 @@ void exception_throw(struct exception_def * type, char * file, int line, char * 
 		exception_frame * frame = stack->frames+stack->level;
 		frame->cause = slab_alloc(&causes);
 		frame->cause->type = type;
+		frame->cause->file = file;
+		frame->cause->line = line;
 		vsnprintf(frame->cause->message, sizeof(frame->cause->message), message, ap);
 		va_end(ap);
 
@@ -159,6 +162,8 @@ int exception_finished(char * file, int line)
 		}
 		return 1;
 	}
+
+	return 0;
 }
 
 int exception_try()
@@ -182,7 +187,7 @@ int exception_match( struct exception_def * match )
 		exception_cause * cause = frame->cause;
 		exception_def * type = (cause) ? cause->type : 0;
 		while(type) {
-			if (0 == strcmp(cause->type->name, match->name)) {
+			if (0 == strcmp(type->name, match->name)) {
 				frame->caught = 1;
 				return 1;
 			}
@@ -203,7 +208,7 @@ int exception_finally()
 
 static void do_throw()
 {
-	KTHROW(Exception, "An exception");
+	KTHROW(TestException, "An exception");
 }
 
 void exception_test()
