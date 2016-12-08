@@ -88,6 +88,7 @@ void * page_valloc()
 	page_t page = page_alloc();
 	void * p = arch_heap_page();
 	vmap_map(0, p, page, 1, 0);
+	memset(p, 0, ARCH_PAGE_SIZE);
 
 	return p;
 }
