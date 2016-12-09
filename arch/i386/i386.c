@@ -335,8 +335,24 @@ static void i386_sx(uint32_t num, uint32_t * state)
 
 #if INTERFACE
 #include <stdarg.h>
+#include <stdint.h>
 typedef void (*irq_func)();
 #define ARCH_PAGE_ALIGN(p) ((void*)((uint32_t)p & (0xffffffff << ARCH_PAGE_SIZE_LOG2)))
+
+typedef struct {
+	uint32_t edi;
+	uint32_t esi;
+	uint32_t ebp;
+	uint32_t ignored;
+	uint32_t ebx;
+	uint32_t edx;
+	uint32_t ecx;
+	uint32_t eax;
+	uint32_t ds;
+} trap_context_t;
+
+
+
 #endif
 static irq_func irq_table[] =  {
 	0, 0, 0, 0,
@@ -504,7 +520,7 @@ static void unhandled_isr(uint32_t num, uint32_t * state)
 	kernel_printk("UNHANDLED ISR %d\n", num);
 }
 
-int i386_isr(uint32_t num, uint32_t * state)
+int i386_isr(uint32_t num, trap_context_t * state)
 {
 	isr_t isr = itable[num] ? itable[num] : unhandled_isr;
 
