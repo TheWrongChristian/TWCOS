@@ -32,12 +32,12 @@ idt:
 // then allocating 16384 bytes for it, and finally creating a symbol at the top.
 .section .bootstrap_stack, "aw", @nobits
 bootstrap_stack_bottom:
-.skip 4096 # 16 KiB
+.skip 1024 # 4 KiB
 bootstrap_stack_top:
 
 .section .data
 stack_bottom:
-.skip 4096 # 16 KiB
+.skip 1024 # 4 KiB
 stack_top:
 
 
@@ -123,9 +123,9 @@ _start:
 	# continues execution, just to be safe. We will create a local label rather
 	# than real symbol and jump to there endlessly.
 	cli
-.Lhang:
+0:
 	hlt
-	jmp .Lhang
+	jmp 0b
 
 .global isr
 .type isr, @function
@@ -139,13 +139,13 @@ isr:
 	jz 0f
 
 	# We have an error code - pop it
-	popa
+	popal
 	popl %ds
 	addl $4, %esp
 	iret
 0:
 	# No error code, just return
-	popa
+	popal
 	popl %ds
 	iret
 
