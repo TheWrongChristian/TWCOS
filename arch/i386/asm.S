@@ -127,6 +127,11 @@ _start:
 	hlt
 	jmp 0b
 
+.global switch
+switch:
+	movl %esp, %eax
+	ret
+
 .global isr
 .type isr, @function
 isr:
@@ -135,18 +140,10 @@ isr:
 	movw %ax, %ds
 	call i386_isr
 	addl $8, %esp
-	test %eax, %eax
-	jz 0f
-
+	popal
+	popl %ds
 	# We have an error code - pop it
-	popal
-	popl %ds
 	addl $4, %esp
-	iret
-0:
-	# No error code, just return
-	popal
-	popl %ds
 	iret
 
 .global lcs

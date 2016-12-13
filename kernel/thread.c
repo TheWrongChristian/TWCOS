@@ -7,8 +7,8 @@ typedef int tls_key;
 
 #define TLS_MAX 32
 typedef struct {
-	trap_context_t * context;
 	void * tls[TLS_MAX];
+	arch_context_t context;
 } thread_t;
 
 
