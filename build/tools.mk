@@ -4,16 +4,19 @@ endif
 
 TOOLS=$(TOP)/tools/bin
 HOSTCC=gcc
-CC=$(TOOLS)/i386-linux-gcc
-LD=$(TOOLS)/i386-linux-ld
-AS=$(TOOLS)/i386-linux-as -g
+#CC=$(TOOLS)/i386-linux-gcc
+#LD=$(TOOLS)/i386-linux-ld
+#AS=$(TOOLS)/i386-linux-as -g
+CC=gcc -m32
+LD=ld -m32 -g
+AS=gcc -m32 -g
 CP=cp -f
 MAKEHEADERS=$(TOP)/build/makeheaders
 
 include $(TOP)/build/param.mk
 
 COPTS=-g
-CFLAGS=$(COPTS) -std=gnu99 -ffreestanding -Wall -I$(TOP)/arch/$(ARCH)/include -I$(TOP)/include
+CFLAGS=$(COPTS) -fno-builtin -fno-pic -std=gnu99 -ffreestanding -Wall -I$(TOP)/arch/$(ARCH)/include -I$(TOP)/include
 
 OBJS=$(SRCS_S:.S=.o) $(SRCS_C:.c=.o)
 
