@@ -52,3 +52,6 @@ clean::
 
 clean::
 	rm -f $(OBJS:.o=.d)
+
+cflow::
+	cflow -r $(SRCS_C)
