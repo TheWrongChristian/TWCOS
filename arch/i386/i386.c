@@ -565,19 +565,16 @@ void arch_thread_switch(thread_t * thread)
 {
 	thread_t * old = arch_get_thread();
 
+	if (old->state == THREAD_RUNNING) {
+		old->state = THREAD_RUNNABLE;
+	}
 	if (0 == setjmp(old->context.state)) {
+		if (old->state == THREAD_RUNNABLE) {
+			old->state = THREAD_RUNNING;
+		}
 		longjmp(thread->context.state, 1);
 	}
 }
-
-#if 0
-void arch_new_thread(thread_t * thread, void (*func)(void*), void * arg)
-{
-	if (arch_thread_fork(thread)) {
-		func(arg);
-	}
-}
-#endif
 
 int arch_atomic_postinc(int * p)
 {
