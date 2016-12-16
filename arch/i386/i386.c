@@ -539,7 +539,7 @@ int arch_thread_fork(thread_t * dest)
 
 	/* Copy the source thread stack */
 	for(i=1; i<ARCH_PAGE_SIZE/sizeof(*dpage); i++) {
-		if (ARCH_PTRI_BASE(spage[i]) == spage) {
+		if (ARCH_PTRI_BASE(spage[i]) == ARCH_PTRI_BASE(spage)) {
 			/* Adjust pointer */
 			dpage[i] = (ptri)dpage | ARCH_PTRI_OFFSET(spage[i]);
 		} else {
@@ -553,7 +553,7 @@ int arch_thread_fork(thread_t * dest)
 
 	/* Adjust destination context */
 	for(i=0; i<sizeof(dest->context.state)/sizeof(dest->context.state[0]); i++) {
-		if (ARCH_PTRI_BASE(dest->context.state[i]) == spage) {
+		if (ARCH_PTRI_BASE(dest->context.state[i]) == ARCH_PTRI_BASE(spage)) {
 			dest->context.state[i] = (ptri)dpage | ARCH_PTRI_OFFSET(dest->context.state[i]);
 		}
 	}
@@ -585,6 +585,23 @@ int arch_atomic_postinc(int * p)
 	sti();
 
 	return i;
+}
+
+int arch_spin_trylock(int * p)
+{
+	cli();
+	if (*p) {
+		sti();
+		return 0;
+	}
+	*p=1;
+	return *p;
+}
+
+void arch_spin_unlock(int * p)
+{
+	*p = 0;
+	sti();
 }
 
 
