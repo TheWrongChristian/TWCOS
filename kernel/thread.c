@@ -84,6 +84,16 @@ thread_t * thread_fork()
 static int lockcount;
 static int contended;
 
+int spin_trylock(int * l)
+{
+	return arch_spin_trylock(l);
+}
+
+void spin_unlock(int * l)
+{
+	arch_spin_unlock(l);
+}
+
 static struct lock_s * thread_lock_hash(void * p)
 {
 	int hash = ((ptri)p * 2047) & (LOCK_COUNT-1);
@@ -162,6 +172,14 @@ void thread_unlock(void *p)
 		kernel_panic("Unlocking unowned lock\n");
 	}
 	spin_unlock(&lock->spin);
+}
+
+static void thread_lock_wait(struct lock_s * lock)
+{
+	thread_t * self = arch_get_thread();
+
+	self->state = THREAD_SLEEPING;
+	LIST_APPEND(lock-waiting, self);
 }
 
 void thread_wait(void *p)
