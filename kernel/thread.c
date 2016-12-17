@@ -65,7 +65,6 @@ static struct lock_s {
 	thread_t * condwaiting;
 } locks[LOCK_COUNT];
 
-static int lockcount;
 static int contended;
 
 int spin_trylock(int * l)
@@ -138,7 +137,6 @@ static void thread_cond_wait(struct lock_s * lock)
 static struct lock_s * thread_lock_hash(void * p)
 {
 	int hash = ((ptri)p * 997) & (LOCK_COUNT-1);
-	int nexthash = hash;
 	struct lock_s * lock = locks+hash;
 
 	/*  */
@@ -221,6 +219,17 @@ void thread_signal(void *p)
 	struct lock_s * lock = thread_lock_hash(p);
 	if (lock->owner == arch_get_thread()) {
 		thread_cond_signal(lock);
+	} else {
+		kernel_panic("Signalling unowned lock\n");
+	}
+	spin_unlock(&lock->spin);
+}
+
+void thread_broadcast(void *p)
+{
+	struct lock_s * lock = thread_lock_hash(p);
+	if (lock->owner == arch_get_thread()) {
+		thread_cond_broadcast(lock);
 	} else {
 		kernel_panic("Signalling unowned lock\n");
 	}
@@ -319,10 +328,8 @@ void thread_init()
 
 void thread_test()
 {
-	static thread_t * old;
 	thread_t * new_thread;
 
-	old = arch_get_thread();
 	new_thread = thread_fork();
 	if (new_thread) {
 		thread_lock(thread_test);
