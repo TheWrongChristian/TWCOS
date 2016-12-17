@@ -78,23 +78,61 @@ void spin_unlock(int * l)
 	arch_spin_unlock(l);
 }
 
-static thread_t * thread_queue(thread_t * queue, tstate state)
+static thread_t * thread_queue(thread_t * queue, thread_t * thread, tstate state)
 {
-	thread_t * self = arch_get_thread();
-	self->state = state;
-	LIST_APPEND(queue, self);
+	if (0 == thread) {
+		thread = arch_get_thread();
+	}
+	thread->state = state;
+	LIST_APPEND(queue, thread);
 	return queue;
-}
-
-static void thread_lock_wait(struct lock_s * lock)
-{
-	thread_queue(lock->waiting, THREAD_SLEEPING);
-	spin_unlock(&lock->spin);
-	thread_schedule();
 }
 
 static void thread_lock_signal(struct lock_s * lock)
 {
+	thread_t * resume = lock->waiting;
+
+	if (resume) {
+		thread_resume(resume);
+		LIST_DELETE(lock->waiting, resume);
+	}
+}
+
+static void thread_cond_signal(struct lock_s * lock)
+{
+	thread_t * resume = lock->condwaiting;
+
+	if (resume) {
+		thread_resume(resume);
+		LIST_DELETE(lock->condwaiting, resume);
+	}
+}
+
+static void thread_cond_broadcast(struct lock_s * lock)
+{
+	thread_t * resume = lock->condwaiting;
+
+	while(resume) {
+		thread_resume(resume);
+		LIST_DELETE(lock->condwaiting, resume);
+		resume = lock->condwaiting;
+	}
+}
+
+static void thread_lock_wait(struct lock_s * lock)
+{
+	lock->waiting = thread_queue(lock->waiting, 0, THREAD_SLEEPING);
+	thread_lock_signal(lock);
+	spin_unlock(&lock->spin);
+	thread_schedule();
+}
+
+static void thread_cond_wait(struct lock_s * lock)
+{
+	lock->condwaiting = thread_queue(lock->condwaiting, 0, THREAD_SLEEPING);
+	thread_lock_signal(lock);
+	spin_unlock(&lock->spin);
+	thread_schedule();
 }
 
 static struct lock_s * thread_lock_hash(void * p)
@@ -168,7 +206,8 @@ void thread_unlock(void *p)
 	if (lock->owner == arch_get_thread()) {
 		/* We own the lock, unlock it */
 		lock->count--;
-		if (0 == lock->count && lock->waiting) {
+		if (0 == lock->count) {
+			lock->owner = 0;
 			thread_lock_signal(lock);
 		}
 	} else {
@@ -181,10 +220,7 @@ void thread_signal(void *p)
 {
 	struct lock_s * lock = thread_lock_hash(p);
 	if (lock->owner == arch_get_thread()) {
-		if (lock->condwaiting) {
-			thread_t * wake = lock->condwaiting;
-			LIST_DELETE(lock->condwaiting, wake);
-		}
+		thread_cond_signal(lock);
 	} else {
 		kernel_panic("Signalling unowned lock\n");
 	}
@@ -198,7 +234,7 @@ void thread_wait(void *p)
 	if (lock->owner == arch_get_thread()) {
 		int count = lock->count;
 		lock->count = 0;
-		thread_lock_wait(lock);
+		thread_cond_wait(lock);
 		while(1) {
 			lock = thread_lock_hash(p);
 
@@ -235,9 +271,16 @@ static void scheduler_unlock()
 void thread_yield()
 {
 	scheduler_lock();
-	queue = thread_queue(queue, THREAD_RUNNABLE);
+	queue = thread_queue(queue, 0, THREAD_RUNNABLE);
 	scheduler_unlock();
 	thread_schedule();
+}
+
+void thread_resume(thread_t * thread)
+{
+	scheduler_lock();
+	queue = thread_queue(queue, thread, THREAD_RUNNABLE);
+	scheduler_unlock();
 }
 
 void thread_schedule()
@@ -264,9 +307,7 @@ thread_t * thread_fork()
 		return 0;
 	}
 
-	scheduler_lock();
-	LIST_APPEND(queue, thread);
-	scheduler_unlock();
+	thread_resume(thread);
 
 	return thread;
 }
@@ -284,14 +325,13 @@ void thread_test()
 	old = arch_get_thread();
 	new_thread = thread_fork();
 	if (new_thread) {
-		thread_yield();
-		kernel_printk("Back to main thread 1\n");
-		thread_yield();
-		kernel_printk("Back to main thread 2\n");
+		thread_lock(thread_test);
+		thread_wait(thread_test);
+		thread_unlock(thread_test);
 	} else {
-		kernel_printk("In test thread 1\n");
-		thread_yield();
-		kernel_printk("In test thread 2\n");
+		thread_lock(thread_test);
+		thread_signal(thread_test);
+		thread_unlock(thread_test);
 		thread_yield();
 	}
 }
