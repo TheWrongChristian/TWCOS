@@ -92,8 +92,8 @@ static void thread_lock_signal(struct lock_s * lock)
 	thread_t * resume = lock->waiting;
 
 	if (resume) {
-		thread_resume(resume);
 		LIST_DELETE(lock->waiting, resume);
+		thread_resume(resume);
 	}
 }
 
@@ -102,8 +102,8 @@ static void thread_cond_signal(struct lock_s * lock)
 	thread_t * resume = lock->condwaiting;
 
 	if (resume) {
-		thread_resume(resume);
 		LIST_DELETE(lock->condwaiting, resume);
+		thread_resume(resume);
 	}
 }
 
@@ -112,8 +112,8 @@ static void thread_cond_broadcast(struct lock_s * lock)
 	thread_t * resume = lock->condwaiting;
 
 	while(resume) {
-		thread_resume(resume);
 		LIST_DELETE(lock->condwaiting, resume);
+		thread_resume(resume);
 		resume = lock->condwaiting;
 	}
 }
@@ -326,19 +326,47 @@ void thread_init()
 	slab_type_create(threads, sizeof(thread_t));
 }
 
+static void thread_test1()
+{
+	thread_lock(thread_test);
+	thread_wait(thread_test);
+	thread_unlock(thread_test);
+	while(1) {
+		kernel_printk("thread_test1\n");
+		thread_yield();
+	}
+}
+
+static void thread_test2()
+{
+	thread_lock(thread_test);
+	thread_broadcast(thread_test);
+	thread_unlock(thread_test);
+	while(1) {
+		kernel_printk("thread_test2\n");
+		thread_yield();
+	}
+}
+
 void thread_test()
 {
-	thread_t * new_thread;
+	thread_t * thread1;
 
-	new_thread = thread_fork();
-	if (new_thread) {
+	thread1 = thread_fork();
+	if (thread1) {
 		thread_lock(thread_test);
 		thread_wait(thread_test);
 		thread_unlock(thread_test);
 	} else {
-		thread_lock(thread_test);
-		thread_signal(thread_test);
-		thread_unlock(thread_test);
+		thread_t * thread2 = thread_fork();
+		if (thread2) {
+			thread_test1();
+		} else {
+			thread_test2();
+		}
+	}
+	while(1) {
+		kernel_printk("Idle thread\n");
 		thread_yield();
 	}
 }
