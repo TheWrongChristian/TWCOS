@@ -243,6 +243,7 @@ void thread_wait(void *p)
 	if (lock->owner == arch_get_thread()) {
 		int count = lock->count;
 		lock->count = 0;
+		lock->owner = 0;
 		thread_cond_wait(lock);
 		while(1) {
 			lock = thread_lock_hash(p);
@@ -312,7 +313,7 @@ thread_t * thread_fork()
 {
 	thread_t * thread = slab_alloc(threads);
 
-	if (arch_thread_fork(thread)) {
+	if (0 == arch_thread_fork(thread)) {
 		return 0;
 	}
 
@@ -326,25 +327,30 @@ void thread_init()
 	slab_type_create(threads, sizeof(thread_t));
 }
 
+static void thread_test2();
 static void thread_test1()
 {
-	thread_lock(thread_test);
-	thread_wait(thread_test);
-	thread_unlock(thread_test);
 	while(1) {
+		thread_lock(thread_test1);
+		thread_wait(thread_test1);
+		thread_unlock(thread_test1);
 		kernel_printk("thread_test1\n");
-		thread_yield();
+		thread_lock(thread_test2);
+		thread_signal(thread_test2);
+		thread_unlock(thread_test2);
 	}
 }
 
 static void thread_test2()
 {
-	thread_lock(thread_test);
-	thread_broadcast(thread_test);
-	thread_unlock(thread_test);
 	while(1) {
+		thread_lock(thread_test2);
+		thread_wait(thread_test2);
+		thread_unlock(thread_test2);
 		kernel_printk("thread_test2\n");
-		thread_yield();
+		thread_lock(thread_test);
+		thread_signal(thread_test);
+		thread_unlock(thread_test);
 	}
 }
 
@@ -355,7 +361,6 @@ void thread_test()
 	thread1 = thread_fork();
 	if (thread1) {
 		thread_lock(thread_test);
-		thread_wait(thread_test);
 		thread_unlock(thread_test);
 	} else {
 		thread_t * thread2 = thread_fork();
@@ -366,7 +371,13 @@ void thread_test()
 		}
 	}
 	while(1) {
+		thread_lock(thread_test);
+		thread_wait(thread_test);
+		thread_unlock(thread_test);
 		kernel_printk("Idle thread\n");
+		thread_lock(thread_test1);
+		thread_signal(thread_test1);
+		thread_unlock(thread_test1);
 		thread_yield();
 	}
 }

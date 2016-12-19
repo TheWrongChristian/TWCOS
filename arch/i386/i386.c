@@ -548,7 +548,8 @@ int arch_thread_fork(thread_t * dest)
 	}
 
 	if (setjmp(dest->context.state)) {
-		return 1;
+		/* Child thread */
+		return 0;
 	}
 
 	/* Adjust destination context */
@@ -558,7 +559,7 @@ int arch_thread_fork(thread_t * dest)
 		}
 	}
 
-	return 0;
+	return 1;
 }
 
 void arch_thread_switch(thread_t * thread)
@@ -569,8 +570,8 @@ void arch_thread_switch(thread_t * thread)
 		old->state = THREAD_RUNNABLE;
 	}
 	if (0 == setjmp(old->context.state)) {
-		if (old->state == THREAD_RUNNABLE) {
-			old->state = THREAD_RUNNING;
+		if (thread->state == THREAD_RUNNABLE) {
+			thread->state = THREAD_RUNNING;
 		}
 		longjmp(thread->context.state, 1);
 	}
