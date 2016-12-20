@@ -16,12 +16,15 @@ typedef struct thread_s {
 	/* Run state */
 	tstate state;
 
+	/* Return value */
+	void * retval;
+
 	/* Queue */
 	struct thread_s *prev;
 	struct thread_s *next;
 } thread_t;
 
-enum tstate { THREAD_NEW, THREAD_RUNNABLE, THREAD_RUNNING, THREAD_SLEEPING };
+enum tstate { THREAD_NEW, THREAD_RUNNABLE, THREAD_RUNNING, THREAD_SLEEPING, THREAD_TERMINATED };
 
 #endif
 
@@ -322,6 +325,37 @@ thread_t * thread_fork()
 	return thread;
 }
 
+void thread_exit(void * retval)
+{
+	thread_t * this = arch_get_thread();
+
+	this->retval = retval;
+	this->state = THREAD_TERMINATED;
+
+	/* Signify to any threads waiting on this thread */
+	thread_lock(this);
+	thread_broadcast(this);
+	thread_unlock(this);
+
+	/* Schedule the next thread */
+	thread_schedule();
+}
+
+void * thread_join(thread_t * thread)
+{
+	void * retval = 0;
+	thread_lock(thread);
+	while(thread->state != THREAD_TERMINATED) {
+		thread_wait(thread);
+	}
+	retval = thread->retval;
+	thread_unlock(thread);
+
+	/* FIXME: Clean up thread resources */
+
+	return retval;
+}
+
 void thread_init()
 {
 	slab_type_create(threads, sizeof(thread_t));
@@ -330,28 +364,12 @@ void thread_init()
 static void thread_test2();
 static void thread_test1()
 {
-	while(1) {
-		thread_lock(thread_test1);
-		thread_wait(thread_test1);
-		thread_unlock(thread_test1);
-		kernel_printk("thread_test1\n");
-		thread_lock(thread_test2);
-		thread_signal(thread_test2);
-		thread_unlock(thread_test2);
-	}
+	kernel_printk("thread_test1\n");
 }
 
 static void thread_test2()
 {
-	while(1) {
-		thread_lock(thread_test2);
-		thread_wait(thread_test2);
-		thread_unlock(thread_test2);
-		kernel_printk("thread_test2\n");
-		thread_lock(thread_test);
-		thread_signal(thread_test);
-		thread_unlock(thread_test);
-	}
+	kernel_printk("thread_test2\n");
 }
 
 void thread_test()
@@ -360,24 +378,16 @@ void thread_test()
 
 	thread1 = thread_fork();
 	if (thread1) {
-		thread_lock(thread_test);
-		thread_unlock(thread_test);
+		thread_join(thread1);
 	} else {
 		thread_t * thread2 = thread_fork();
 		if (thread2) {
 			thread_test1();
+			thread_join(thread2);
+			thread_exit(0);
 		} else {
 			thread_test2();
+			thread_exit(0);
 		}
-	}
-	while(1) {
-		thread_lock(thread_test);
-		thread_wait(thread_test);
-		thread_unlock(thread_test);
-		kernel_printk("Idle thread\n");
-		thread_lock(thread_test1);
-		thread_signal(thread_test1);
-		thread_unlock(thread_test1);
-		thread_yield();
 	}
 }
