@@ -249,54 +249,67 @@ static void i386_unhandled(uint32_t num, uint32_t * state)
 
 static void i386_de(uint32_t num, uint32_t * state)
 {
+	i386_unhandled(num, state);
 }
 
 static void i386_db(uint32_t num, uint32_t * state)
 {
+	i386_unhandled(num, state);
 }
 
 static void i386_nmi(uint32_t num, uint32_t * state)
 {
+	i386_unhandled(num, state);
 }
 
 static void i386_bp(uint32_t num, uint32_t * state)
 {
+	i386_unhandled(num, state);
 }
 
 static void i386_of(uint32_t num, uint32_t * state)
 {
+	i386_unhandled(num, state);
 }
 
 static void i386_br(uint32_t num, uint32_t * state)
 {
+	i386_unhandled(num, state);
 }
 
 static void i386_ud(uint32_t num, uint32_t * state)
 {
+	i386_unhandled(num, state);
 }
 
 static void i386_nm(uint32_t num, uint32_t * state)
 {
+	i386_unhandled(num, state);
 }
 
 static void i386_df(uint32_t num, uint32_t * state)
 {
+	i386_unhandled(num, state);
 }
 
 static void i386_ts(uint32_t num, uint32_t * state)
 {
+	i386_unhandled(num, state);
 }
 
 static void i386_np(uint32_t num, uint32_t * state)
 {
+	i386_unhandled(num, state);
 }
 
 static void i386_ss(uint32_t num, uint32_t * state)
 {
+	i386_unhandled(num, state);
 }
 
 static void i386_gp(uint32_t num, uint32_t * state)
 {
+	i386_unhandled(num, state);
 }
 
 static void i386_pf(uint32_t num, uint32_t * state)
@@ -309,26 +322,32 @@ static void i386_pf(uint32_t num, uint32_t * state)
 
 static void i386_mf(uint32_t num, uint32_t * state)
 {
+	i386_unhandled(num, state);
 }
 
 static void i386_ac(uint32_t num, uint32_t * state)
 {
+	i386_unhandled(num, state);
 }
 
 static void i386_mc(uint32_t num, uint32_t * state)
 {
+	i386_unhandled(num, state);
 }
 
 static void i386_xm(uint32_t num, uint32_t * state)
 {
+	i386_unhandled(num, state);
 }
 
 static void i386_ve(uint32_t num, uint32_t * state)
 {
+	i386_unhandled(num, state);
 }
 
 static void i386_sx(uint32_t num, uint32_t * state)
 {
+	i386_unhandled(num, state);
 }
 
 #if INTERFACE
@@ -395,26 +414,6 @@ static int wait_irq()
 }
 
 static isr_t itable[256] = {
-	i386_unhandled, i386_unhandled, i386_unhandled, i386_unhandled,
-	i386_unhandled, i386_unhandled, i386_unhandled, i386_unhandled,
-
-	i386_unhandled, 0, i386_unhandled, i386_unhandled,
-	i386_unhandled, i386_unhandled, i386_pf, 0,
-
-	i386_unhandled, i386_unhandled, i386_unhandled, i386_unhandled,
-	i386_unhandled, 0, 0, 0,
-
-	0, 0, 0, 0,
-	0, 0, i386_unhandled, 0,
-
-	i386_irq, i386_irq, i386_irq, i386_irq,
-	i386_irq, i386_irq, i386_irq, i386_irq,
-
-	i386_irq, i386_irq, i386_irq, i386_irq,
-	i386_irq, i386_irq, i386_irq, i386_irq
-};
-#if 0
-static isr_t itable[256] = {
 	i386_de, i386_db, i386_nmi, i386_bp,
 	i386_of, i386_br, i386_ud, i386_nm,
 
@@ -433,7 +432,6 @@ static isr_t itable[256] = {
 	i386_irq, i386_irq, i386_irq, i386_irq,
 	i386_irq, i386_irq, i386_irq, i386_irq
 };
-#endif
 
 static thread_t initial;
 
@@ -468,6 +466,7 @@ void i386_init()
 	/* Craft the initial thread and stack */
 	*stackbase = &initial;
 	initial.context.stack = stackbase;
+	initial.priority = THREAD_NORMAL;
 
 	PIC_remap(PIC_IRQ_BASE, PIC_IRQ_BASE+16);
 
