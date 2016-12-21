@@ -372,6 +372,9 @@ void * thread_join(thread_t * thread)
 void thread_set_priority(thread_t * thread, tpriority priority)
 {
 	check_int_bounds(priority, THREAD_INTERRUPT, THREAD_IDLE, "Thread priority out of bounds");
+	if (0 == thread) {
+		thread = arch_get_thread();
+	}
 	thread->priority = priority;
 }
 
