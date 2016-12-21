@@ -41,7 +41,7 @@ struct exception_frame {
  * Top level exception from which all others are derived
  */
 
-#define EXCEPTION_DEF(type,parent) static struct exception_def exception_def_ ## type = { #type, &exception_def_ ## parent }
+#define EXCEPTION_DEF(type,parent) struct exception_def exception_def_ ## type = { #type, &exception_def_ ## parent }
 
 #define KTRY \
 	setjmp(exception_push(__FILE__, __LINE__)->env); \
