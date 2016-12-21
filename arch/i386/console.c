@@ -106,10 +106,12 @@ void console_initialize() {
 		}
 	}
 }
- 
+
+#if 0 
 static void console_setcolor(uint8_t color) {
 	console_color = color;
 }
+#endif
  
 static void console_putentryat(char c, uint8_t color, size_t x, size_t y) {
 	const size_t index = y * VGA_WIDTH + x;
@@ -220,7 +222,7 @@ static void console_putc(struct stream * stream, char c)
 
 static long console_tell(struct stream * stream)
 {
-        struct stream_console * sconsole = (struct stream_null *)stream;
+        struct stream_console * sconsole = (struct stream_console *)stream;
         return sconsole->chars;
 }
 
@@ -236,5 +238,5 @@ struct stream * console_stream()
         sconsole.stream.ops = &console_ops;
         sconsole.chars = 0;
 
-        return &sconsole;
+        return (struct stream *)&sconsole;
 }
