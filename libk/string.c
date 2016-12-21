@@ -33,7 +33,7 @@ struct stream_string {
 
 static void string_putc(struct stream * stream, char c)
 {
-        struct stream_string * sstring = (struct stream_console *)stream;
+        struct stream_string * sstring = (struct stream_string *)stream;
 	if (sstring->chars < sstring->size) {
 		sstring->buf[sstring->chars] = c;
 	}
@@ -42,7 +42,7 @@ static void string_putc(struct stream * stream, char c)
 
 static long string_tell(struct stream * stream)
 {
-        struct stream_string * sstring = (struct stream_console *)stream;
+        struct stream_string * sstring = (struct stream_string *)stream;
 	return sstring->chars;
 }
 
@@ -68,7 +68,7 @@ int vsnprintf(char * buf, int size, char * fmt, va_list ap)
 		{ buf : buf, size: size, chars: 0 }
 	};
 	sstring->stream.ops = &string_ops;
-	if (stream_vprintf(sstring, fmt, ap)<size) {
+	if (stream_vprintf((struct stream *)sstring, fmt, ap)<size) {
 		sstring->buf[sstring->chars] = 0x0;
 	}
 
