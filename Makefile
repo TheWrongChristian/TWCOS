@@ -43,10 +43,8 @@ includes::
 	rm -f $(SRCS_C:.c=.h)
 	$(MAKEHEADERS) $(SRCS_C)
 
--include $(OBJS:.o=.d)
-
-clean::
-	rm -f $(OBJS:.o=.d)
+cflow:
+	cflow -d 4 -r $(SRCS_C)
 
 -include $(OBJS:.o=.d)
 
