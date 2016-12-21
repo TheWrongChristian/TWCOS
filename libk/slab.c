@@ -1,8 +1,8 @@
-#include <stddef.h>
-#include <stdint.h>
 #include "slab.h"
 
 #if INTERFACE
+#include <stddef.h>
+#include <stdint.h>
 
 typedef struct {
 	uint32_t magic;

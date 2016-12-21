@@ -2,8 +2,6 @@
 #include <stdarg.h>
 
 #include "i386.h"
-#include "vmap.h"
-#include "console.h"
 
 /* Basic port I/O */
 void outb(uint16_t port, uint8_t v)
@@ -336,24 +334,17 @@ static void i386_sx(uint32_t num, uint32_t * state)
 #if INTERFACE
 #include <stdarg.h>
 #include <stdint.h>
+#include <setjmp.h>
 typedef void (*irq_func)();
 #define ARCH_PAGE_ALIGN(p) ((void*)((uint32_t)p & (0xffffffff << ARCH_PAGE_SIZE_LOG2)))
 
 typedef struct {
-	uint32_t edi;
-	uint32_t esi;
-	uint32_t ebp;
-	uint32_t ignored;
-	uint32_t ebx;
-	uint32_t edx;
-	uint32_t ecx;
-	uint32_t eax;
-	uint32_t ds;
-} trap_context_t;
-
-
+	void * stack;
+	jmp_buf state;
+} arch_context_t;
 
 #endif
+
 static irq_func irq_table[] =  {
 	0, 0, 0, 0,
 	0, 0, 0, 0,
@@ -476,6 +467,7 @@ void i386_init()
 
 	/* Craft the initial thread and stack */
 	*stackbase = &initial;
+	initial.context.stack = stackbase;
 
 	PIC_remap(PIC_IRQ_BASE, PIC_IRQ_BASE+16);
 
@@ -520,22 +512,11 @@ static void unhandled_isr(uint32_t num, uint32_t * state)
 	kernel_printk("UNHANDLED ISR %d\n", num);
 }
 
-int i386_isr(uint32_t num, trap_context_t * state)
+void i386_isr(uint32_t num, uint32_t * state)
 {
 	isr_t isr = itable[num] ? itable[num] : unhandled_isr;
 
 	isr(num, state);
-
-	switch(num) {
-	case 8:
-	case 10:
-	case 11:
-	case 12:
-	case 13:
-	case 14:
-		return 1;
-	}
-	return 0;
 }
 
 thread_t * arch_get_thread()
@@ -543,6 +524,56 @@ thread_t * arch_get_thread()
 	thread_t ** stackbase = ARCH_GET_VPAGE(&stackbase);
 
 	return *stackbase;
+}
+
+int arch_thread_fork(thread_t * dest)
+{
+	/* Allocate the stack */
+	thread_t * source = arch_get_thread();
+	uint32_t * dpage = (uint32_t*)ARCH_GET_VPAGE(dest->context.stack = page_valloc());
+	uint32_t * spage = (uint32_t*)ARCH_GET_VPAGE(source->context.stack);
+	int i;
+
+	/* Set pointer to thread */
+	dpage[0] = (ptri)dest;
+
+	/* Copy the source thread stack */
+	for(i=1; i<ARCH_PAGE_SIZE/sizeof(*dpage); i++) {
+		if (ARCH_PTRI_BASE(spage[i]) == ARCH_PTRI_BASE(spage)) {
+			/* Adjust pointer */
+			dpage[i] = (ptri)dpage | ARCH_PTRI_OFFSET(spage[i]);
+		} else {
+			dpage[i] = spage[i];
+		}
+	}
+
+	if (setjmp(dest->context.state)) {
+		return 1;
+	}
+
+	/* Adjust destination context */
+	for(i=0; i<sizeof(dest->context.state)/sizeof(dest->context.state[0]); i++) {
+		if (ARCH_PTRI_BASE(dest->context.state[i]) == ARCH_PTRI_BASE(spage)) {
+			dest->context.state[i] = (ptri)dpage | ARCH_PTRI_OFFSET(dest->context.state[i]);
+		}
+	}
+
+	return 0;
+}
+
+void arch_thread_switch(thread_t * thread)
+{
+	thread_t * old = arch_get_thread();
+
+	if (old->state == THREAD_RUNNING) {
+		old->state = THREAD_RUNNABLE;
+	}
+	if (0 == setjmp(old->context.state)) {
+		if (old->state == THREAD_RUNNABLE) {
+			old->state = THREAD_RUNNING;
+		}
+		longjmp(thread->context.state, 1);
+	}
 }
 
 int arch_atomic_postinc(int * p)
@@ -554,6 +585,23 @@ int arch_atomic_postinc(int * p)
 	sti();
 
 	return i;
+}
+
+int arch_spin_trylock(int * p)
+{
+	cli();
+	if (*p) {
+		sti();
+		return 0;
+	}
+	*p=1;
+	return *p;
+}
+
+void arch_spin_unlock(int * p)
+{
+	*p = 0;
+	sti();
 }
 
 
@@ -575,6 +623,9 @@ typedef uint32_t ptri;
 /*
  *
  */
-#define ARCH_GET_VPAGE(p) ((void*)((ptri)(p) & ~(ARCH_PAGE_SIZE-1)))
+#define ARCH_PTRI_OFFSET_MASK (ARCH_PAGE_SIZE-1)
+#define ARCH_PTRI_OFFSET(p) ((ptri)(p) & (ARCH_PTRI_OFFSET_MASK))
+#define ARCH_PTRI_BASE(p) ((ptri)(p) & ~(ARCH_PTRI_OFFSET_MASK))
+#define ARCH_GET_VPAGE(p) ((void*)ARCH_PTRI_BASE(p))
 
 #endif
