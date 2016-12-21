@@ -28,18 +28,11 @@ static void do_throw()
 void kernel_main() {
 	/* Initialize console interface */
 	arch_init();
-
-#if 0
-	if (0 == setjmp(jb)) {
-		kernel_printk("Hello, kernel World 1!\n");
-		do_throw();
-	} else {
-		kernel_printk("Hello, kernel World 2!\n");
-	}
-#endif
+	thread_init();
 
 	slab_test();
 	exception_test();
+	thread_test();
 
 	arch_idle();
 }
