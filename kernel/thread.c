@@ -15,6 +15,7 @@ typedef struct thread_s {
 
 	/* Run state */
 	tstate state;
+	tpriority priority;
 
 	/* Return value */
 	void * retval;
@@ -25,6 +26,7 @@ typedef struct thread_s {
 } thread_t;
 
 enum tstate { THREAD_NEW, THREAD_RUNNABLE, THREAD_RUNNING, THREAD_SLEEPING, THREAD_TERMINATED };
+enum tpriority { THREAD_INTERRUPT = 0, THREAD_NORMAL, THREAD_IDLE, THREAD_PRIORITIES };
 
 #endif
 
@@ -266,7 +268,7 @@ void thread_wait(void *p)
 }
 
 /* Simple RR scheduler */
-static thread_t * queue;
+static thread_t * queue[THREAD_PRIORITIES];
 static int queuelock;
 
 static void scheduler_lock()
@@ -283,38 +285,49 @@ static void scheduler_unlock()
 
 void thread_yield()
 {
+	thread_t * this = arch_get_thread();
+	tpriority priority = this->priority;
 	scheduler_lock();
-	queue = thread_queue(queue, 0, THREAD_RUNNABLE);
+	queue[priority] = thread_queue(queue[priority], this, THREAD_RUNNABLE);
 	scheduler_unlock();
 	thread_schedule();
 }
 
 void thread_resume(thread_t * thread)
 {
+	tpriority priority = thread->priority;
 	scheduler_lock();
-	queue = thread_queue(queue, thread, THREAD_RUNNABLE);
+	queue[priority] = thread_queue(queue[priority], thread, THREAD_RUNNABLE);
 	scheduler_unlock();
 }
 
 void thread_schedule()
 {
+	int i;
 	scheduler_lock();
-	if (0 == queue) {
-		kernel_panic("Empty run queue!\n");
-	} else {
-		thread_t * next = queue;
-		LIST_DELETE(queue, next);
-		scheduler_unlock();
-		if (arch_get_thread() != next) {
-			/* Changing threads */
-			arch_thread_switch(next);
+	for(i=0; i<THREAD_PRIORITIES; i++) {
+		if (0 == queue[i]) {
+			continue;
+		} else {
+			thread_t * next = queue[i];
+			LIST_DELETE(queue[i], next);
+			scheduler_unlock();
+			if (arch_get_thread() != next) {
+				/* Changing threads */
+				arch_thread_switch(next);
+			}
+			return;
 		}
 	}
+	kernel_panic("Empty run queue!\n");
 }
 
 thread_t * thread_fork()
 {
+	thread_t * this = arch_get_thread();
 	thread_t * thread = slab_alloc(threads);
+
+	thread->priority = this->priority;
 
 	if (0 == arch_thread_fork(thread)) {
 		return 0;
@@ -354,6 +367,12 @@ void * thread_join(thread_t * thread)
 	/* FIXME: Clean up thread resources */
 
 	return retval;
+}
+
+void thread_set_priority(thread_t * thread, tpriority priority)
+{
+	check_int_bounds(priority, THREAD_INTERRUPT, THREAD_IDLE, "Thread priority out of bounds");
+	thread->priority = priority;
 }
 
 void thread_init()
