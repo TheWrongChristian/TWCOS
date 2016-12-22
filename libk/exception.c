@@ -174,6 +174,8 @@ char * exception_message()
 	if (frame->cause) {
 		return frame->cause->message;
 	}
+
+	return "No exception";
 }
 
 int exception_finally()
