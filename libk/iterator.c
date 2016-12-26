@@ -13,21 +13,21 @@ typedef struct iterator{
 
 	/* container specific data */
 	void * data;
-} iterator;
+} iterator_t;
 
 #endif
 
-void * iterator_next(iterator * iterator)
+void * iterator_next(iterator_t * iterator)
 {
 	return iterator->ops->next(iterator);
 }
 
-void * iterator_remove_current(iterator * iterator)
+void * iterator_remove_current(iterator_t * iterator)
 {
 	return iterator->ops->remove(iterator);
 }
 
-void iterator_destroy(iterator * iterator)
+void iterator_destroy(iterator_t * iterator)
 {
 	iterator->ops->destroy(iterator);
 }

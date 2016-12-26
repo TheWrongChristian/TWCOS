@@ -5,49 +5,49 @@
 typedef void (*walk_func)(void * data);
 
 struct map_ops {
-        void (*destroy)( map * map );
-        void (*walk)( map * map, walk_func func );
+        void (*destroy)( map_t * map );
+        void (*walk)( map_t * map, walk_func func );
 
-        void * (*put)( map * map, void * key, void * data );
-        void * (*get)( map * map, void * key );
-        void * (*remove)( map * map, void * key );
+        void * (*put)( map_t * map, void * key, void * data );
+        void * (*get)( map_t * map, void * key );
+        void * (*remove)( map_t * map, void * key );
 
-        iterator (*iterator)( map * map, int keys );
+        iterator_t * (*iterator)( map_t * map, int keys );
 };
 
-typedef struct {
+typedef struct map {
 	struct map_ops * ops;
-} map;
+} map_t;
 
 #endif
 
-void map_destroy( map * map )
+void map_destroy( map_t * map )
 {
         map->ops->destroy(map);
         slab_free(map);
 }
 
-void map_walk( map * map, walk_func func )
+void map_walk( map_t * map, walk_func func )
 {
         map->ops->walk(map, func);
 }
 
-void * map_put( map * map, void * key, void * data )
+void * map_put( map_t * map, void * key, void * data )
 {
         return map->ops->put(map, key, data);
 }
 
-void * map_get( map * map, void * key )
+void * map_get( map_t * map, void * key )
 {
         return map->ops->get(map, key);
 }
 
-void * map_remove( map * map, void * key )
+void * map_remove( map_t * map, void * key )
 {
         return map->ops->remove(map, key);
 }
 
-iterator map_iterator( map * map, int keys )
+iterator_t * map_iterator( map_t * map, int keys )
 {
         return map->ops->iterator(map, keys);
 }
