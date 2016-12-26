@@ -33,6 +33,7 @@ void kernel_main() {
 	slab_test();
 	exception_test();
 	thread_test();
+	tree_test();
 
 	arch_idle();
 }
