@@ -458,21 +458,14 @@ map_t * tree_new(int (*comp)(void * k1, void * k2), int mode)
 static void tree_graph_node(node_t * node, int level)
 {
 	if (node->left) {
-		for(int i=0; i<level; i++) {
-			kernel_printk("  ");
-		}
-		kernel_printk("/");
 		tree_graph_node(node->left, level+1);
 	}
+	kernel_printk("%d\t", level);
 	for(int i=0; i<level; i++) {
-		kernel_printk("  ");
+		kernel_printk(" ");
 	}
 	kernel_printk("%s\n", node->data);
 	if (node->right) {
-		for(int i=0; i<level; i++) {
-			kernel_printk("  ");
-		}
-		kernel_printk("\\");
 		tree_graph_node(node->right, level+1);
 	}
 }
@@ -483,11 +476,13 @@ void tree_test()
 	map_t * map = tree_new(strcmp, TREE_TREAP);
 	char * data[] = {
 		"Jonas",
+		"Christmas",
 		"This is a test string",
 		"Another test string",
 		"Mary had a little lamb",
 		"Supercalblahblahblah",
 		"Zanadu",
+		"Granny",
 		"Roger",
 		"Steve",
 		"Rolo",
