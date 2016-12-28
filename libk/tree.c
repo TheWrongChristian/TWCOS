@@ -217,8 +217,21 @@ static void tree_destroy( map_t * map )
 {
 }
 
-static void tree_walk( map_t * map, walk_func func )
+static void tree_walk_node( node_t * node, walk_func func )
 {
+        if (NULL == node) {
+                return;
+        }
+
+        tree_walk_node(node->left, func);
+        func(node->data);
+        tree_walk_node(node->right, func);
+}
+
+void tree_walk( map_t * map, walk_func func )
+{
+        tree_t * tree = (tree_t*)map;
+        tree_walk_node(tree->root, func);
 }
 
 static void node_verify( tree_t * tree, node_t * node )
@@ -470,6 +483,11 @@ static void tree_graph_node(node_t * node, int level)
 	}
 }
 
+static void tree_walk_dump(void * data)
+{
+	kernel_printk("%s\n", data);
+}
+
 void tree_test()
 {
 	tree_init();
@@ -497,4 +515,5 @@ void tree_test()
 	}
 
 	tree_graph_node(((tree_t*)map)->root, 0);
+	tree_walk(map, tree_walk_dump);
 }
