@@ -30,6 +30,7 @@ void kernel_main() {
 		thread_test();
 
 		tls_set(0, 0);
+	tree_test();
 
 		arch_idle();
 	} KCATCH(Throwable) {
