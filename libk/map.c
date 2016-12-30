@@ -12,6 +12,8 @@ struct map_ops {
         void * (*get)( map_t * map, void * key );
         void * (*remove)( map_t * map, void * key );
 
+	void (*optimize)(map_t * map);
+
         iterator_t * (*iterator)( map_t * map, int keys );
 };
 
@@ -23,28 +25,33 @@ typedef struct map {
 
 void map_destroy( map_t * map )
 {
-        map->ops->destroy(map);
-        slab_free(map);
+	map->ops->destroy(map);
+	slab_free(map);
 }
 
 void map_walk( map_t * map, walk_func func )
 {
-        map->ops->walk(map, func);
+	map->ops->walk(map, func);
 }
 
 void * map_put( map_t * map, void * key, void * data )
 {
-        return map->ops->put(map, key, data);
+	return map->ops->put(map, key, data);
 }
 
 void * map_get( map_t * map, void * key )
 {
-        return map->ops->get(map, key);
+	return map->ops->get(map, key);
 }
 
 void * map_remove( map_t * map, void * key )
 {
-        return map->ops->remove(map, key);
+	return map->ops->remove(map, key);
+}
+
+void map_optimize(map_t * map)
+{
+	map->ops->optimize(map);
 }
 
 iterator_t * map_iterator( map_t * map, int keys )
