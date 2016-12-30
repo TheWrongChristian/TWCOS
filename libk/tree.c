@@ -442,6 +442,62 @@ static iterator_t * tree_iterator( map_t * map, int keys )
 	return 0;
 }
 
+static node_t * node_ordinal(node_t * root, int i)
+{
+	node_t * node = root;
+
+	if (i >= node->count) {
+		/* FIXME: Throw out of bounds exception */
+		return 0;
+	}
+
+	while(node) {
+		int count_left = node_count(node->left);
+		if (i<count_left) {
+			node = node->left; 
+		} else if (i == count_left) {
+			return node;
+		} else {
+			node = node->right;
+			i -= (count_left+1);
+		}
+	}
+
+	/* FIXME: Can't happen! */
+	return 0;
+}
+
+static node_t * node_optimize(node_t * root)
+{
+	if (0 == root) {
+		return 0;
+	}
+
+	node_t * parent = root->parent;
+	node_t * node = node_ordinal(root, root->count/2);
+
+	node->priority = (parent) ? parent->priority + 10 : 10;
+
+	while(node->parent != parent) {
+		if (node_is_left(node)) {
+			node_rotate_right(node->parent);
+		} else {
+			node_rotate_left(node->parent);
+		}
+	}
+
+	node->left = node_optimize(node->left);
+	node->right = node_optimize(node->right);
+
+	return node;
+}
+
+static void tree_optimize(map_t * map)
+{
+	tree_t * tree = (tree_t*)map;
+	tree->root = node_optimize(tree->root);
+}
+
 void tree_init()
 {
 	slab_type_create(trees,sizeof(tree_t));
@@ -456,6 +512,7 @@ map_t * tree_new(int (*comp)(void * k1, void * k2), int mode)
 		walk: tree_walk,
 		put: tree_put,
 		get: tree_get,
+		optimize: tree_optimize,
 		remove: tree_remove,
 		iterator: tree_iterator
 	};
@@ -514,6 +571,8 @@ void tree_test()
 		map_put(map, data[i], data[i]);
 	}
 
+	tree_graph_node(((tree_t*)map)->root, 0);
+	map_optimize(map);
 	tree_graph_node(((tree_t*)map)->root, 0);
 	tree_walk(map, tree_walk_dump);
 }
