@@ -144,7 +144,7 @@ static uint8_t gdt[][8] = {
 	{ 0 },
 };
 
-static uint32_t tss[104] = { 0 };
+static uint32_t tss[26] = { 0 };
 
 static void encodeGdtEntry( uint8_t * entry, void * pbase, uint32_t size, uint8_t type )
 {
@@ -446,6 +446,7 @@ void i386_init()
 	encodeGdtEntry(gdt[3], 0, 0xffffffff, 0x9a | 0x60);
 	encodeGdtEntry(gdt[4], 0, 0xffffffff, 0x92 | 0x60);
 	encodeGdtEntry(gdt[5], tss, sizeof(tss), 0x89);
+	tss[2] = 0x10;
 	lgdt(gdt, sizeof(gdt));
 	ltr(0x28);
 
@@ -572,6 +573,7 @@ void arch_thread_switch(thread_t * thread)
 		if (thread->state == THREAD_RUNNABLE) {
 			thread->state = THREAD_RUNNING;
 		}
+		tss[1] = (uint32_t)thread->context.stack + ARCH_PAGE_SIZE;
 		longjmp(thread->context.state, 1);
 	}
 }
