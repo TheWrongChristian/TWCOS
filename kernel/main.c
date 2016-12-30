@@ -28,9 +28,7 @@ void kernel_main() {
 		slab_test();
 		exception_test();
 		thread_test();
-
-		tls_set(0, 0);
-	tree_test();
+		tree_test();
 
 		arch_idle();
 	} KCATCH(Throwable) {
