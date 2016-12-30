@@ -1,2 +1,2 @@
-SRCS_C += $(subdir)/stream.c $(subdir)/exception.c $(subdir)/slab.c $(subdir)/string.c $(subdir)/list.c
+SRCS_C += $(subdir)/assert.c $(subdir)/stream.c $(subdir)/exception.c $(subdir)/slab.c $(subdir)/string.c $(subdir)/list.c $(subdir)/map.c $(subdir)/iterator.c $(subdir)/tree.c
 # SRCS_C += $(LIBK_SRCS_C)
