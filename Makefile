@@ -10,23 +10,23 @@ SRCS_S :=
 
 subdir := build
 include $(subdir)/subdir.mk
-subdir := arch/$(ARCH)
-include $(subdir)/subdir.mk
 subdir := libk
 include $(subdir)/subdir.mk
 subdir := kernel
 include $(subdir)/subdir.mk
 subdir := build
 include $(subdir)/tools.mk
+subdir := arch/$(ARCH)
+include $(subdir)/subdir.mk
 
 all:: boot.iso
 
 obj:
 	mkdir -p obj
 
-boot.iso: grub.cfg kernel/kernel
+boot.iso: grub.cfg arch/$(ARCH)/kernel
 	mkdir -p isodir/boot/grub
-	cp kernel/kernel isodir/boot/kernel
+	cp arch/$(ARCH)/kernel isodir/boot/kernel
 	cp grub.cfg isodir/boot/grub/grub.cfg
 	grub-mkrescue -o boot.iso isodir
 
