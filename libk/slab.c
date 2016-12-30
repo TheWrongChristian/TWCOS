@@ -4,23 +4,26 @@
 #include <stddef.h>
 #include <stdint.h>
 
-typedef struct {
+typedef struct slab_type {
 	uint32_t magic;
 	size_t esize;
-	struct _slab_t * first;
+	struct slab * first;
+	struct slab_type * next, * prev;
 	void (*finalize)(void *);
 	void (*mark)(void *);
 } slab_type_t;
 
 #endif
 
-typedef struct _slab_t {
+typedef struct slab {
 	uint32_t magic;
-	struct _slab_t * next;
+	struct slab * next, * prev;
 	slab_type_t * type;
 	size_t esize;
 	uint32_t available[8];
 } slab_t;
+
+static slab_type_t * types;
 
 void slab_type_create(slab_type_t * stype, size_t esize)
 {
@@ -29,6 +32,7 @@ void slab_type_create(slab_type_t * stype, size_t esize)
 	stype->finalize = 0;
 	stype->mark = 0;
 	stype->magic = 997 * 0xaf653de9 * (uint32_t)stype;
+	LIST_APPEND(types, stype);
 }
 
 static slab_t * slab_new(slab_type_t * stype)
@@ -39,10 +43,9 @@ static slab_t * slab_new(slab_type_t * stype)
 	slab_t * slab = page_valloc();
 
 	slab->esize = stype->esize;
-	slab->next = stype->first;
 	slab->magic = stype->magic;
 	slab->type = stype;
-	stype->first = slab;
+	LIST_PREPEND(stype->first, slab);
 
 	/*
 	 * Up to 256 elements per slab
@@ -95,14 +98,51 @@ void * slab_alloc(slab_type_t * stype)
 			}
 		}
 
-		if (slab->next) {
-			slab = slab->next;
-		} else {
+		LIST_NEXT(stype->first,slab);
+		if (0 == slab) {
 			slab = slab_new(stype);
 		}
 	}
 
 	return 0;
+}
+
+static void slab_mark_available_all(slab_t * slab)
+{
+	int count = ARCH_PAGE_SIZE/slab->esize;
+        for(int i=0; i<count; i+=32) {
+                uint32_t mask = ~0 ;
+                if (count-i < 32) {
+                        mask = ~(mask >> (count-i));
+                }
+                slab->available[i/32] = mask;
+        }
+
+}
+
+static void slab_gc_begin()
+{
+	slab_type_t * stype = types;
+
+	/* Mark all elements available */
+	while(stype) {
+		slab_t * slab = stype->first;
+
+		while(slab) {
+			slab_mark_available_all(slab);
+			LIST_NEXT(stype->first, slab);
+		}
+
+		LIST_NEXT(types, stype);
+	}
+}
+
+static void slab_gc_mark(void * root)
+{
+}
+
+static void slab_gc_end()
+{
 }
 
 void slab_free(void * p)
