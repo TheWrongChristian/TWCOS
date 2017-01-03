@@ -380,7 +380,7 @@ void thread_set_priority(thread_t * thread, tpriority priority)
 
 void thread_init()
 {
-	slab_type_create(threads, sizeof(thread_t));
+	slab_type_create(threads, sizeof(thread_t), 0);
 }
 
 static void thread_test2();

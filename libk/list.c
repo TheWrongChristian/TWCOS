@@ -18,10 +18,14 @@
 
 #define LIST_PREPEND(list,p) \
 	do { \
-		p->prev = list; \
-		p->next = list->next; \
-		list->next->prev = p; \
-		list->next = p; \
+		if (list) { \
+			p->prev = list; \
+			p->next = list->next; \
+			list->next->prev = p; \
+			list->next = p; \
+		} else { \
+			p->next = p->prev = p; \
+		} \
 		list = p; \
 	} while(0)
 
