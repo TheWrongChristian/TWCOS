@@ -1,6 +1,11 @@
 #include "tree.h"
 
+#if INTERFACE
 enum treemode { TREE_SPLAY, TREE_TREAP, TREE_COUNT };
+
+EXCEPTION_DEF(OutOfBoundsException,RuntimeException);
+
+#endif
 
 typedef struct node {
 	void * key;
@@ -447,7 +452,7 @@ static node_t * node_ordinal(node_t * root, int i)
 	node_t * node = root;
 
 	if (i >= node->count) {
-		/* FIXME: Throw out of bounds exception */
+		KTHROWF(OutOfBoundsException, "Out of bounds: %d >= %d\n", i, node->count);
 		return 0;
 	}
 
@@ -500,8 +505,8 @@ static void tree_optimize(map_t * map)
 
 void tree_init()
 {
-	slab_type_create(trees,sizeof(tree_t));
-	slab_type_create(nodes,sizeof(node_t));
+	slab_type_create(trees, sizeof(tree_t), 0);
+	slab_type_create(nodes, sizeof(node_t), 0);
 }
 
 map_t * tree_new(int (*comp)(void * k1, void * k2), int mode)

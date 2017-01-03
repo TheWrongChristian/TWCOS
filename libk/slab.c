@@ -9,8 +9,8 @@ typedef struct slab_type {
 	size_t esize;
 	struct slab * first;
 	struct slab_type * next, * prev;
-	void (*finalize)(void *);
 	void (*mark)(void *);
+	void (*finalize)(void *);
 } slab_type_t;
 
 #endif
@@ -25,12 +25,12 @@ typedef struct slab {
 
 static slab_type_t * types;
 
-void slab_type_create(slab_type_t * stype, size_t esize)
+void slab_type_create(slab_type_t * stype, size_t esize, void (*mark)(void *))
 {
 	stype->first = 0;
 	stype->esize = esize;
 	stype->finalize = 0;
-	stype->mark = 0;
+	stype->mark = mark;
 	stype->magic = 997 * 0xaf653de9 * (uint32_t)stype;
 	LIST_APPEND(types, stype);
 }
@@ -163,9 +163,9 @@ void slab_test()
 	slab_type_t * t2;
 	void * p[4];
 
-	slab_type_create(&t, sizeof(t));
+	slab_type_create(&t, sizeof(t), 0);
 	t2 = slab_alloc(&t);
-	slab_type_create(t2, 1270);
+	slab_type_create(t2, 1270, 0);
 
 	p[0] = slab_alloc(t2);
 	p[1] = slab_alloc(t2);
