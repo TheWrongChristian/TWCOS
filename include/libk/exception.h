@@ -9,6 +9,7 @@ typedef struct exception_def {
 
 extern struct exception_def exception_def_Throwable;
 EXCEPTION_DEF(Exception, Throwable);
+EXCEPTION_DEF(RuntimeException, Exception);
 EXCEPTION_DEF(Error, Throwable);
 #endif
 
