@@ -26,12 +26,12 @@ typedef struct slab {
 
 static slab_type_t * types;
 
-void slab_type_create(slab_type_t * stype, size_t esize, void (*mark)(void *))
+void slab_type_create(slab_type_t * stype, size_t esize, void (*mark)(void *), void (*finalize)(void *))
 {
 	stype->first = 0;
 	stype->esize = esize;
-	stype->finalize = 0;
 	stype->mark = mark;
+	stype->finalize = finalize;
 	stype->magic = 997 * 0xaf653de9 * (uint32_t)stype;
 	LIST_APPEND(types, stype);
 }
@@ -152,7 +152,7 @@ static slab_t * slab_get(void * p)
 		/* Check magic numbers */
 		slab_t * slab = ARCH_PAGE_ALIGN(p);
 
-		if (slab->magic == slab->type->magic) {
+		if (slab->magic == slab->type->magic && (void*)slab < p) {
 			return slab;
 		}
 	}
@@ -178,7 +178,7 @@ static void slab_gc_mark(void * root)
 				/* Call the generic conservative mark */
 				void ** p = (void**)root;
 				for(;p<(void**)root+slab->esize/sizeof(void*); p++) {
-					slab_gc_mark(p);
+					slab_gc_mark(*p);
 				}
 			}
 		}
@@ -189,6 +189,13 @@ static void slab_finalize(slab_t * slab)
 {
 	int count = ARCH_PAGE_SIZE/slab->esize;
         for(int i=0; i<count; i+=32) {
+		slab->finalize[i/32] ^= slab->available[i/32];
+	}
+        for(int i=0; i<count; i++) {
+		uint32_t mask = 0x80000000 >> (i & 0x31);
+		if (slab->finalize[i/32] && mask) {
+			slab->type->finalize((char*)(slab+1) + slab->esize*i);
+		}
 	}
 }
 
@@ -221,21 +228,27 @@ void slab_free(void * p)
 	}
 }
 
+static void slab_test_finalize(void * p)
+{
+	kernel_printk("Finalizing: 0x%p\n", p);
+}
+
 void slab_test()
 {
 	slab_type_t t;
 	slab_type_t * t2;
 	void * p[4];
 
-	slab_type_create(&t, sizeof(t), 0);
+	slab_type_create(&t, sizeof(t), 0, slab_test_finalize);
 	t2 = slab_alloc(&t);
-	slab_type_create(t2, 1270, 0);
+	slab_type_create(t2, 1270, 0, slab_test_finalize);
 
 	p[0] = slab_alloc(t2);
 	p[1] = slab_alloc(t2);
 	p[2] = slab_alloc(t2);
 	p[3] = slab_alloc(t2);
 	slab_gc_begin();
+	slab_gc_mark(t2);
 	slab_gc_mark(t2);
 	slab_gc_end();
 #if 0

@@ -505,8 +505,8 @@ static void tree_optimize(map_t * map)
 
 void tree_init()
 {
-	slab_type_create(trees, sizeof(tree_t), 0);
-	slab_type_create(nodes, sizeof(node_t), 0);
+	slab_type_create(trees, sizeof(tree_t), 0, 0);
+	slab_type_create(nodes, sizeof(node_t), 0, 0);
 }
 
 map_t * tree_new(int (*comp)(void * k1, void * k2), int mode)
