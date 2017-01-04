@@ -21,6 +21,7 @@ typedef struct slab {
 	slab_type_t * type;
 	size_t esize;
 	uint32_t available[8];
+	uint32_t finalize[8];
 } slab_t;
 
 static slab_type_t * types;
@@ -66,6 +67,8 @@ static slab_t * slab_new(slab_type_t * stype)
 
 void * slab_alloc(slab_type_t * stype)
 {
+	thread_lock(slab_alloc);
+
 	slab_t * slab = stype->first ? stype->first : slab_new(stype);
 
 	while(slab) {
@@ -94,6 +97,7 @@ void * slab_alloc(slab_type_t * stype)
 
 				slab->available[i] &= ~(0x80000000 >> (slot));
 
+				thread_unlock(slab_alloc);
 				return (char*)(slab+1) + slab->esize*slot;
 			}
 		}
@@ -104,6 +108,8 @@ void * slab_alloc(slab_type_t * stype)
 		}
 	}
 
+	thread_unlock(slab_alloc);
+	/* FIXME: Throw out of memory error */
 	return 0;
 }
 
@@ -115,6 +121,7 @@ static void slab_mark_available_all(slab_t * slab)
                 if (count-i < 32) {
                         mask = ~(mask >> (count-i));
                 }
+		slab->finalize[i/32] = slab->available[i/32];
                 slab->available[i/32] = mask;
         }
 
@@ -122,6 +129,7 @@ static void slab_mark_available_all(slab_t * slab)
 
 static void slab_gc_begin()
 {
+	thread_lock(slab_alloc);
 	slab_type_t * stype = types;
 
 	/* Mark all elements available */
@@ -137,20 +145,76 @@ static void slab_gc_begin()
 	}
 }
 
+static slab_t * slab_get(void * p)
+{
+	/* FIXME: Check bounds of kernel heap */
+	if (arch_is_heap_pointer(p)) {
+		/* Check magic numbers */
+		slab_t * slab = ARCH_PAGE_ALIGN(p);
+
+		if (slab->magic == slab->type->magic) {
+			return slab;
+		}
+	}
+
+	return 0;
+}
+
 static void slab_gc_mark(void * root)
 {
+	slab_t * slab = slab_get(root);
+
+	if (slab) {
+		char * cp = root;
+		int i = (cp - (char*)(slab+1)) / slab->esize;
+		int mask = (0x80000000 >> i%32);
+		if (slab->available[i/32] & mask) {
+			/* Marked as available, clear the mark */
+			slab->available[i/32] &= ~mask;
+			if (slab->type->mark) {
+				/* Call type specific mark */
+				slab->type->mark(root);
+			} else {
+				/* Call the generic conservative mark */
+				void ** p = (void**)root;
+				for(;p<(void**)root+slab->esize/sizeof(void*); p++) {
+					slab_gc_mark(p);
+				}
+			}
+		}
+	}
+}
+
+static void slab_finalize(slab_t * slab)
+{
+	int count = ARCH_PAGE_SIZE/slab->esize;
+        for(int i=0; i<count; i+=32) {
+	}
 }
 
 static void slab_gc_end()
 {
+	slab_type_t * stype = types;
+
+	/* Finalize elements now available */
+	while(stype) {
+		slab_t * slab = stype->first;
+
+		while(slab && stype->finalize) {
+			slab_finalize(slab);
+			LIST_NEXT(stype->first, slab);
+		}
+
+		LIST_NEXT(types, stype);
+	}
+	thread_unlock(slab_alloc);
 }
 
 void slab_free(void * p)
 {
-	/* Check magic numbers */
-	slab_t * slab = ARCH_PAGE_ALIGN(p);
+	slab_t * slab = slab_get(p);
 
-	if (slab->magic == slab->type->magic) {
+	if (slab) {
 		char * cp = p;
 		int i = (cp - (char*)(slab+1)) / slab->esize;
 		slab->available[i/32] |= (0x80000000 >> i%32);
@@ -171,11 +235,15 @@ void slab_test()
 	p[1] = slab_alloc(t2);
 	p[2] = slab_alloc(t2);
 	p[3] = slab_alloc(t2);
-
+	slab_gc_begin();
+	slab_gc_mark(t2);
+	slab_gc_end();
+#if 0
 	slab_free(p[3]);
 	slab_free(p[2]);
 	slab_free(p[1]);
 	slab_free(p[0]);
+#endif
 
 	slab_free(t2);
 }
