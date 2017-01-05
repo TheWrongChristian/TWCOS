@@ -38,8 +38,7 @@ void slab_type_create(slab_type_t * stype, size_t esize, void (*mark)(void *), v
 
 static slab_t * slab_new(slab_type_t * stype)
 {
-	int i;
-	int count = (ARCH_PAGE_SIZE - sizeof(slab_t)) / stype->esize;
+	int count = (ARCH_PAGE_SIZE-sizeof(slab_t)) / stype->esize;
 	/* Allocate and map page */
 	slab_t * slab = page_valloc();
 
@@ -54,7 +53,7 @@ static slab_t * slab_new(slab_type_t * stype)
 	if (count>256) {
 		count = 256;
 	}
-	for(i=0; i<count; i+=32) {
+	for(int i=0; i<count; i+=32) {
 		uint32_t mask = ~0 ;
 		if (count-i < 32) {
 			mask = ~(mask >> (count-i));
@@ -70,11 +69,10 @@ void * slab_alloc(slab_type_t * stype)
 	thread_lock(slab_alloc);
 
 	slab_t * slab = stype->first ? stype->first : slab_new(stype);
+	int count = (ARCH_PAGE_SIZE-sizeof(*slab))/slab->esize;
 
 	while(slab) {
-		int i=0;
-
-		for(i=0; i<sizeof(slab->available)/sizeof(slab->available[0]); i++) {
+		for(int i=0; i<sizeof(slab->available)/sizeof(slab->available[0]); i++) {
 			if (slab->available[i]) {
 				/* There is some available slots */
 				int slot = i*32;
@@ -95,7 +93,7 @@ void * slab_alloc(slab_type_t * stype)
 					slot++;
 				}
 
-				slab->available[i] &= ~(0x80000000 >> (slot));
+				slab->available[i] &= ~mask;
 
 				thread_unlock(slab_alloc);
 				return (char*)(slab+1) + slab->esize*slot;
@@ -115,7 +113,7 @@ void * slab_alloc(slab_type_t * stype)
 
 static void slab_mark_available_all(slab_t * slab)
 {
-	int count = ARCH_PAGE_SIZE/slab->esize;
+	int count = (ARCH_PAGE_SIZE-sizeof(*slab))/slab->esize;
         for(int i=0; i<count; i+=32) {
                 uint32_t mask = ~0 ;
                 if (count-i < 32) {
@@ -187,13 +185,13 @@ static void slab_gc_mark(void * root)
 
 static void slab_finalize(slab_t * slab)
 {
-	int count = ARCH_PAGE_SIZE/slab->esize;
+	int count = (ARCH_PAGE_SIZE-sizeof(*slab))/slab->esize;
         for(int i=0; i<count; i+=32) {
 		slab->finalize[i/32] ^= slab->available[i/32];
 	}
         for(int i=0; i<count; i++) {
-		uint32_t mask = 0x80000000 >> (i & 0x31);
-		if (slab->finalize[i/32] && mask) {
+		uint32_t mask = 0x80000000 >> (i & 31);
+		if (slab->finalize[i/32] & mask) {
 			slab->type->finalize((char*)(slab+1) + slab->esize*i);
 		}
 	}
