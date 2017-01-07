@@ -364,6 +364,25 @@ typedef struct {
 
 #endif
 
+void arch_thread_mark(thread_t * thread)
+{
+	if (arch_get_thread() == thread) {
+		setjmp(thread->context.state);
+	}
+
+	void ** esp = thread->context.state[1];
+	void ** stacktop = (void**)((char*)thread->context.stack + ARCH_PAGE_SIZE);
+
+	if (!arch_is_heap_pointer(esp)) {
+		/* Bogus stack pointer - ignore */
+		return;
+	}
+
+	/* Mark each potential address on the stack */
+	slab_gc_mark_range(esp, stacktop);
+	slab_gc_mark_block((void**)thread->context.state, sizeof(thread->context.state));
+}
+
 static irq_func irq_table[] =  {
 	0, 0, 0, 0,
 	0, 0, 0, 0,
@@ -468,10 +487,24 @@ void i386_init()
 	*stackbase = &initial;
 	initial.context.stack = stackbase;
 	initial.priority = THREAD_NORMAL;
+	initial.state = THREAD_RUNNING;
 
 	PIC_remap(PIC_IRQ_BASE, PIC_IRQ_BASE+16);
 
 	sti();
+}
+
+void arch_thread_init(thread_t * thread)
+{
+
+	if (arch_thread_fork(thread)) {
+		arch_thread_switch(thread);
+	}
+#if 0
+	/* Fix up stack base pointer to thread */
+	thread_t ** stackbase = thread->context.stack;
+	*stackbase = thread;
+#endif
 }
 
 void arch_idle()
@@ -530,15 +563,18 @@ int arch_thread_fork(thread_t * dest)
 {
 	/* Allocate the stack */
 	thread_t * source = arch_get_thread();
+	/* Top level copy */
+	memcpy(dest, source, sizeof(*dest));
+
+	/* Stacks */
 	uint32_t * dpage = (uint32_t*)ARCH_GET_VPAGE(dest->context.stack = page_valloc());
 	uint32_t * spage = (uint32_t*)ARCH_GET_VPAGE(source->context.stack);
-	int i;
 
 	/* Set pointer to thread */
 	dpage[0] = (ptri)dest;
 
 	/* Copy the source thread stack */
-	for(i=1; i<ARCH_PAGE_SIZE/sizeof(*dpage); i++) {
+	for(int i=1; i<ARCH_PAGE_SIZE/sizeof(*dpage); i++) {
 		if (ARCH_PTRI_BASE(spage[i]) == ARCH_PTRI_BASE(spage)) {
 			/* Adjust pointer */
 			dpage[i] = (ptri)dpage | ARCH_PTRI_OFFSET(spage[i]);
@@ -553,9 +589,16 @@ int arch_thread_fork(thread_t * dest)
 	}
 
 	/* Adjust destination context */
-	for(i=0; i<sizeof(dest->context.state)/sizeof(dest->context.state[0]); i++) {
+	for(int i=0; i<sizeof(dest->context.state)/sizeof(dest->context.state[0]); i++) {
 		if (ARCH_PTRI_BASE(dest->context.state[i]) == ARCH_PTRI_BASE(spage)) {
 			dest->context.state[i] = (ptri)dpage | ARCH_PTRI_OFFSET(dest->context.state[i]);
+		}
+	}
+
+	/* Adjust TLS */
+	for(int i=0; i<sizeof(dest->tls)/sizeof(dest->tls[0]); i++) {
+		if (ARCH_PTRI_BASE(dest->tls[i]) == ARCH_PTRI_BASE(spage)) {
+			dest->tls[i] = (ptri)dpage | ARCH_PTRI_OFFSET(dest->tls[i]);
 		}
 	}
 

@@ -125,7 +125,7 @@ static void slab_mark_available_all(slab_t * slab)
 
 }
 
-static void slab_gc_begin()
+void slab_gc_begin()
 {
 	thread_lock(slab_alloc);
 	slab_type_t * stype = types;
@@ -145,7 +145,6 @@ static void slab_gc_begin()
 
 static slab_t * slab_get(void * p)
 {
-	/* FIXME: Check bounds of kernel heap */
 	if (arch_is_heap_pointer(p)) {
 		/* Check magic numbers */
 		slab_t * slab = ARCH_PAGE_ALIGN(p);
@@ -158,7 +157,7 @@ static slab_t * slab_get(void * p)
 	return 0;
 }
 
-static void slab_gc_mark(void * root)
+void slab_gc_mark(void * root)
 {
 	slab_t * slab = slab_get(root);
 
@@ -183,6 +182,21 @@ static void slab_gc_mark(void * root)
 	}
 }
 
+void slab_gc_mark_block(void ** block, size_t size)
+{
+	for(int i=0; i<size/sizeof(*block); i++) {
+		slab_gc_mark(block[i]);
+	}
+}
+
+void slab_gc_mark_range(void ** from, void ** to)
+{
+	void ** mark = from;
+	while(mark<to) {
+		slab_gc_mark(*mark++);
+	}
+}
+
 static void slab_finalize(slab_t * slab)
 {
 	int count = (ARCH_PAGE_SIZE-sizeof(*slab))/slab->esize;
@@ -197,7 +211,7 @@ static void slab_finalize(slab_t * slab)
 	}
 }
 
-static void slab_gc_end()
+void slab_gc_end()
 {
 	slab_type_t * stype = types;
 
@@ -245,10 +259,9 @@ void slab_test()
 	p[1] = slab_alloc(t2);
 	p[2] = slab_alloc(t2);
 	p[3] = slab_alloc(t2);
-	slab_gc_begin();
-	slab_gc_mark(t2);
-	slab_gc_mark(t2);
-	slab_gc_end();
+	thread_gc();
+	p[0] = p[1] = p[2] = p[3] = 0;
+	thread_gc();
 #if 0
 	slab_free(p[3]);
 	slab_free(p[2]);
