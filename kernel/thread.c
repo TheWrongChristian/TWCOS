@@ -378,9 +378,41 @@ void thread_set_priority(thread_t * thread, tpriority priority)
 	thread->priority = priority;
 }
 
+void thread_gc()
+{
+	slab_gc_begin();
+	slab_gc_mark(arch_get_thread());
+	for(int i=0; i<sizeof(queue)/sizeof(queue[0]); i++) {
+		slab_gc_mark(queue[i]);
+	}
+	for(int i=0; i<sizeof(locks)/sizeof(locks[0]); i++) {
+		slab_gc_mark(locks[i].p);
+		slab_gc_mark(locks[i].owner);
+		slab_gc_mark(locks[i].waiting);
+		slab_gc_mark(locks[i].condwaiting);
+	}
+	slab_gc_end();
+}
+
+static void thread_mark(void * p)
+{
+	thread_t * thread = (thread_t *)p;
+
+	for(int i=0; i<sizeof(thread->tls)/sizeof(thread->tls[0]); i++) {
+		slab_gc_mark(thread->tls[i]);
+	}
+	slab_gc_mark(thread->next);
+	slab_gc_mark(thread->retval);
+
+	arch_thread_mark(thread);
+}
+
 void thread_init()
 {
-	slab_type_create(threads, sizeof(thread_t), 0, 0);
+	slab_type_create(threads, sizeof(thread_t), thread_mark, 0);
+
+	/* Craft a new bootstrap thread to replace the static defined thread */
+	arch_thread_init(slab_alloc(threads));
 }
 
 static void thread_test2();
