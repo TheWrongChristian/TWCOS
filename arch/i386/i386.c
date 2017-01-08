@@ -102,6 +102,12 @@ void hang()
 	}
 }
 
+void reset()
+{
+	lidt(0,0);
+	hlt();
+}
+
 void invlpg(void* m)
 {
 	/* Clobber memory to avoid optimizer re-ordering access before invlpg, which may cause nasty bugs. */
@@ -526,6 +532,9 @@ void arch_idle()
 		uint8_t scancode = keyq_get();
 		if (scancode) {
 			kernel_printk("%x\n", scancode);
+			if (0x13 == scancode) {
+				reset();
+			}
 		}
 	}
 	kernel_panic("idle finished");
