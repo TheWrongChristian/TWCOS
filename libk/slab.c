@@ -69,7 +69,6 @@ void * slab_alloc(slab_type_t * stype)
 	thread_lock(slab_alloc);
 
 	slab_t * slab = stype->first ? stype->first : slab_new(stype);
-	int count = (ARCH_PAGE_SIZE-sizeof(*slab))/slab->esize;
 
 	while(slab) {
 		for(int i=0; i<sizeof(slab->available)/sizeof(slab->available[0]); i++) {
