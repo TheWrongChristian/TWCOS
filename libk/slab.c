@@ -197,6 +197,11 @@ void slab_gc_mark_range(void ** from, void ** to)
 	}
 }
 
+static void slab_finalize_clear_param(void * param)
+{
+	param = 0;
+}
+
 static void slab_finalize(slab_t * slab)
 {
 	int count = (ARCH_PAGE_SIZE-sizeof(*slab))/slab->esize;
@@ -209,6 +214,8 @@ static void slab_finalize(slab_t * slab)
 			slab->type->finalize((char*)(slab+1) + slab->esize*i);
 		}
 	}
+	/* Clear parameter values left on stack */
+	slab_finalize_clear_param(0);
 }
 
 void slab_gc_end()
@@ -243,6 +250,19 @@ void slab_free(void * p)
 static void slab_test_finalize(void * p)
 {
 	kernel_printk("Finalizing: 0x%p\n", p);
+#if 0
+	/* Ensure we don't leave an accidental reference on the stack */
+	p = 0;
+#endif
+}
+
+static void slab_test_mark(void *p)
+{
+	kernel_printk("Marking: 0x%p\n", p);
+#if 0
+	/* Ensure we don't leave an accidental reference on the stack */
+	p = 0;
+#endif
 }
 
 void slab_test()
@@ -253,21 +273,23 @@ void slab_test()
 
 	slab_type_create(&t, sizeof(t), 0, slab_test_finalize);
 	t2 = slab_alloc(&t);
-	slab_type_create(t2, 1270, 0, slab_test_finalize);
+	slab_type_create(t2, 1270, slab_test_mark, slab_test_finalize);
 
 	p[0] = slab_alloc(t2);
 	p[1] = slab_alloc(t2);
 	p[2] = slab_alloc(t2);
 	p[3] = slab_alloc(t2);
+
+	/* Nothing should be finalized here */
 	thread_gc();
 	p[0] = p[1] = p[2] = p[3] = 0;
+
+	/* p array should be finalized here */
 	thread_gc();
-#if 0
-	slab_free(p[3]);
-	slab_free(p[2]);
-	slab_free(p[1]);
-	slab_free(p[0]);
-#endif
+	t2 = 0;
+
+	/* t2 should be finalized here */
+	thread_gc();
 
 	slab_free(t2);
 }
