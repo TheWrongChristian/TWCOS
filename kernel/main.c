@@ -25,10 +25,10 @@ void kernel_main() {
 	KTRY {
 		thread_init();
 
-		slab_test();
 		exception_test();
 		thread_test();
 		tree_test();
+		slab_test();
 
 		arch_idle();
 	} KCATCH(Throwable) {
