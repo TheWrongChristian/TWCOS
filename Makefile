@@ -24,9 +24,10 @@ all:: boot.iso
 obj:
 	mkdir -p obj
 
-boot.iso: grub.cfg arch/$(ARCH)/kernel
+KERNEL=arch/$(ARCH)/kernel
+boot.iso: grub.cfg $(KERNEL)
 	mkdir -p isodir/boot/grub
-	cp arch/$(ARCH)/kernel isodir/boot/kernel
+	cp $(KERNEL) isodir/boot/kernel
 	cp grub.cfg isodir/boot/grub/grub.cfg
 	grub-mkrescue -o boot.iso isodir
 
@@ -36,8 +37,8 @@ clean::
 
 qemu: all
 	echo target remote localhost:1234 | tee .gdbinit
-	echo symbol-file kernel/kernel | tee -a .gdbinit
-	qemu-system-i386 -m 16 -s -S -kernel kernel/kernel &
+	echo symbol-file $(KERNEL) | tee -a .gdbinit
+	qemu-system-i386 -m 16 -s -S -kernel $(KERNEL) &
 
 includes::
 	rm -f $(SRCS_C:.c=.h)
@@ -45,6 +46,9 @@ includes::
 
 cflow:
 	cflow -d 4 -r $(SRCS_C)
+
+ctags:
+	ctags $(SRCS_C)
 
 -include $(OBJS:.o=.d)
 

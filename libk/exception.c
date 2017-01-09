@@ -70,7 +70,7 @@ exception_frame * exception_push(exception_frame * frame)
 {
 	if (0 == exception_key) {
 		exception_key = tls_get_key();
-		slab_type_create(&causes,sizeof(struct exception_cause));
+		slab_type_create(&causes,sizeof(struct exception_cause), 0, 0);
 	}
 
 	/* Link the frame into the chain */

@@ -120,6 +120,7 @@ void vmap_unmap(asid vid, void * vaddress)
  */
 void vmap_fault(void * p, int rw, int user)
 {
+	kernel_panic("Cannot handle page fault\n");
 }
 
 static void vmap_test()
