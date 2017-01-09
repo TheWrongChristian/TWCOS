@@ -395,7 +395,7 @@ static irq_func irq_table[] =  {
 	0, 0, 0, 0,
 	0, 0, 0, 0 };
 
-static uint32_t irq_flag = 0;
+static volatile uint32_t irq_flag = 0;
 static void i386_irq(uint32_t num, uint32_t * state)
 {
 	int irq = num - PIC_IRQ_BASE;
@@ -419,12 +419,24 @@ irq_func add_irq(int irq, irq_func handler)
 static int wait_irq()
 {
 	int irq = 0;
+	int gc = 0;
+	static int gc_rolling = 0;
 
 	while(0 == irq_flag) {
+#if 0
 		hlt();
+#else
+		thread_gc();
+		gc++;
+#endif
 	}
 
+	gc_rolling = (7*gc_rolling + gc) >> 3;
+
+	kernel_printk("  GC count: %d rolling %d     \r", gc, gc_rolling);
+#if 0
 	kernel_printk("  Got interrupt\r");
+#endif
 	for(; irq<16; irq++) {
 		int mask = 1<<irq;
 		if (irq_flag & mask) {
