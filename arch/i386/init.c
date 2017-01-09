@@ -66,6 +66,11 @@ void * arch_heap_page()
 	return p;
 }
 
+int arch_is_heap_pointer(void *p)
+{
+	return (char*)p>=&_bootstrap_nextalloc && (char*)p<nextalloc;
+}
+
 void arch_init()
 {
 	int i;
