@@ -266,35 +266,24 @@ void slab_free(void * p)
 static void slab_test_finalize(void * p)
 {
 	kernel_printk("Finalizing: 0x%p\n", p);
-#if 0
-	/* Ensure we don't leave an accidental reference on the stack */
-	p = 0;
-#endif
 }
 
 static void slab_test_mark(void *p)
 {
 	kernel_printk("Marking: 0x%p\n", p);
-#if 0
-	/* Ensure we don't leave an accidental reference on the stack */
-	p = 0;
-#endif
 }
 
 void slab_test()
 {
-	static slab_type_t t;
-	slab_type_t * t2;
+	static slab_type_t t[1];
 	void * p[4];
 
-	slab_type_create(&t, sizeof(t), 0, slab_test_finalize);
-	t2 = slab_alloc(&t);
-	slab_type_create(t2, 1270, slab_test_mark, slab_test_finalize);
+	slab_type_create(t, 1270, slab_test_mark, slab_test_finalize);
 
-	p[0] = slab_alloc(t2);
-	p[1] = slab_alloc(t2);
-	p[2] = slab_alloc(t2);
-	p[3] = slab_alloc(t2);
+	p[0] = slab_alloc(t);
+	p[1] = slab_alloc(t);
+	p[2] = slab_alloc(t);
+	p[3] = slab_alloc(t);
 
 	/* Nothing should be finalized here */
 	thread_gc();
@@ -302,10 +291,4 @@ void slab_test()
 
 	/* p array should be finalized here */
 	thread_gc();
-	t2 = 0;
-
-	/* t2 should be finalized here */
-	thread_gc();
-
-	slab_free(t2);
 }
