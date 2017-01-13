@@ -14,6 +14,10 @@ typedef struct slab_type {
 	void (*finalize)(void *);
 } slab_type_t;
 
+typedef struct {
+	void * p;
+} slab_weak_ref_t;
+
 #endif
 
 typedef struct slab {
@@ -47,6 +51,45 @@ void slab_type_create(slab_type_t * stype, size_t esize, void (*mark)(void *), v
 	 */
 	stype->count = (8*(ARCH_PAGE_SIZE-sizeof(slab_t))-64)/ (8 * stype->esize + 2);
 	LIST_APPEND(types, stype);
+}
+
+static void slab_weak_ref_mark(void * p)
+{
+	/* Intentionally empty */
+}
+
+static void slab_weak_ref_finalize(void * p)
+{
+	slab_weak_ref_t * ref = p;
+	ref->p = 0;
+}
+
+slab_weak_ref_t * slab_weak_ref(void * p)
+{
+	static slab_type_t wr[1];
+	static int inited = 0;
+
+	thread_lock(slab_alloc);
+
+	if (!inited) {
+		inited = 1;
+		slab_type_create(wr, sizeof(slab_weak_ref_t), slab_weak_ref_mark, slab_weak_ref_finalize);
+	}
+
+	thread_unlock(slab_alloc);
+
+	slab_weak_ref_t * ref = slab_alloc(wr);
+	ref->p = p;
+
+	return ref;
+}
+
+void * slab_weak_ref_get(slab_weak_ref_t * ref)
+{
+	thread_lock(slab_alloc);
+	void * p = ref->p;
+	thread_unlock(slab_alloc);
+	return p;
 }
 
 static slab_t * slab_new(slab_type_t * stype)
@@ -281,14 +324,17 @@ void slab_test()
 	slab_type_create(t, 1270, slab_test_mark, slab_test_finalize);
 
 	p[0] = slab_alloc(t);
+	slab_weak_ref_t * ref = slab_weak_ref(p[0]);
 	p[1] = slab_alloc(t);
 	p[2] = slab_alloc(t);
 	p[3] = slab_alloc(t);
 
 	/* Nothing should be finalized here */
 	thread_gc();
+	kernel_printk("Weak p[0] = 0x%p\n", slab_weak_ref_get(ref));
 	p[0] = p[1] = p[2] = p[3] = 0;
 
 	/* p array should be finalized here */
 	thread_gc();
+	kernel_printk("Weak p[0] = 0x%p\n", slab_weak_ref_get(ref));
 }
