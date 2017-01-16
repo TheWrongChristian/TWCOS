@@ -7,11 +7,16 @@
 typedef struct slab_type {
 	uint32_t magic;
 	size_t esize;
+	int count;
 	struct slab * first;
 	struct slab_type * next, * prev;
 	void (*mark)(void *);
 	void (*finalize)(void *);
 } slab_type_t;
+
+typedef struct {
+	void * p;
+} slab_weak_ref_t;
 
 #endif
 
@@ -19,9 +24,9 @@ typedef struct slab {
 	uint32_t magic;
 	struct slab * next, * prev;
 	slab_type_t * type;
-	size_t esize;
-	uint32_t available[8];
-	uint32_t finalize[8];
+	uint32_t * available;
+	uint32_t * finalize;
+	char * data;
 } slab_t;
 
 static slab_type_t * types;
@@ -33,30 +38,76 @@ void slab_type_create(slab_type_t * stype, size_t esize, void (*mark)(void *), v
 	stype->mark = mark;
 	stype->finalize = finalize;
 	stype->magic = 997 * 0xaf653de9 * (uint32_t)stype;
+
+	/*           <-----------------d------------------>
+	 * | slab_t |a|f|              data                |
+	 *  <-----------------page size------------------->
+	 * data + a + f = ARCH_PAGE_SIZE-sizeof(slab_t)
+	 * c*s + c/8+4 + c/8+4 = psz-slab_t = d
+	 * 8*c*s + c + 32 + c + 32 = 8*d
+	 * 8*c*s + 2*c = 8*d - 64
+	 * c*(8*s + 2) = 8*d - 64
+	 * c = (8*d - 64) / (8*s + 2)
+	 */
+	stype->count = (8*(ARCH_PAGE_SIZE-sizeof(slab_t))-64)/ (8 * stype->esize + 2);
 	LIST_APPEND(types, stype);
+}
+
+static void slab_weak_ref_mark(void * p)
+{
+	/* Intentionally empty */
+}
+
+static void slab_weak_ref_finalize(void * p)
+{
+	slab_weak_ref_t * ref = p;
+	ref->p = 0;
+}
+
+slab_weak_ref_t * slab_weak_ref(void * p)
+{
+	static slab_type_t wr[1];
+	static int inited = 0;
+
+	thread_lock(slab_alloc);
+
+	if (!inited) {
+		inited = 1;
+		slab_type_create(wr, sizeof(slab_weak_ref_t), slab_weak_ref_mark, slab_weak_ref_finalize);
+	}
+
+	thread_unlock(slab_alloc);
+
+	slab_weak_ref_t * ref = slab_alloc(wr);
+	ref->p = p;
+
+	return ref;
+}
+
+void * slab_weak_ref_get(slab_weak_ref_t * ref)
+{
+	thread_lock(slab_alloc);
+	void * p = ref->p;
+	thread_unlock(slab_alloc);
+	return p;
 }
 
 static slab_t * slab_new(slab_type_t * stype)
 {
-	int count = (ARCH_PAGE_SIZE-sizeof(slab_t)) / stype->esize;
 	/* Allocate and map page */
 	slab_t * slab = page_valloc();
 
-	slab->esize = stype->esize;
 	slab->magic = stype->magic;
 	slab->type = stype;
+	slab->available = (uint32_t*)(slab+1);
+	slab->finalize = slab->available + (slab->type->count+32)/32;
+	slab->data = (char*)(slab->finalize + (slab->type->count+32)/32);
 	LIST_PREPEND(stype->first, slab);
 
-	/*
-	 * Up to 256 elements per slab
-	 */
-	if (count>256) {
-		count = 256;
-	}
-	for(int i=0; i<count; i+=32) {
+	for(int i=0; i<stype->count; i+=32) {
 		uint32_t mask = ~0 ;
-		if (count-i < 32) {
-			mask = ~(mask >> (count-i));
+		if (stype->count-i < 32) {
+			mask = ~(mask >> (stype->count-i));
 		}
 		slab->available[i/32] = mask;
 	}
@@ -71,11 +122,11 @@ void * slab_alloc(slab_type_t * stype)
 	slab_t * slab = stype->first ? stype->first : slab_new(stype);
 
 	while(slab) {
-		for(int i=0; i<sizeof(slab->available)/sizeof(slab->available[0]); i++) {
-			if (slab->available[i]) {
+		for(int i=0; i<slab->type->count; i+=32) {
+			if (slab->available[i/32]) {
 				/* There is some available slots */
-				int slot = i*32;
-				uint32_t a = slab->available[i];
+				int slot = i;
+				uint32_t a = slab->available[i/32];
 				uint32_t mask = 0x80000000;
 #if 0
 				if (a & 0x0000ffff) slot += 16, a >>= 16;
@@ -92,10 +143,10 @@ void * slab_alloc(slab_type_t * stype)
 					slot++;
 				}
 
-				slab->available[i] &= ~mask;
+				slab->available[i/32] &= ~mask;
 
 				thread_unlock(slab_alloc);
-				return (char*)(slab+1) + slab->esize*slot;
+				return slab->data + slab->type->esize*slot;
 			}
 		}
 
@@ -112,11 +163,10 @@ void * slab_alloc(slab_type_t * stype)
 
 static void slab_mark_available_all(slab_t * slab)
 {
-	int count = (ARCH_PAGE_SIZE-sizeof(*slab))/slab->esize;
-        for(int i=0; i<count; i+=32) {
+        for(int i=0; i<slab->type->count; i+=32) {
                 uint32_t mask = ~0 ;
-                if (count-i < 32) {
-                        mask = ~(mask >> (count-i));
+                if (slab->type->count-i < 32) {
+                        mask = ~(mask >> (slab->type->count-i));
                 }
 		slab->finalize[i/32] = slab->available[i/32];
                 slab->available[i/32] = mask;
@@ -148,7 +198,7 @@ static slab_t * slab_get(void * p)
 		/* Check magic numbers */
 		slab_t * slab = ARCH_PAGE_ALIGN(p);
 
-		if (slab->magic == slab->type->magic && (void*)slab < p) {
+		if (slab->magic == slab->type->magic && slab->data <= p) {
 			return slab;
 		}
 	}
@@ -161,8 +211,7 @@ void slab_gc_mark(void * root)
 	slab_t * slab = slab_get(root);
 
 	if (slab) {
-		char * cp = root;
-		int i = (cp - (char*)(slab+1)) / slab->esize;
+		int i = ((char*)root - slab->data) / slab->type->esize;
 		int mask = (0x80000000 >> i%32);
 		if (slab->available[i/32] & mask) {
 			/* Marked as available, clear the mark */
@@ -173,12 +222,14 @@ void slab_gc_mark(void * root)
 			} else {
 				/* Call the generic conservative mark */
 				void ** p = (void**)root;
-				for(;p<(void**)root+slab->esize/sizeof(void*); p++) {
+				for(;p<(void**)root+slab->type->esize/sizeof(void*); p++) {
 					slab_gc_mark(*p);
 				}
+				p = 0;
 			}
 		}
 	}
+	slab=0;
 }
 
 void slab_gc_mark_block(void ** block, size_t size)
@@ -203,14 +254,19 @@ static void slab_finalize_clear_param(void * param)
 
 static void slab_finalize(slab_t * slab)
 {
-	int count = (ARCH_PAGE_SIZE-sizeof(*slab))/slab->esize;
-        for(int i=0; i<count; i+=32) {
+        for(int i=0; i<slab->type->count; i+=32) {
 		slab->finalize[i/32] ^= slab->available[i/32];
 	}
-        for(int i=0; i<count; i++) {
-		uint32_t mask = 0x80000000 >> (i & 31);
-		if (slab->finalize[i/32] & mask) {
-			slab->type->finalize((char*)(slab+1) + slab->esize*i);
+        for(int i=0; i<slab->type->count; ) {
+		if (slab->finalize[i/32]) {
+			uint32_t mask = 0x80000000;
+			for(; i<slab->type->count && mask; i++, mask>>=1) {
+				if (slab->finalize[i/32] & mask) {
+					slab->type->finalize(slab->data + slab->type->esize*i);
+				}
+			}
+		} else {
+			i+=32;
 		}
 	}
 	/* Clear parameter values left on stack */
@@ -241,54 +297,44 @@ void slab_free(void * p)
 
 	if (slab) {
 		char * cp = p;
-		int i = (cp - (char*)(slab+1)) / slab->esize;
+		int i = (cp - slab->data) / slab->type->esize;
 		slab->available[i/32] |= (0x80000000 >> i%32);
+		if (slab->type->finalize) {
+			slab->type->finalize(p);
+		}
+		p = 0;
 	}
 }
 
 static void slab_test_finalize(void * p)
 {
 	kernel_printk("Finalizing: 0x%p\n", p);
-#if 0
-	/* Ensure we don't leave an accidental reference on the stack */
-	p = 0;
-#endif
 }
 
 static void slab_test_mark(void *p)
 {
 	kernel_printk("Marking: 0x%p\n", p);
-#if 0
-	/* Ensure we don't leave an accidental reference on the stack */
-	p = 0;
-#endif
 }
 
 void slab_test()
 {
-	slab_type_t t;
-	slab_type_t * t2;
+	static slab_type_t t[1];
 	void * p[4];
 
-	slab_type_create(&t, sizeof(t), 0, slab_test_finalize);
-	t2 = slab_alloc(&t);
-	slab_type_create(t2, 1270, slab_test_mark, slab_test_finalize);
+	slab_type_create(t, 1270, slab_test_mark, slab_test_finalize);
 
-	p[0] = slab_alloc(t2);
-	p[1] = slab_alloc(t2);
-	p[2] = slab_alloc(t2);
-	p[3] = slab_alloc(t2);
+	p[0] = slab_alloc(t);
+	slab_weak_ref_t * ref = slab_weak_ref(p[0]);
+	p[1] = slab_alloc(t);
+	p[2] = slab_alloc(t);
+	p[3] = slab_alloc(t);
 
 	/* Nothing should be finalized here */
 	thread_gc();
+	kernel_printk("Weak p[0] = 0x%p\n", slab_weak_ref_get(ref));
 	p[0] = p[1] = p[2] = p[3] = 0;
 
 	/* p array should be finalized here */
 	thread_gc();
-	t2 = 0;
-
-	/* t2 should be finalized here */
-	thread_gc();
-
-	slab_free(t2);
+	kernel_printk("Weak p[0] = 0x%p\n", slab_weak_ref_get(ref));
 }
