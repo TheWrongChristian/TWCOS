@@ -12,6 +12,7 @@ typedef struct thread_s {
 	/* Runtime data */
 	void * tls[TLS_MAX];
 	arch_context_t context;
+	map_t * as;
 
 	/* Run state */
 	tstate state;
@@ -328,6 +329,7 @@ thread_t * thread_fork()
 	thread_t * thread = slab_alloc(threads);
 
 	thread->priority = this->priority;
+	thread->as = this->as;
 
 	if (0 == arch_thread_fork(thread)) {
 		return 0;

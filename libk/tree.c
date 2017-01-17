@@ -354,16 +354,17 @@ static void * tree_put( map_t * map, void * key, void * data )
 	return 0;
 }
 
-static void * tree_get( map_t * map, void * key )
+static node_t * tree_get_node_le( tree_t * tree, void * key )
 {
-	tree_t * tree = (tree_t*)map;
 	node_t * node = tree->root;
 
 	while(node) {
 		int diff = tree->comp(node->key, key);
 
-		if (diff<0) {
+		if (diff<0 && node->left) {
 			node = node->left;
+		} else if (diff<0) {
+			return node;
 		} else if (diff>0) {
 			node = node->right;
 		} else {
@@ -381,6 +382,22 @@ static void * tree_get( map_t * map, void * key )
 	}
 
 	return 0;
+}
+
+static void * tree_get(map_t * map, void * key )
+{
+	tree_t * tree = (tree_t*)map;
+	node_t * node = tree_get_node_le(tree, key);
+
+	return (0 == tree->comp(node->key, key)) ? node->data, 0; 
+}
+
+static void * tree_get_le(map_t * map, void * key )
+{
+	tree_t * tree = (tree_t*)map;
+	node_t * node = tree_get_node_le(tree, key);
+
+	return (0 == tree->comp(node->key, key)) ? node->data, 0; 
 }
 
 static void * tree_remove( map_t * map, void * key )
