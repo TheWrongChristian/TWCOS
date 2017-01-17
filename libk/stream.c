@@ -51,18 +51,18 @@ static void stream_putint(struct stream * stream, int base, int i)
 	}
 }
 
-static void stream_putptr(struct stream * stream, const void * p)
-{
-	stream_putstr(stream, "0x");
-	stream_putulong(stream, 16, (unsigned int)p);
-}
-
 static void stream_putstr(struct stream * stream, const char * s)
 {
 	char c;
 	while((c = *s++)) {
 		stream_putc(stream, c);
 	}
+}
+
+static void stream_putptr(struct stream * stream, const void * p)
+{
+	stream_putstr(stream, "0x");
+	stream_putulong(stream, 16, (unsigned int)p);
 }
 
 struct fmt_opts {
