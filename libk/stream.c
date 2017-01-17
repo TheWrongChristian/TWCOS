@@ -53,6 +53,7 @@ static void stream_putint(struct stream * stream, int base, int i)
 
 static void stream_putptr(struct stream * stream, const void * p)
 {
+	stream_putstr(stream, "0x");
 	stream_putulong(stream, 16, (unsigned int)p);
 }
 
