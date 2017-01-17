@@ -248,7 +248,7 @@ void slab_free(void * p)
 
 static void slab_test_finalize(void * p)
 {
-	kernel_printk("Finalizing: 0x%p\n", p);
+	kernel_printk("Finalizing: %p\n", p);
 #if 0
 	/* Ensure we don't leave an accidental reference on the stack */
 	p = 0;
@@ -257,7 +257,7 @@ static void slab_test_finalize(void * p)
 
 static void slab_test_mark(void *p)
 {
-	kernel_printk("Marking: 0x%p\n", p);
+	kernel_printk("Marking: %p\n", p);
 #if 0
 	/* Ensure we don't leave an accidental reference on the stack */
 	p = 0;

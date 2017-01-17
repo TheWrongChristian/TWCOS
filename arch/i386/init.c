@@ -139,7 +139,7 @@ void arch_init()
 		}
 	}
 #endif
-	kernel_printk("Bootstrap end - 0x%p\n", nextalloc);
+	kernel_printk("Bootstrap end - %p\n", nextalloc);
 }
 
 #if INTERFACE
