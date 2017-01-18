@@ -110,6 +110,14 @@ void * slab_alloc(slab_type_t * stype)
 	return 0;
 }
 
+void * slab_calloc(slab_type_t * stype)
+{
+	void * p = slab_alloc(stype);
+	memset(p, 0, stype->esize);
+
+	return p;
+}
+
 static void slab_mark_available_all(slab_t * slab)
 {
 	int count = (ARCH_PAGE_SIZE-sizeof(*slab))/slab->esize;

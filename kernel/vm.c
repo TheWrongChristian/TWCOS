@@ -96,7 +96,7 @@ static void vm_segment_anonymous_fault(segment_t * seg, void * p, int write, int
 	segment_anonymous_t * aseg = seg->private;
 	if (!present) {
 		page_t page = page_alloc();
-		vmap_map(as, p, seg->writeable, seg->user);
+		vmap_map(as, p, page, seg->writeable, seg->user);
 	}
 }
 
@@ -108,10 +108,10 @@ segment_t * vm_segment_anonymous( void * p, size_t size, int writeable, segment_
 	segment_anonymous_t * seg = slab_alloc(segment_anonymous);
 
 	seg->segment.private = seg;
-	seg->base = p;
-	seg->size = size;
-	seg->ops = &anon_ops;
-	seg->backing = 0;
+	seg->segment.base = p;
+	seg->segment.size = size;
+	seg->segment.ops = &anon_ops;
+	seg->segment.backing = 0;
 
 	return &seg->segment;
 }

@@ -29,6 +29,7 @@ void kernel_main() {
 		thread_test();
 		tree_test();
 		slab_test();
+		vector_test();
 
 		arch_idle();
 	} KCATCH(Throwable) {
