@@ -354,19 +354,31 @@ static void * tree_put( map_t * map, void * key, void * data )
 	return 0;
 }
 
-static node_t * tree_get_node_le( tree_t * tree, void * key )
+enum condition { NODE_LE, NODE_EQ, NODE_GT };
+static node_t * tree_get_node( tree_t * tree, void * key, int cond )
 {
 	node_t * node = tree->root;
 
+	/* FIXME: All this logic needs checking! */
 	while(node) {
-		int diff = tree->comp(node->key, key);
+		int diff = tree->comp(key, node->key);
 
-		if (diff<0 && node->left) {
-			node = node->left;
-		} else if (diff<0) {
-			return node;
+		if (diff<0) {
+			if (node->left) {
+				node = node->left;
+			} else if (NODE_GT == cond) {
+				return node->data;
+			} else {
+				node = node->left;
+			}
 		} else if (diff>0) {
-			node = node->right;
+			if (node->right) {
+				node = node->right;
+			} else if (NODE_LE == cond) {
+				return node->data;
+			} else {
+				node = node->right;
+			}
 		} else {
 			if (TREE_SPLAY == tree->mode) {
 				node_splay(node);
@@ -384,20 +396,14 @@ static node_t * tree_get_node_le( tree_t * tree, void * key )
 	return 0;
 }
 
-static void * tree_get(map_t * map, void * key )
-{
-	tree_t * tree = (tree_t*)map;
-	node_t * node = tree_get_node_le(tree, key);
-
-	return (0 == tree->comp(node->key, key)) ? node->data, 0; 
-}
-
 static void * tree_get_le(map_t * map, void * key )
 {
-	tree_t * tree = (tree_t*)map;
-	node_t * node = tree_get_node_le(tree, key);
+	return tree_get_node((tree_t*)map, key, NODE_LE);
+}
 
-	return (0 == tree->comp(node->key, key)) ? node->data, 0; 
+static void * tree_get(map_t * map, void * key )
+{
+	return tree_get_node((tree_t*)map, key, NODE_EQ);
 }
 
 static void * tree_remove( map_t * map, void * key )
@@ -534,6 +540,7 @@ map_t * tree_new(int (*comp)(void * k1, void * k2), int mode)
 		walk: tree_walk,
 		put: tree_put,
 		get: tree_get,
+		get_le: tree_get_le,
 		optimize: tree_optimize,
 		remove: tree_remove,
 		iterator: tree_iterator
@@ -597,4 +604,10 @@ void tree_test()
 	map_optimize(map);
 	tree_graph_node(((tree_t*)map)->root, 0);
 	tree_walk(map, tree_walk_dump);
+
+	kernel_printk("%s LE Christ\n", map_get_le(map, "Christ"));
+#if 0
+	kernel_printk("%s GE Christ\n", map_get_gt(map, "Christ"));
+#endif
+	kernel_printk("%s EQ Christmas\n", map_get(map, "Christmas"));
 }
