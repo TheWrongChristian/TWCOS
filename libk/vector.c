@@ -31,7 +31,6 @@ static vector_table_t * vector_table_new(int level)
 	vector_table_t * table = slab_calloc(tables);
 
 	table->level = level;
-	memset(table->d, 0, sizeof(table->d));
 
 	return table;
 }
@@ -39,12 +38,13 @@ static vector_table_t * vector_table_new(int level)
 static void ** vector_entry_get(vector_table_t * table, int i)
 {
 	if (table->level) {
-		int index = i>>(VECTOR_TABLE_ENTRIES_LOG2*table->level);
+		int shift = VECTOR_TABLE_ENTRIES_LOG2*table->level;
+		int index = i>>shift;
 		if (0 == table->d[index]) {
 			table->d[index] = vector_table_new(table->level-1);
 		}
 
-		return vector_entry_get(table->d[index], i*(1<<(VECTOR_TABLE_ENTRIES_LOG2*table->level-1)));
+		return vector_entry_get(table->d[index], i&((1<<shift)-1));
 	} else {
 		return table->d+i;
 	}
@@ -93,6 +93,12 @@ void vector_test()
 	int i = 3;
 	vector_t * v = vector_new();
 	void * p = vector_test;
+
+	kernel_printk("v[%d] = %p\n", i, vector_get(v, i));
+	vector_put(v, i, p);
+	kernel_printk("v[%d] = %p\n", i, vector_get(v, i));
+
+	i+=VECTOR_TABLE_ENTRIES;
 
 	kernel_printk("v[%d] = %p\n", i, vector_get(v, i));
 	vector_put(v, i, p);
