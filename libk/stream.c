@@ -95,7 +95,7 @@ int stream_vprintf(struct stream * stream, const char * fmt, va_list ap)
 	long start = stream_tell(stream);
 	char c;
 
-	while(c=*fmt++) {
+	while((c=*fmt++)) {
 		if ('%' == c) {
 			switch(c = *fmt++) {
 			case '%':
