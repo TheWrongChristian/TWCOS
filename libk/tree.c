@@ -299,7 +299,7 @@ static void * tree_put( map_t * map, map_key key, void * data )
 
         tree_verify(tree, NULL);
         while(node) {
-		int diff = (tree->comp) ? tree->comp(node->key, key) : node->key - key;
+		int diff = (tree->comp) ? tree->comp(key, node->key) : key - node->key;
 
                 if (diff<0) {
                         parent = node;
@@ -361,7 +361,7 @@ static node_t * tree_get_node( tree_t * tree, map_key key, int cond )
 
 	/* FIXME: All this logic needs checking! */
 	while(node) {
-		int diff = (tree->comp) ? tree->comp(node->key, key) : node->key - key;
+		int diff = (tree->comp) ? tree->comp(key, node->key) : key - node->key;
 
 		if (diff<0) {
 			if (node->left) {
@@ -413,7 +413,7 @@ static void * tree_remove( map_t * map, map_key key )
 
         tree_verify(tree, NULL);
         while(node) {
-		int diff = (tree->comp) ? tree->comp(node->key, key) : node->key - key;
+		int diff = (tree->comp) ? tree->comp(key, node->key) : key - node->key;
 
                 if (diff<0) {
                         node = node->left;
