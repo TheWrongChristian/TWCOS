@@ -34,22 +34,30 @@
  * Read-only	| Read-only	| Raise exception
  * 
  */
-typedef struct segment_ops_s {
-	void (*fault)(segment_t * seg, void * p, int write, int user, int present);
-} segment_ops_t;
 
 #if INTERFACE
 
 #include <stddef.h>
 
+#define SEGMENT_R 0x1
+#define SEGMENT_W 0x2
+#define SEGMENT_X 0x4
+#define SEGMENT_U 0x8
+
+typedef void (*segment_faulter)(struct segment_s * seg, void * p, int write, int user, int present);
 typedef struct segment_s {
-	struct segment_ops_s * ops;
+	segment_faulter fault;
 	void * base;
 	size_t size;
-	int writeable;
-	int user;
+	int perms;
+	vector_t * pages;
 	struct segment_s * backing;
-	void * private;
+
+	/* Per segment data */
+	union {
+		struct {
+		} file;
+	};
 } segment_t;
 #endif
 
@@ -57,10 +65,10 @@ typedef struct segment_anonymous_s {
 	segment_t segment;
 }segment_anonymous_t;
 
-static slab_type_t segment_anonymous[1];
+static slab_type_t segments[1];
 void vm_init()
 {
-	slab_type_create(segment_anonymous, sizeof(segment_anonymous_t), 0, 0);
+	slab_type_create(segments, sizeof(segment_t), 0, 0);
 }
 
 static void vm_invalid_pointer(void * p, int write, int user, int present)
@@ -81,7 +89,7 @@ void vm_page_fault(void * p, int write, int user, int present)
 
 		if (offset < seg->size) {
 			/* Defer to the segment driver */
-			seg->ops->fault(seg, p, write, user, present);
+			seg->fault(seg, p, write, user, present);
 			return;
 		}
 	}
@@ -93,25 +101,32 @@ static void vm_segment_anonymous_fault(segment_t * seg, void * p, int write, int
 {
 	map_t * as = arch_get_thread()->as;
 	long offset = (char*)p - (char*)seg->base;
-	segment_anonymous_t * aseg = seg->private;
 	if (!present) {
 		page_t page = page_alloc();
-		vmap_map(as, p, page, seg->writeable, seg->user);
+		vmap_map(as, p, page, SEGMENT_W & seg->perms, SEGMENT_U & seg->perms);
 	}
 }
 
-segment_t * vm_segment_anonymous( void * p, size_t size, int writeable, segment_t * backing)
+segment_t * vm_segment_base( segment_faulter fault, void * p, size_t size, int perms, segment_t * backing)
 {
-	static segment_ops_t anon_ops = {
-		fault: vm_segment_anonymous_fault
-	};
-	segment_anonymous_t * seg = slab_alloc(segment_anonymous);
+	segment_t * seg = slab_alloc(segments);
 
-	seg->segment.private = seg;
-	seg->segment.base = p;
-	seg->segment.size = size;
-	seg->segment.ops = &anon_ops;
-	seg->segment.backing = 0;
+	seg->fault = fault;
+	seg->base = p;
+	seg->size = size;
+	seg->perms = perms;
+	seg->backing = backing;
 
-	return &seg->segment;
+	return seg;
+}
+
+segment_t * vm_segment_anonymous(void * p, size_t size, int perms, segment_t * backing)
+{
+	segment_t * seg = vm_segment_base(vm_segment_anonymous_fault, p, size, perms, backing);
+
+	return seg;
+}
+
+segment_t * vm_segment_copy(segment_t * from, int private)
+{
 }
