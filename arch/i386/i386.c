@@ -102,6 +102,12 @@ void hang()
 	}
 }
 
+void reset()
+{
+	lidt(0,0);
+	hlt();
+}
+
 void invlpg(void* m)
 {
 	/* Clobber memory to avoid optimizer re-ordering access before invlpg, which may cause nasty bugs. */
@@ -144,7 +150,7 @@ static uint8_t gdt[][8] = {
 	{ 0 },
 };
 
-static uint32_t tss[104] = { 0 };
+static uint32_t tss[26] = { 0 };
 
 static void encodeGdtEntry( uint8_t * entry, void * pbase, uint32_t size, uint8_t type )
 {
@@ -364,13 +370,32 @@ typedef struct {
 
 #endif
 
+void arch_thread_mark(thread_t * thread)
+{
+	if (arch_get_thread() == thread) {
+		setjmp(thread->context.state);
+	}
+
+	void ** esp = thread->context.state[1];
+	void ** stacktop = (void**)((char*)thread->context.stack + ARCH_PAGE_SIZE);
+
+	if (!arch_is_heap_pointer(esp)) {
+		/* Bogus stack pointer - ignore */
+		return;
+	}
+
+	/* Mark each potential address on the stack */
+	slab_gc_mark_range(esp, stacktop);
+	slab_gc_mark_block((void**)thread->context.state, sizeof(thread->context.state));
+}
+
 static irq_func irq_table[] =  {
 	0, 0, 0, 0,
 	0, 0, 0, 0,
 	0, 0, 0, 0,
 	0, 0, 0, 0 };
 
-static uint32_t irq_flag = 0;
+static volatile uint32_t irq_flag = 0;
 static void i386_irq(uint32_t num, uint32_t * state)
 {
 	int irq = num - PIC_IRQ_BASE;
@@ -394,12 +419,24 @@ irq_func add_irq(int irq, irq_func handler)
 static int wait_irq()
 {
 	int irq = 0;
+	int gc = 0;
+	static int gc_rolling = 0;
 
 	while(0 == irq_flag) {
+#if 0
 		hlt();
+#else
+		thread_gc();
+		gc++;
+#endif
 	}
 
+	gc_rolling = (7*gc_rolling + gc) >> 3;
+
+	kernel_printk("  GC count: %d rolling %d     \r", gc, gc_rolling);
+#if 0
 	kernel_printk("  Got interrupt\r");
+#endif
 	for(; irq<16; irq++) {
 		int mask = 1<<irq;
 		if (irq_flag & mask) {
@@ -446,6 +483,7 @@ void i386_init()
 	encodeGdtEntry(gdt[3], 0, 0xffffffff, 0x9a | 0x60);
 	encodeGdtEntry(gdt[4], 0, 0xffffffff, 0x92 | 0x60);
 	encodeGdtEntry(gdt[5], tss, sizeof(tss), 0x89);
+	tss[2] = 0x10;
 	lgdt(gdt, sizeof(gdt));
 	ltr(0x28);
 
@@ -467,10 +505,24 @@ void i386_init()
 	*stackbase = &initial;
 	initial.context.stack = stackbase;
 	initial.priority = THREAD_NORMAL;
+	initial.state = THREAD_RUNNING;
 
 	PIC_remap(PIC_IRQ_BASE, PIC_IRQ_BASE+16);
 
 	sti();
+}
+
+void arch_thread_init(thread_t * thread)
+{
+
+	if (arch_thread_fork(thread)) {
+		arch_thread_switch(thread);
+	}
+#if 0
+	/* Fix up stack base pointer to thread */
+	thread_t ** stackbase = thread->context.stack;
+	*stackbase = thread;
+#endif
 }
 
 void arch_idle()
@@ -492,6 +544,9 @@ void arch_idle()
 		uint8_t scancode = keyq_get();
 		if (scancode) {
 			kernel_printk("%x\n", scancode);
+			if (0x13 == scancode) {
+				reset();
+			}
 		}
 	}
 	kernel_panic("idle finished");
@@ -529,15 +584,18 @@ int arch_thread_fork(thread_t * dest)
 {
 	/* Allocate the stack */
 	thread_t * source = arch_get_thread();
+	/* Top level copy */
+	memcpy(dest, source, sizeof(*dest));
+
+	/* Stacks */
 	uint32_t * dpage = (uint32_t*)ARCH_GET_VPAGE(dest->context.stack = page_valloc());
 	uint32_t * spage = (uint32_t*)ARCH_GET_VPAGE(source->context.stack);
-	int i;
 
 	/* Set pointer to thread */
 	dpage[0] = (ptri)dest;
 
 	/* Copy the source thread stack */
-	for(i=1; i<ARCH_PAGE_SIZE/sizeof(*dpage); i++) {
+	for(int i=1; i<ARCH_PAGE_SIZE/sizeof(*dpage); i++) {
 		if (ARCH_PTRI_BASE(spage[i]) == ARCH_PTRI_BASE(spage)) {
 			/* Adjust pointer */
 			dpage[i] = (ptri)dpage | ARCH_PTRI_OFFSET(spage[i]);
@@ -552,9 +610,16 @@ int arch_thread_fork(thread_t * dest)
 	}
 
 	/* Adjust destination context */
-	for(i=0; i<sizeof(dest->context.state)/sizeof(dest->context.state[0]); i++) {
+	for(int i=0; i<sizeof(dest->context.state)/sizeof(dest->context.state[0]); i++) {
 		if (ARCH_PTRI_BASE(dest->context.state[i]) == ARCH_PTRI_BASE(spage)) {
 			dest->context.state[i] = (ptri)dpage | ARCH_PTRI_OFFSET(dest->context.state[i]);
+		}
+	}
+
+	/* Adjust TLS */
+	for(int i=0; i<sizeof(dest->tls)/sizeof(dest->tls[0]); i++) {
+		if (ARCH_PTRI_BASE(dest->tls[i]) == ARCH_PTRI_BASE(spage)) {
+			dest->tls[i] = (ptri)dpage | ARCH_PTRI_OFFSET(dest->tls[i]);
 		}
 	}
 
@@ -572,6 +637,7 @@ void arch_thread_switch(thread_t * thread)
 		if (thread->state == THREAD_RUNNABLE) {
 			thread->state = THREAD_RUNNING;
 		}
+		tss[1] = (uint32_t)thread->context.stack + ARCH_PAGE_SIZE;
 		longjmp(thread->context.state, 1);
 	}
 }

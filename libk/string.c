@@ -1,6 +1,9 @@
+#include "string.h"
+
+#if INTERFACE
 #include <stddef.h>
 #include <stdarg.h>
-#include "string.h"
+#endif
 
 void * memset(void *s, int c, size_t n)
 {
@@ -12,6 +15,16 @@ void * memset(void *s, int c, size_t n)
 	}
 
 	return s;
+}
+
+void *memcpy(void *dest, const void *src, size_t n)
+{
+	char * cs = src;
+	char * cd = dest;
+
+	for(int i=0; i<n; i++) {
+		cd[i] = cs[i];
+	}
 }
 
 int strcmp( const char * s1, const char * s2 )
