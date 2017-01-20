@@ -18,22 +18,20 @@
 #endif
 #endif
  
-static jmp_buf jb;
-
-static void do_throw()
-{
-	longjmp(jb, 1);
-}
-
 void kernel_main() {
 	/* Initialize console interface */
 	arch_init();
-	thread_init();
 
-	slab_test();
-	exception_test();
-	thread_test();
-	tree_test();
+	KTRY {
+		thread_init();
 
-	arch_idle();
+		exception_test();
+		thread_test();
+		tree_test();
+		slab_test();
+
+		arch_idle();
+	} KCATCH(Throwable) {
+		kernel_panic("Error in initialization: %s\n", exception_message());
+	}
 }
