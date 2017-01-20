@@ -174,7 +174,7 @@ static void node_splay( node_t * node )
 
 static void node_prioritize( node_t * node )
 {
-        node->priority = ((ptri)node * 997) & 0xff;
+        node->priority = ((uintptr_t)node * 997) & 0xff;
         while(node->parent && node->priority < node->parent->priority) {
                 if (node_is_left(node)) {
                         node_rotate_right(node->parent);
