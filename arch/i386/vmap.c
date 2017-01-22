@@ -72,6 +72,17 @@ void vmap_set_asid(asid vid)
 	set_page_dir(pageno);
 }
 
+page_t vmap_get_page(asid vid, void * vaddress)
+{
+	pte_t * pgtbl = vmap_get_pgtable(vid);
+	uint32_t pte = pgtbl[(uint32_t)vaddress >> ARCH_PAGE_SIZE_LOG2];
+
+	if (pte & 0x1) {
+		return pte >> ARCH_PAGE_SIZE_LOG2;
+	}
+	return 0;
+}
+
 void vmap_map(asid vid, void * vaddress, page_t page, int rw, int user)
 {
 	if (vid) {

@@ -36,10 +36,10 @@ static char * mem_type(int type)
 	return "Unknown";
 }
 
-extern char _bootstrap_start;
-extern char _bootstrap_end;
-extern char _bootstrap_nextalloc;
-static char * nextalloc = &_bootstrap_nextalloc;
+extern char _bootstrap_start[];
+extern char _bootstrap_end[];
+extern char _bootstrap_nextalloc[];
+static char * nextalloc = _bootstrap_nextalloc;
 
 #define ALIGNMENT 16
 
@@ -74,7 +74,7 @@ int arch_is_heap_pointer(void *p)
 void arch_init()
 {
 	int i;
-	ptrdiff_t koffset = &_bootstrap_nextalloc - &_bootstrap_end;
+	ptrdiff_t koffset = _bootstrap_nextalloc - _bootstrap_end;
 	page_t pstart;
 	page_t pend;
 

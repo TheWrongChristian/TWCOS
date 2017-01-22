@@ -68,7 +68,11 @@ typedef struct segment_anonymous_s {
 static slab_type_t segments[1];
 void vm_init()
 {
-	slab_type_create(segments, sizeof(segment_t), 0, 0);
+	static int inited = 0;
+	if (!inited) {
+		inited = 1;
+		slab_type_create(segments, sizeof(segment_t), 0, 0);
+	}
 }
 
 static void vm_invalid_pointer(void * p, int write, int user, int present)
@@ -88,8 +92,19 @@ void vm_page_fault(void * p, int write, int user, int present)
 		long offset = (char*)p - (char*)seg->base;
 
 		if (offset < seg->size) {
+			if (!present) {
+				page_t page = page_alloc();
+				vmap_map(as, p, page, SEGMENT_W & seg->perms, SEGMENT_U & seg->perms);
+			} else if (write && SEGMENT_W & seg->perms) {
+				page_t page = vmap_get_page(as, p);
+				vmap_map(as, p, page, SEGMENT_W & seg->perms, SEGMENT_U & seg->perms);
+			} else {
+				vm_invalid_pointer(p, write, user, present);
+			}
+#if 0
 			/* Defer to the segment driver */
 			seg->fault(seg, p, write, user, present);
+#endif
 			return;
 		}
 	}
@@ -109,6 +124,7 @@ static void vm_segment_anonymous_fault(segment_t * seg, void * p, int write, int
 
 segment_t * vm_segment_base( segment_faulter fault, void * p, size_t size, int perms, segment_t * backing)
 {
+	vm_init();
 	segment_t * seg = slab_alloc(segments);
 
 	seg->fault = fault;
@@ -116,6 +132,7 @@ segment_t * vm_segment_base( segment_faulter fault, void * p, size_t size, int p
 	seg->size = size;
 	seg->perms = perms;
 	seg->backing = backing;
+	seg->pages = vector_new();
 
 	return seg;
 }
@@ -129,4 +146,15 @@ segment_t * vm_segment_anonymous(void * p, size_t size, int perms, segment_t * b
 
 segment_t * vm_segment_copy(segment_t * from, int private)
 {
+	segment_t * seg = slab_alloc(segments);
+
+	if (vm_segment_anonymous_fault == from->fault) {
+		seg->fault = from->fault;
+		seg->base = from->base;
+		seg->size = from->size;
+		seg->perms = from->perms;
+		seg->backing = from->backing;
+		seg->pages = vector_new();
+	} else {
+	}
 }

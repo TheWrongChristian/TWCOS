@@ -206,7 +206,7 @@ static slab_t * slab_get(void * p)
 		/* Check magic numbers */
 		slab_t * slab = ARCH_PAGE_ALIGN(p);
 
-		if (slab->magic == slab->type->magic && (char*)slab->data <= (char*)p) {
+		if (slab == ARCH_PAGE_ALIGN(slab->data) && slab->magic == slab->type->magic && (char*)slab->data <= (char*)p) {
 			return slab;
 		}
 	}
