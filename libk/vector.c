@@ -22,8 +22,13 @@ static slab_type_t tables[1];
 
 void vector_init()
 {
-	slab_type_create(vectors, sizeof(vector_t), 0, 0);
-	slab_type_create(tables, sizeof(vector_table_t), 0, 0);
+	int inited = 0;
+
+	if (!inited) {
+		inited = 1;
+		slab_type_create(vectors, sizeof(vector_t), 0, 0);
+		slab_type_create(tables, sizeof(vector_table_t), 0, 0);
+	}
 }
 
 static vector_table_t * vector_table_new(int level)
@@ -35,16 +40,23 @@ static vector_table_t * vector_table_new(int level)
 	return table;
 }
 
-static void ** vector_entry_get(vector_table_t * table, int i)
+static void ** vector_entry_get(vector_table_t * table, int i, int create)
 {
 	if (table->level) {
 		int shift = VECTOR_TABLE_ENTRIES_LOG2*table->level;
 		int index = i>>shift;
-		if (0 == table->d[index]) {
-			table->d[index] = vector_table_new(table->level-1);
+		if (VECTOR_TABLE_ENTRIES <= index) {
+			/* Beyond the bounds of the vector */
+			return 0;
+		} else if (0 == table->d[index]) {
+			if (create) {
+				table->d[index] = vector_table_new(table->level-1);
+			} else {
+				return 0;
+			}
 		}
 
-		return vector_entry_get(table->d[index], i&((1<<shift)-1));
+		return vector_entry_get(table->d[index], i&((1<<shift)-1), create);
 	} else {
 		return table->d+i;
 	}
@@ -63,7 +75,7 @@ static void vector_checksize(vector_t * v, int i)
 void * vector_put(vector_t * v, int i, void * p)
 {
 	vector_checksize(v, i);
-	void ** entry = vector_entry_get(v->table, i);
+	void ** entry = vector_entry_get(v->table, i, 1);
 	void * old = *entry;
 	*entry = p;
 	return old;
@@ -71,14 +83,21 @@ void * vector_put(vector_t * v, int i, void * p)
 
 void * vector_get(vector_t * v, int i)
 {
+#if 0
 	vector_checksize(v, i);
-	void ** entry = vector_entry_get(v->table, i);
+#endif
+	void ** entry = vector_entry_get(v->table, i, 0);
 
-	return *entry;
+	if (entry) {
+		return *entry;
+	}
+
+	return 0;
 }
 
 vector_t * vector_new()
 {
+	vector_init();
 	vector_t * v = slab_calloc(vectors);
 
 	v->table = vector_table_new(0);
@@ -99,6 +118,12 @@ void vector_test()
 	kernel_printk("v[%d] = %p\n", i, vector_get(v, i));
 
 	i+=VECTOR_TABLE_ENTRIES;
+
+	kernel_printk("v[%d] = %p\n", i, vector_get(v, i));
+	vector_put(v, i, p);
+	kernel_printk("v[%d] = %p\n", i, vector_get(v, i));
+
+	i*=VECTOR_TABLE_ENTRIES;
 
 	kernel_printk("v[%d] = %p\n", i, vector_get(v, i));
 	vector_put(v, i, p);

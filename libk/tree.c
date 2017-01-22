@@ -528,12 +528,17 @@ static void tree_optimize(map_t * map)
 
 void tree_init()
 {
-	slab_type_create(trees, sizeof(tree_t), 0, 0);
-	slab_type_create(nodes, sizeof(node_t), 0, 0);
+	static int inited = 0;
+	if (!inited) {
+		inited = 1;
+		slab_type_create(trees, sizeof(tree_t), 0, 0);
+		slab_type_create(nodes, sizeof(node_t), 0, 0);
+	}
 }
 
-map_t * tree_new(int (*comp)(map_key k1, map_key k2), int mode)
+map_t * tree_new(int (*comp)(map_key k1, map_key k2), treemode mode)
 {
+	tree_init();
 	tree_t * tree = slab_alloc(trees);
 	static struct map_ops tree_ops = {
 		destroy: tree_destroy,
