@@ -31,6 +31,9 @@ void kernel_main() {
 		slab_test();
 		vector_test();
 
+		char * p = arch_heap_page();
+		*p = 0;
+
 		arch_idle();
 	} KCATCH(Throwable) {
 		kernel_panic("Error in initialization: %s\n", exception_message());
