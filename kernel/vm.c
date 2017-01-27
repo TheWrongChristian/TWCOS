@@ -65,6 +65,7 @@ typedef struct segment_anonymous_s {
 	segment_t segment;
 }segment_anonymous_t;
 
+map_t * kas;
 static slab_type_t segments[1];
 void vm_init()
 {
@@ -72,6 +73,7 @@ void vm_init()
 	if (!inited) {
 		inited = 1;
 		slab_type_create(segments, sizeof(segment_t), 0, 0);
+		kas = tree_new(0, TREE_TREAP);
 	}
 }
 
@@ -82,10 +84,16 @@ static void vm_invalid_pointer(void * p, int write, int user, int present)
 
 void vm_page_fault(void * p, int write, int user, int present)
 {
-	map_t * as = arch_get_thread()->as;
-	thread_lock(as);
-	segment_t * seg = map_get_le(as, p);
-	thread_unlock(as);
+	map_t * as = 0;
+	thread_lock(kas);
+	segment_t * seg = map_get_le(kas, p);
+	thread_unlock(kas);
+	if (0 == seg) {
+		as = arch_get_thread()->as;
+		thread_lock(as);
+		seg = map_get_le(as, p);
+		thread_unlock(as);
+	}
 
 	if (seg) {
 
