@@ -1,7 +1,7 @@
 #include "tree.h"
 
 #if INTERFACE
-enum treemode { TREE_SPLAY, TREE_TREAP, TREE_COUNT };
+enum treemode { TREE_SPLAY=0, TREE_TREAP, TREE_COUNT };
 
 EXCEPTION_DEF(OutOfBoundsException,RuntimeException);
 

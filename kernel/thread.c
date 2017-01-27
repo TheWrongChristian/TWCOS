@@ -384,6 +384,7 @@ void thread_gc()
 {
 	slab_gc_begin();
 	slab_gc_mark(arch_get_thread());
+	slab_gc_mark(kas);
 	for(int i=0; i<sizeof(queue)/sizeof(queue[0]); i++) {
 		slab_gc_mark(queue[i]);
 	}
@@ -412,6 +413,9 @@ static void thread_mark(void * p)
 void thread_init()
 {
 	slab_type_create(threads, sizeof(thread_t), thread_mark, 0);
+
+	/* Create the kernel address space */
+	kas = tree_new(0, TREE_SPLAY);
 
 	/* Craft a new bootstrap thread to replace the static defined thread */
 	arch_thread_init(slab_alloc(threads));
