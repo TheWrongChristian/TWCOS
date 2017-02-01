@@ -7,9 +7,9 @@
  * VM is managed in segments. All referenced VM must be backed
  * by a segment (including kernel memory)
  *
- * Segments are backed by drivers, which can be:
+ * Segments are backed by objects, which can be:
  * - Anonymous - Page faults are serviced by fresh pages.
- * - Hardware - Page faults are serviced by mapping to underlying hardware.
+ * - Direct - Page faults are serviced by mapping to underlying hardware.
  * - File - Page faults are serviced by the filesystem, for memory mapped files.
  * - Shadow segments - Page faults are serviced by an underlying segment. This
  *   forms the basis for memory sharing with either shared or copy on write
@@ -43,21 +43,39 @@
 #define SEGMENT_W 0x2
 #define SEGMENT_X 0x4
 #define SEGMENT_U 0x8
+#define SEGMENT_P 0x10
 
-typedef void (*segment_faulter)(struct segment_s * seg, void * p, int write, int user, int present);
-typedef struct segment_s {
-	segment_faulter fault;
-	void * base;
-	size_t size;
-	int perms;
+enum object_type_e { OBJECT_DIRECT, OBJECT_ANON, OBJECT_FILE };
+
+typedef struct vmobject_s {
 	vector_t * pages;
-	struct segment_s * backing;
 
-	/* Per segment data */
+	/* Per object type data */
+	segment_type_e type;
 	union {
+		struct {
+			page_t base;
+			size_t size;
+		} direct;
+		struct {
+		} anon;
 		struct {
 		} file;
 	};
+} vmobject_t;
+
+typedef void (*segment_faulter)(struct segment_s * seg, void * p, int write, int user, int present);
+typedef struct segment_s {
+	void * base;
+	size_t size;
+	int perms;
+
+	/* Writes go to dirty object */
+	vmobject_t * dirty;
+
+	/* Reads come from clean object, if they're not in dirty object */
+	int read_offset; /* FIXME: Make this 64-bit clean */
+	vmobject_t * clean;
 } segment_t;
 #endif
 
@@ -67,12 +85,14 @@ typedef struct segment_anonymous_s {
 
 map_t * kas;
 static slab_type_t segments[1];
+static slab_type_t objects[1];
 void vm_init()
 {
 	static int inited = 0;
 	if (!inited) {
 		inited = 1;
 		slab_type_create(segments, sizeof(segment_t), 0, 0);
+		slab_type_create(objects, sizeof(vmobjects_t), 0, 0);
 		kas = tree_new(0, TREE_TREAP);
 	}
 }
@@ -130,17 +150,27 @@ static void vm_segment_anonymous_fault(segment_t * seg, void * p, int write, int
 	}
 }
 
-segment_t * vm_segment_base( segment_faulter fault, void * p, size_t size, int perms, segment_t * backing)
+static vmobject_t * vm_object_anon()
+{
+	vmobject_t * anon = slab_alloc(objects);
+	anon->type = OBJECT_ANON;
+	anon->pages = vector_new();
+	return anon;
+}
+
+segment_t * vm_segment_base( segment_faulter fault, void * p, size_t size, int perms, vmobject_t * clean, int offset)
 {
 	vm_init();
 	segment_t * seg = slab_alloc(segments);
 
-	seg->fault = fault;
 	seg->base = p;
 	seg->size = size;
 	seg->perms = perms;
-	seg->backing = backing;
-	seg->pages = vector_new();
+	seg->clean = clean;
+	seg->dirty = 0;
+	if (perms & SEGMENT_P) {
+		seg->dirty = vm_object_anon();
+	}
 
 	return seg;
 }
