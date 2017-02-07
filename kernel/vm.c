@@ -165,6 +165,7 @@ segment_t * vm_segment_base( segment_faulter fault, void * p, size_t size, int p
 	seg->size = size;
 	seg->perms = perms;
 	seg->clean = clean;
+	seg->read_offset = offset;
 	seg->dirty = 0;
 	if (perms & SEGMENT_P) {
 		seg->dirty = vm_object_anon();
