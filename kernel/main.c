@@ -24,6 +24,7 @@ void kernel_main() {
 
 	KTRY {
 		thread_init();
+		slab_init();
 
 		exception_test();
 		thread_test();

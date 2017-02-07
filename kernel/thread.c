@@ -29,6 +29,15 @@ typedef struct thread_s {
 enum tstate { THREAD_NEW, THREAD_RUNNABLE, THREAD_RUNNING, THREAD_SLEEPING, THREAD_TERMINATED };
 enum tpriority { THREAD_INTERRUPT = 0, THREAD_NORMAL, THREAD_IDLE, THREAD_PRIORITIES };
 
+#define INIT_ONCE() \
+	do { \
+		static int inited = 0; \
+		if (inited) { \
+			return; \
+		} \
+		inited = 1; \
+	} while(0)
+
 #endif
 
 static tls_key tls_next = 1;
@@ -412,6 +421,8 @@ static void thread_mark(void * p)
 
 void thread_init()
 {
+	INIT_ONCE();
+
 	slab_type_create(threads, sizeof(thread_t), thread_mark, 0);
 
 	/* Create the kernel address space */

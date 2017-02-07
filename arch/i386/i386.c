@@ -474,6 +474,8 @@ static thread_t initial;
 
 void i386_init()
 {
+	INIT_ONCE();
+
 	int i;
 	thread_t ** stackbase = ARCH_GET_VPAGE(&stackbase);
 
@@ -514,6 +516,7 @@ void i386_init()
 
 void arch_thread_init(thread_t * thread)
 {
+	INIT_ONCE();
 
 	if (arch_thread_fork(thread)) {
 		arch_thread_switch(thread);

@@ -11,6 +11,8 @@ extern char _kernel_offset[0];
 
 BOOTSTRAP_CODE void bootstrap_paging_init()
 {
+	INIT_ONCE();
+
 	int i;
 	uint32_t offset = _kernel_offset-_kernel_offset_bootstrap;
 	pg_dir[0] = pg_dir[offset >> 22] = ((uint32_t)pt_00000000) | 0x3;
@@ -73,6 +75,8 @@ int arch_is_heap_pointer(void *p)
 
 void arch_init()
 {
+	INIT_ONCE();
+
 	int i;
 	ptrdiff_t koffset = _bootstrap_nextalloc - _bootstrap_end;
 	page_t pstart;

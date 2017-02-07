@@ -64,20 +64,9 @@ static void slab_weak_ref_finalize(void * p)
 	ref->p = 0;
 }
 
+static slab_type_t wr[1];
 slab_weak_ref_t * slab_weak_ref(void * p)
 {
-	static slab_type_t wr[1];
-	static int inited = 0;
-
-	thread_lock(slab_alloc);
-
-	if (!inited) {
-		inited = 1;
-		slab_type_create(wr, sizeof(slab_weak_ref_t), slab_weak_ref_mark, slab_weak_ref_finalize);
-	}
-
-	thread_unlock(slab_alloc);
-
 	slab_weak_ref_t * ref = slab_alloc(wr);
 	ref->p = p;
 
@@ -90,6 +79,13 @@ void * slab_weak_ref_get(slab_weak_ref_t * ref)
 	void * p = ref->p;
 	thread_unlock(slab_alloc);
 	return p;
+}
+
+void slab_init()
+{
+	INIT_ONCE();
+
+	slab_type_create(wr, sizeof(slab_weak_ref_t), slab_weak_ref_mark, slab_weak_ref_finalize);
 }
 
 static slab_t * slab_new(slab_type_t * stype)

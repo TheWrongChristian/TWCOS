@@ -51,7 +51,7 @@ typedef struct vmobject_s {
 	vector_t * pages;
 
 	/* Per object type data */
-	segment_type_e type;
+	int type;
 	union {
 		struct {
 			page_t base;
@@ -88,13 +88,11 @@ static slab_type_t segments[1];
 static slab_type_t objects[1];
 void vm_init()
 {
-	static int inited = 0;
-	if (!inited) {
-		inited = 1;
-		slab_type_create(segments, sizeof(segment_t), 0, 0);
-		slab_type_create(objects, sizeof(vmobjects_t), 0, 0);
-		kas = tree_new(0, TREE_TREAP);
-	}
+	INIT_ONCE();
+
+	slab_type_create(segments, sizeof(segment_t), 0, 0);
+	slab_type_create(objects, sizeof(vmobject_t), 0, 0);
+	kas = tree_new(0, TREE_TREAP);
 }
 
 static void vm_invalid_pointer(void * p, int write, int user, int present)
