@@ -177,7 +177,7 @@ segment_t * vm_segment_base( segment_faulter fault, void * p, size_t size, int p
 
 segment_t * vm_segment_anonymous(void * p, size_t size, int perms, segment_t * backing)
 {
-	segment_t * seg = vm_segment_base(vm_segment_anonymous_fault, p, size, perms, backing);
+	segment_t * seg = vm_segment_base(vm_segment_anonymous_fault, p, size, perms | SEGMENT_P, 0, 0);
 
 	return seg;
 }
@@ -186,13 +186,5 @@ segment_t * vm_segment_copy(segment_t * from, int private)
 {
 	segment_t * seg = slab_alloc(segments);
 
-	if (vm_segment_anonymous_fault == from->fault) {
-		seg->fault = from->fault;
-		seg->base = from->base;
-		seg->size = from->size;
-		seg->perms = from->perms;
-		seg->backing = from->backing;
-		seg->pages = vector_new();
-	} else {
-	}
+	return seg;
 }
