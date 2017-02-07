@@ -151,7 +151,7 @@ static void thread_cond_wait(struct lock_s * lock)
 
 static struct lock_s * thread_lock_hash(void * p)
 {
-	int hash = ((ptri)p * 997) & (LOCK_COUNT-1);
+	int hash = ((uintptr_t)p * 997) & (LOCK_COUNT-1);
 	struct lock_s * lock = locks+hash;
 
 	/*  */

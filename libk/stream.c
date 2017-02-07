@@ -72,6 +72,7 @@ struct fmt_opts {
 	int alternate;
 };
 
+#if 0
 static void parse_fmt_opts( struct fmt_opts * opts, const char * s )
 {
 	opts->rjustify = opts->pad0 = opts->longint = opts->alternate = 0;
@@ -90,6 +91,7 @@ static void parse_fmt_opts( struct fmt_opts * opts, const char * s )
 		break;	
 	}
 }
+#endif
 
 int stream_vprintf(struct stream * stream, const char * fmt, va_list ap)
 {
