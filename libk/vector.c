@@ -22,13 +22,10 @@ static slab_type_t tables[1];
 
 void vector_init()
 {
-	int inited = 0;
+	INIT_ONCE();
 
-	if (!inited) {
-		inited = 1;
-		slab_type_create(vectors, sizeof(vector_t), 0, 0);
-		slab_type_create(tables, sizeof(vector_table_t), 0, 0);
-	}
+	slab_type_create(vectors, sizeof(vector_t), 0, 0);
+	slab_type_create(tables, sizeof(vector_table_t), 0, 0);
 }
 
 static vector_table_t * vector_table_new(int level)

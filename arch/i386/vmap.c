@@ -143,6 +143,8 @@ extern char data_start[];
 
 void vmap_init()
 {
+	INIT_ONCE();
+
 	int d;
 	int i;
 
