@@ -47,9 +47,13 @@
 
 enum object_type_e { OBJECT_DIRECT, OBJECT_ANON, OBJECT_FILE };
 
-typedef struct vmobject_s {
-	vector_t * pages;
+typedef struct vmobject_ops_s {
+	page_t (*get_page)(struct vmobject_s * object, int offset);
+	void (*put_page)(struct vmobject_s * object, int offset, page_t page);
+} vmobject_ops_t;
 
+typedef struct vmobject_s {
+	vmobject_ops_t * ops;
 	/* Per object type data */
 	int type;
 	union {
@@ -58,6 +62,7 @@ typedef struct vmobject_s {
 			size_t size;
 		} direct;
 		struct {
+			vector_t * pages;
 		} anon;
 		struct {
 		} file;
@@ -119,7 +124,7 @@ void vm_page_fault(void * p, int write, int user, int present)
 
 		if (offset < seg->size) {
 			if (!present) {
-				page_t page = page_alloc();
+				page_t page = seg->dirty->ops->get_page(seg->dirty, offset);
 				vmap_map(as, p, page, SEGMENT_W & seg->perms, SEGMENT_U & seg->perms);
 			} else if (write && SEGMENT_W & seg->perms) {
 				page_t page = vmap_get_page(as, p);
@@ -138,25 +143,31 @@ void vm_page_fault(void * p, int write, int user, int present)
 	vm_invalid_pointer(p, write, user, present);
 }
 
-static void vm_segment_anonymous_fault(segment_t * seg, void * p, int write, int user, int present)
+static page_t vm_anon_get_page(vmobject_t * anon, int offset)
 {
-	map_t * as = arch_get_thread()->as;
-	long offset = (char*)p - (char*)seg->base;
-	if (!present) {
-		page_t page = page_alloc();
-		vmap_map(as, p, page, SEGMENT_W & seg->perms, SEGMENT_U & seg->perms);
+	page_t page = vector_get(anon->anon.pages, offset >> ARCH_PAGE_SIZE_LOG2);
+
+	if (!page) {
+		page = page_alloc();
 	}
+
+	return page;
 }
+
+static vmobject_ops_t anon_ops = {
+	get_page: vm_anon_get_page
+};
 
 static vmobject_t * vm_object_anon()
 {
 	vmobject_t * anon = slab_alloc(objects);
+	anon->ops = &anon_ops;
 	anon->type = OBJECT_ANON;
-	anon->pages = vector_new();
+	anon->anon.pages = vector_new();
 	return anon;
 }
 
-segment_t * vm_segment_base( segment_faulter fault, void * p, size_t size, int perms, vmobject_t * clean, int offset)
+segment_t * vm_segment_base( void * p, size_t size, int perms, vmobject_t * clean, int offset)
 {
 	vm_init();
 	segment_t * seg = slab_alloc(segments);
@@ -176,7 +187,7 @@ segment_t * vm_segment_base( segment_faulter fault, void * p, size_t size, int p
 
 segment_t * vm_segment_anonymous(void * p, size_t size, int perms, segment_t * backing)
 {
-	segment_t * seg = vm_segment_base(vm_segment_anonymous_fault, p, size, perms | SEGMENT_P, 0, 0);
+	segment_t * seg = vm_segment_base(p, size, perms | SEGMENT_P, 0, 0);
 
 	return seg;
 }
