@@ -95,6 +95,8 @@ void vm_init()
 {
 	INIT_ONCE();
 
+	tree_init();
+
 	slab_type_create(segments, sizeof(segment_t), 0, 0);
 	slab_type_create(objects, sizeof(vmobject_t), 0, 0);
 	kas = tree_new(0, TREE_TREAP);
@@ -143,6 +145,9 @@ void vm_page_fault(void * p, int write, int user, int present)
 	vm_invalid_pointer(p, write, user, present);
 }
 
+/*
+ * Anonymous private memory object
+ */
 static page_t vm_anon_get_page(vmobject_t * anon, int offset)
 {
 	page_t page = vector_get(anon->anon.pages, offset >> ARCH_PAGE_SIZE_LOG2);
@@ -167,6 +172,32 @@ static vmobject_t * vm_object_anon()
 	return anon;
 }
 
+/*
+ * Direct mapped (eg - device) memory
+ */
+static page_t vm_direct_get_page(vmobject_t * direct, int offset)
+{
+	if (offset<direct->direct.size) {
+		return direct->direct.base + (offset >> ARCH_PAGE_SIZE_LOG2);
+	}
+	/* FIXME: Throw an exception? */
+	return 0;
+}
+
+static vmobject_ops_t direct_ops = {
+	get_page: vm_direct_get_page
+};
+
+static vmobject_t * vm_object_direct( page_t base, int size)
+{
+	vmobject_t * direct = slab_alloc(objects);
+	direct->ops = &anon_ops;
+	direct->type = OBJECT_ANON;
+	direct->direct.base = base;
+	direct->direct.size = size;
+	return direct;
+}
+
 segment_t * vm_segment_base( void * p, size_t size, int perms, vmobject_t * clean, int offset)
 {
 	vm_init();
@@ -185,9 +216,17 @@ segment_t * vm_segment_base( void * p, size_t size, int perms, vmobject_t * clea
 	return seg;
 }
 
-segment_t * vm_segment_anonymous(void * p, size_t size, int perms, segment_t * backing)
+segment_t * vm_segment_anonymous(void * p, size_t size, int perms)
 {
 	segment_t * seg = vm_segment_base(p, size, perms | SEGMENT_P, 0, 0);
+
+	return seg;
+}
+
+segment_t * vm_segment_direct(void * p, size_t size, int perms, page_t base)
+{
+	vmobject_t * object = vm_object_direct(base, size);
+	segment_t * seg = vm_segment_base(p, size, perms | SEGMENT_P, object, 0);
 
 	return seg;
 }
