@@ -191,7 +191,7 @@ static vmobject_ops_t direct_ops = {
 static vmobject_t * vm_object_direct( page_t base, int size)
 {
 	vmobject_t * direct = slab_alloc(objects);
-	direct->ops = &anon_ops;
+	direct->ops = &direct_ops;
 	direct->type = OBJECT_ANON;
 	direct->direct.base = base;
 	direct->direct.size = size;
@@ -226,7 +226,8 @@ segment_t * vm_segment_anonymous(void * p, size_t size, int perms)
 segment_t * vm_segment_direct(void * p, size_t size, int perms, page_t base)
 {
 	vmobject_t * object = vm_object_direct(base, size);
-	segment_t * seg = vm_segment_base(p, size, perms | SEGMENT_P, object, 0);
+	segment_t * seg = vm_segment_base(p, size, perms, object, 0);
+	seg->dirty = object;
 
 	return seg;
 }
