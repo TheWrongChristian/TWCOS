@@ -130,6 +130,8 @@ void arch_init()
 	vmap_init();
 	pci_scan();
 	bootstrap_finish();
+	vm_init();
+
 #if 0
 	vmap_mapn(0, 0xa0, (char*)koffset, 0, 0, 0);
 	vmap_map(0, (void*)0x100000, 0x100, 0, 0);
