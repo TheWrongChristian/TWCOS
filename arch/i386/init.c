@@ -128,6 +128,7 @@ void arch_init()
 	}
 	i386_init();
 	vmap_init();
+	vm_init();
 	pci_scan();
 	bootstrap_finish();
 	vm_init();

@@ -85,7 +85,10 @@ uint8_t keyq_get()
 	return scancode;
 }
 
-void console_initialize() {
+void console_initialize()
+{
+	INIT_ONCE();
+
 	page_t fb = 0xb8;
 	add_irq(1, keyb_isr);
 	keyhead = keytail = 0;
@@ -95,9 +98,10 @@ void console_initialize() {
 	console_buffer = (uint16_t*) 0xC00B8000;
 #if 0
 	vmap_mapn(0, 2, console_buffer, fb, 1, 0);
-#endif
+#else
 	segment_t * seg = vm_segment_direct(console_buffer, 0x2000, SEGMENT_W, fb);
-	map_put(kas, MAP_PKEY(seg), seg);
+	map_put(kas, MAP_PKEY(console_buffer), seg);
+#endif
 	for (size_t y = 0; y < VGA_HEIGHT; y++) {
 		for (size_t x = 0; x < VGA_WIDTH; x++) {
 			const size_t index = y * VGA_WIDTH + x;
