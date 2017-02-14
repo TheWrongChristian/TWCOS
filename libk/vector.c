@@ -19,15 +19,12 @@ typedef struct vector_table_s {
 	intptr_t d[VECTOR_TABLE_ENTRIES];
 } vector_table_t;
 
-static slab_type_t vectors[1];
-static slab_type_t tables[1];
+static slab_type_t vectors[1] = {SLAB_TYPE(sizeof(vector_t), 0, 0)};
+static slab_type_t tables[1] = {SLAB_TYPE(sizeof(vector_table_t), 0, 0)};
 
 void vector_init()
 {
 	INIT_ONCE();
-
-	slab_type_create(vectors, sizeof(vector_t), 0, 0);
-	slab_type_create(tables, sizeof(vector_table_t), 0, 0);
 }
 
 static vector_table_t * vector_table_new(int level)

@@ -68,7 +68,8 @@ void * tls_get(int key)
 	return thread->tls[key];
 }
 
-static slab_type_t threads[1];
+static void thread_mark(void * p);
+static slab_type_t threads[1] = {SLAB_TYPE(sizeof(thread_t), thread_mark, 0)};
 
 #define LOCK_COUNT 64
 static struct lock_s {
@@ -422,8 +423,6 @@ static void thread_mark(void * p)
 void thread_init()
 {
 	INIT_ONCE();
-
-	slab_type_create(threads, sizeof(thread_t), thread_mark, 0);
 
 	/* Create the kernel address space */
 	kas = tree_new(0, TREE_SPLAY);
