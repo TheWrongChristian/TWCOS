@@ -89,16 +89,13 @@ typedef struct segment_anonymous_s {
 }segment_anonymous_t;
 
 map_t * kas;
-static slab_type_t segments[1];
-static slab_type_t objects[1];
+static slab_type_t segments[1] = {SLAB_TYPE(sizeof(segment_t), 0, 0)};
+static slab_type_t objects[1] = {SLAB_TYPE(sizeof(vmobject_t), 0, 0)};
 void vm_init()
 {
 	INIT_ONCE();
 
 	tree_init();
-
-	slab_type_create(segments, sizeof(segment_t), 0, 0);
-	slab_type_create(objects, sizeof(vmobject_t), 0, 0);
 	kas = tree_new(0, TREE_TREAP);
 }
 

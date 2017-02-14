@@ -34,8 +34,8 @@ typedef struct {
 } tree_t;
 
 
-static slab_type_t nodes[1];
-static slab_type_t trees[1];
+static slab_type_t nodes[1] = { SLAB_TYPE(sizeof(tree_t), 0, 0)};
+static slab_type_t trees[1] = { SLAB_TYPE(sizeof(node_t), 0, 0)};
 
 /*
  * Rotate left:
@@ -530,8 +530,6 @@ void tree_init()
 {
 	INIT_ONCE();
 
-	slab_type_create(trees, sizeof(tree_t), 0, 0);
-	slab_type_create(nodes, sizeof(node_t), 0, 0);
 }
 
 map_t * tree_new(int (*comp)(map_key k1, map_key k2), treemode mode)
