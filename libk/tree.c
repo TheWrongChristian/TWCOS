@@ -34,8 +34,8 @@ typedef struct {
 } tree_t;
 
 
-static slab_type_t nodes[1] = { SLAB_TYPE(sizeof(tree_t), 0, 0)};
-static slab_type_t trees[1] = { SLAB_TYPE(sizeof(node_t), 0, 0)};
+static slab_type_t nodes[1] = { SLAB_TYPE(sizeof(node_t), 0, 0)};
+static slab_type_t trees[1] = { SLAB_TYPE(sizeof(tree_t), 0, 0)};
 
 /*
  * Rotate left:
