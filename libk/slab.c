@@ -32,7 +32,7 @@ typedef struct slab {
 } slab_t;
 
 static slab_type_t * types;
-
+#if 0
 void slab_type_create(slab_type_t * stype, size_t esize, void (*mark)(void *), void (*finalize)(void *))
 {
 	stype->first = 0;
@@ -54,6 +54,7 @@ void slab_type_create(slab_type_t * stype, size_t esize, void (*mark)(void *), v
 	stype->count = (8*(ARCH_PAGE_SIZE-sizeof(slab_t))-64)/ (8 * stype->esize + 2);
 	LIST_APPEND(types, stype);
 }
+#endif
 
 static void slab_weak_ref_mark(void * p)
 {
