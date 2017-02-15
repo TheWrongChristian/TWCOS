@@ -94,7 +94,7 @@ void console_initialize()
 	console_color = make_color(COLOR_LIGHT_GREY, COLOR_BLACK);
 	console_buffer = (uint16_t*) 0xC00B8000;
 	segment_t * seg = vm_segment_direct(console_buffer, 0x2000, SEGMENT_W, fb);
-	map_put(kas, MAP_PKEY(console_buffer), seg);
+	map_put(kas, MAP_PKEY(seg->base), seg);
 	for (size_t y = 0; y < VGA_HEIGHT; y++) {
 		for (size_t x = 0; x < VGA_WIDTH; x++) {
 			const size_t index = y * VGA_WIDTH + x;
