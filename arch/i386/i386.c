@@ -523,7 +523,7 @@ void arch_thread_init(thread_t * thread)
 	}
 	map_t * as = arch_get_thread()->as = tree_new(0, TREE_TREAP);
 	segment_t * heap = vm_segment_anonymous(_bootstrap_nextalloc, 64 * 0x100000, SEGMENT_W);
-	map_put(kas, MAP_PKEY(heap), heap);
+	map_put(kas, MAP_PKEY(heap->base), heap);
 }
 
 void arch_idle()
