@@ -24,11 +24,16 @@ void kernel_main() {
 
 	KTRY {
 		thread_init();
+		slab_init();
 
 		exception_test();
 		thread_test();
 		tree_test();
 		slab_test();
+		vector_test();
+
+		char * p = arch_heap_page();
+		*p = 0;
 
 		arch_idle();
 	} KCATCH(Throwable) {

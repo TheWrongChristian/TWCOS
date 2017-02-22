@@ -11,6 +11,8 @@ extern char _kernel_offset[0];
 
 BOOTSTRAP_CODE void bootstrap_paging_init()
 {
+	INIT_ONCE();
+
 	int i;
 	uint32_t offset = _kernel_offset-_kernel_offset_bootstrap;
 	pg_dir[0] = pg_dir[offset >> 22] = ((uint32_t)pt_00000000) | 0x3;
@@ -36,10 +38,10 @@ static char * mem_type(int type)
 	return "Unknown";
 }
 
-extern char _bootstrap_start;
-extern char _bootstrap_end;
-extern char _bootstrap_nextalloc;
-static char * nextalloc = &_bootstrap_nextalloc;
+extern char _bootstrap_start[];
+extern char _bootstrap_end[];
+extern char _bootstrap_nextalloc[];
+static char * nextalloc = _bootstrap_nextalloc;
 
 #define ALIGNMENT 16
 
@@ -73,8 +75,10 @@ int arch_is_heap_pointer(void *p)
 
 void arch_init()
 {
+	INIT_ONCE();
+
 	int i;
-	ptrdiff_t koffset = &_bootstrap_nextalloc - &_bootstrap_end;
+	ptrdiff_t koffset = _bootstrap_nextalloc - _bootstrap_end;
 	page_t pstart;
 	page_t pend;
 
@@ -124,8 +128,10 @@ void arch_init()
 	}
 	i386_init();
 	vmap_init();
-	pci_scan();
 	bootstrap_finish();
+	vm_init();
+	pci_scan();
+
 #if 0
 	vmap_mapn(0, 0xa0, (char*)koffset, 0, 0, 0);
 	vmap_map(0, (void*)0x100000, 0x100, 0, 0);
@@ -139,7 +145,7 @@ void arch_init()
 		}
 	}
 #endif
-	kernel_printk("Bootstrap end - 0x%p\n", nextalloc);
+	kernel_printk("Bootstrap end - %p\n", nextalloc);
 }
 
 #if INTERFACE
