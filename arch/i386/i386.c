@@ -323,7 +323,7 @@ static void i386_pf(uint32_t num, uint32_t * state)
 	void * cr2;
 
 	asm volatile("movl %%cr2, %0" : "=r"(cr2));
-	vmap_fault(cr2, state[ISR_ERRORCODE] & 0x2, state[ISR_ERRORCODE] & 0x4);
+	vm_page_fault(cr2, state[ISR_ERRORCODE] & 0x2, state[ISR_ERRORCODE] & 0x4, state[ISR_ERRORCODE] & 0x1);
 }
 
 static void i386_mf(uint32_t num, uint32_t * state)
@@ -474,6 +474,8 @@ static thread_t initial;
 
 void i386_init()
 {
+	INIT_ONCE();
+
 	int i;
 	thread_t ** stackbase = ARCH_GET_VPAGE(&stackbase);
 
@@ -514,15 +516,14 @@ void i386_init()
 
 void arch_thread_init(thread_t * thread)
 {
+	INIT_ONCE();
 
 	if (arch_thread_fork(thread)) {
 		arch_thread_switch(thread);
 	}
-#if 0
-	/* Fix up stack base pointer to thread */
-	thread_t ** stackbase = thread->context.stack;
-	*stackbase = thread;
-#endif
+	map_t * as = arch_get_thread()->as = tree_new(0, TREE_TREAP);
+	segment_t * heap = vm_segment_anonymous(_bootstrap_nextalloc, 64 * 0x100000, SEGMENT_W);
+	map_put(kas, MAP_PKEY(heap->base), heap);
 }
 
 void arch_idle()

@@ -62,7 +62,7 @@ EXCEPTION_DEF(TestException, Exception);
 struct exception_def exception_def_Throwable = { "Throwable", 0 };
 
 static tls_key exception_key;
-static slab_type_t causes;
+static slab_type_t causes[1] = {SLAB_TYPE(sizeof(struct exception_cause), 0, 0)};
 
 enum estates { EXCEPTION_NEW = 0, EXCEPTION_TRYING, EXCEPTION_CATCHING, EXCEPTION_FINISHING };
 
@@ -70,7 +70,6 @@ exception_frame * exception_push(exception_frame * frame)
 {
 	if (0 == exception_key) {
 		exception_key = tls_get_key();
-		slab_type_create(&causes,sizeof(struct exception_cause), 0, 0);
 	}
 
 	/* Link the frame into the chain */
@@ -91,7 +90,7 @@ void exception_throw(struct exception_def * type, char * file, int line, char * 
 	va_list ap;
 	va_start(ap,message);
 
-	frame->cause = slab_alloc(&causes);
+	frame->cause = slab_alloc(causes);
 	frame->cause->type = type;
 	frame->cause->file = file;
 	frame->cause->line = line;
