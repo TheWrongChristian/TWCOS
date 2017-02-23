@@ -14,6 +14,8 @@ typedef struct slab_type {
 	void (*finalize)(void *);
 } slab_type_t;
 
+#define SLAB_TYPE(s, m, f) {.magic=0, .esize=s, .mark=m, .finalize=f}
+
 typedef struct {
 	void * p;
 } slab_weak_ref_t;
@@ -30,7 +32,7 @@ typedef struct slab {
 } slab_t;
 
 static slab_type_t * types;
-
+#if 0
 void slab_type_create(slab_type_t * stype, size_t esize, void (*mark)(void *), void (*finalize)(void *))
 {
 	stype->first = 0;
@@ -52,6 +54,7 @@ void slab_type_create(slab_type_t * stype, size_t esize, void (*mark)(void *), v
 	stype->count = (8*(ARCH_PAGE_SIZE-sizeof(slab_t))-64)/ (8 * stype->esize + 2);
 	LIST_APPEND(types, stype);
 }
+#endif
 
 static void slab_weak_ref_mark(void * p)
 {
@@ -64,20 +67,10 @@ static void slab_weak_ref_finalize(void * p)
 	ref->p = 0;
 }
 
+static slab_type_t wr[1] = {SLAB_TYPE(sizeof(slab_weak_ref_t), slab_weak_ref_mark, slab_weak_ref_finalize)};
+
 slab_weak_ref_t * slab_weak_ref(void * p)
 {
-	static slab_type_t wr[1];
-	static int inited = 0;
-
-	thread_lock(slab_alloc);
-
-	if (!inited) {
-		inited = 1;
-		slab_type_create(wr, sizeof(slab_weak_ref_t), slab_weak_ref_mark, slab_weak_ref_finalize);
-	}
-
-	thread_unlock(slab_alloc);
-
 	slab_weak_ref_t * ref = slab_alloc(wr);
 	ref->p = p;
 
@@ -92,11 +85,34 @@ void * slab_weak_ref_get(slab_weak_ref_t * ref)
 	return p;
 }
 
+void slab_init()
+{
+	INIT_ONCE();
+}
+
 static slab_t * slab_new(slab_type_t * stype)
 {
 	/* Allocate and map page */
 	slab_t * slab = page_valloc();
 
+	if (0 == stype->magic) {
+		/* Initialize type */
+		stype->first = 0;
+		stype->magic = 997 * 0xaf653de9 * (uint32_t)stype;
+
+		/*           <-----------------d------------------>
+		 * | slab_t |a|f|              data                |
+		 *  <-----------------page size------------------->
+		 * data + a + f = ARCH_PAGE_SIZE-sizeof(slab_t)
+		 * c*s + c/8+4 + c/8+4 = psz-slab_t = d
+		 * 8*c*s + c + 32 + c + 32 = 8*d
+		 * 8*c*s + 2*c = 8*d - 64
+		 * c*(8*s + 2) = 8*d - 64
+		 * c = (8*d - 64) / (8*s + 2)
+		 */
+		stype->count = (8*(ARCH_PAGE_SIZE-sizeof(slab_t))-64)/ (8 * stype->esize + 2);
+		LIST_APPEND(types, stype);
+	}
 	slab->magic = stype->magic;
 	slab->type = stype;
 	slab->available = (uint32_t*)(slab+1);
@@ -161,6 +177,14 @@ void * slab_alloc(slab_type_t * stype)
 	return 0;
 }
 
+void * slab_calloc(slab_type_t * stype)
+{
+	void * p = slab_alloc(stype);
+	memset(p, 0, stype->esize);
+
+	return p;
+}
+
 static void slab_mark_available_all(slab_t * slab)
 {
         for(int i=0; i<slab->type->count; i+=32) {
@@ -198,7 +222,7 @@ static slab_t * slab_get(void * p)
 		/* Check magic numbers */
 		slab_t * slab = ARCH_PAGE_ALIGN(p);
 
-		if (slab->magic == slab->type->magic && slab->data <= p) {
+		if (slab == ARCH_PAGE_ALIGN(slab->data) && slab->magic == slab->type->magic && (char*)slab->data <= (char*)p) {
 			return slab;
 		}
 	}
@@ -308,20 +332,18 @@ void slab_free(void * p)
 
 static void slab_test_finalize(void * p)
 {
-	kernel_printk("Finalizing: 0x%p\n", p);
+	kernel_printk("Finalizing: %p\n", p);
 }
 
 static void slab_test_mark(void *p)
 {
-	kernel_printk("Marking: 0x%p\n", p);
+	kernel_printk("Marking: %p\n", p);
 }
 
 void slab_test()
 {
-	static slab_type_t t[1];
+	static slab_type_t t[1] = {SLAB_TYPE(1270, slab_test_mark, slab_test_finalize)};
 	void * p[4];
-
-	slab_type_create(t, 1270, slab_test_mark, slab_test_finalize);
 
 	p[0] = slab_alloc(t);
 	slab_weak_ref_t * ref = slab_weak_ref(p[0]);
