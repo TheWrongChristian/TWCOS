@@ -6,7 +6,7 @@
 
 typedef void (*walk_func)(void * data);
 
-typedef intptr_t map_key;
+typedef uintptr_t map_key;
 #define MAP_PKEY(key) ((map_key)key)
 #define MAP_PKEY(key) ((map_key)key)
 
@@ -51,7 +51,7 @@ void * map_get( map_t * map, map_key key )
 	return map->ops->get(map, key);
 }
 
-void * map_get_le( map_t * map, void * key )
+void * map_get_le( map_t * map, map_key key )
 {
 	return map->ops->get_le(map, key);
 }
