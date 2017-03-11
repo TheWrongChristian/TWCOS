@@ -69,6 +69,20 @@ typedef struct vmobject_s {
 	};
 } vmobject_t;
 
+typedef struct anon_page_s {
+	int ref;
+	page_t page;
+} anon_page_t;
+
+typedef uint64_t off_t;
+typedef struct vm_page_s {
+	int ref;
+	vmobject_t * object;
+	off_t offset;
+
+	int flags;
+} vm_page_t;
+
 typedef void (*segment_faulter)(struct segment_s * seg, void * p, int write, int user, int present);
 typedef struct segment_s {
 	void * base;
@@ -79,7 +93,7 @@ typedef struct segment_s {
 	vmobject_t * dirty;
 
 	/* Reads come from clean object, if they're not in dirty object */
-	int read_offset; /* FIXME: Make this 64-bit clean */
+	off_t read_offset;
 	vmobject_t * clean;
 } segment_t;
 #endif
@@ -160,6 +174,27 @@ static vmobject_ops_t anon_ops = {
 	get_page: vm_anon_get_page
 };
 
+static void vm_object_anon_copy_pages(vector_t * v, void * arg, int i, void * p)
+{
+	vm_page_t * vmp = p;
+	vector_t * to = arg;
+
+	/* Increment the reference count on the page */
+	arch_atomic_postinc(&vmp->ref);
+	vector_putp(to, i, vmp);
+}
+
+static vmobject_t * vm_object_anon_copy(vmobject_t * from)
+{
+	check_int_is(from->type, OBJECT_ANON, "Clone object is not anonymous");
+	vmobject_t * anon = slab_alloc(objects);
+	anon->ops = &anon_ops;
+	anon->type = OBJECT_ANON;
+	anon->anon.pages = vector_new();
+	
+	return anon;
+}
+
 static vmobject_t * vm_object_anon()
 {
 	vmobject_t * anon = slab_alloc(objects);
@@ -205,10 +240,7 @@ segment_t * vm_segment_base( void * p, size_t size, int perms, vmobject_t * clea
 	seg->perms = perms;
 	seg->clean = clean;
 	seg->read_offset = offset;
-	seg->dirty = 0;
-	if (perms & SEGMENT_P) {
-		seg->dirty = vm_object_anon();
-	}
+	seg->dirty = clean;
 
 	return seg;
 }
@@ -216,6 +248,7 @@ segment_t * vm_segment_base( void * p, size_t size, int perms, vmobject_t * clea
 segment_t * vm_segment_anonymous(void * p, size_t size, int perms)
 {
 	segment_t * seg = vm_segment_base(p, size, perms | SEGMENT_P, 0, 0);
+	seg->dirty = vm_object_anon();
 
 	return seg;
 }
@@ -224,14 +257,25 @@ segment_t * vm_segment_direct(void * p, size_t size, int perms, page_t base)
 {
 	vmobject_t * object = vm_object_direct(base, size);
 	segment_t * seg = vm_segment_base(p, size, perms, object, 0);
-	seg->dirty = object;
 
 	return seg;
 }
 
 segment_t * vm_segment_copy(segment_t * from, int private)
 {
-	segment_t * seg = slab_alloc(segments);
+	segment_t * seg = vm_segment_base(from->base, from->size, from->perms, from->clean, from->read_offset);
+
+	if (private) {
+		seg->perms |= SEGMENT_P;
+
+		if (from->clean != from->dirty) {
+			/* Initialize dirty from old segment dirty map */
+			seg->dirty = vm_object_anon_copy(from->dirty);
+		} else {
+			/* Empty dirty object */
+			seg->dirty = vm_object_anon();
+		}
+	}
 
 	return seg;
 }
