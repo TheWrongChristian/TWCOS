@@ -8,8 +8,8 @@ typedef struct vector_s {
 	struct vector_table_s * table;
 } vector_t;
 
-typedef void (*vector_walk_func)(vector_t * v, int i, intptr_t d);
-typedef void (*vector_walkp_func)(vector_t * v, int i, void * p);
+typedef void (*vector_walk_func)(vector_t * v, void * arg, int i, intptr_t d);
+typedef void (*vector_walkp_func)(vector_t * v, void * arg, int i, void * p);
 
 #endif
 
@@ -111,38 +111,38 @@ vector_t * vector_new()
 	return v;
 }
 
-static void vector_walk_table(vector_t * v, vector_table_t * t, int base, vector_walk_func fi, vector_walkp_func fp)
+static void vector_walk_table(vector_t * v, vector_table_t * t, void * arg, int base, vector_walk_func fi, vector_walkp_func fp)
 {
 	for(int i=0; i<VECTOR_TABLE_ENTRIES; i++) {
 		if (t->d[i]) {
 			if (t->level) {
-				vector_walk_table(v, t->d[i], (base+i)*VECTOR_TABLE_ENTRIES, fi, fp);
+				vector_walk_table(v, t->d[i], arg, (base+i)*VECTOR_TABLE_ENTRIES, fi, fp);
 			} else {
 				if (fi) {
-					fi(v, base+i, t->d[i]);
+					fi(v, arg, base+i, t->d[i]);
 				} else {
-					fp(v, base+i, (void*)t->d[i]);
+					fp(v, arg, base+i, (void*)t->d[i]);
 				}
 			}
 		}
 	}
 }
 
-void vector_walk(vector_t * v, vector_walk_func f)
+void vector_walk(vector_t * v, vector_walk_func f, void * arg )
 {
 	if (v->table) {
-		vector_walk_table(v, v->table, 0, f, 0);
+		vector_walk_table(v, v->table, arg, 0, f, 0);
 	}
 }
 
-void vector_walkp(vector_t * v, vector_walkp_func f)
+void vector_walkp(vector_t * v, vector_walkp_func f, void * arg )
 {
 	if (v->table) {
-		vector_walk_table(v, v->table, 0, 0, f);
+		vector_walk_table(v, v->table, arg, 0, 0, f);
 	}
 }
 
-static void vector_test_walk(vector_t * v, int i, void * p)
+static void vector_test_walk(vector_t * v, void * ignored, int i, void * p)
 {
 	kernel_printk("v[%d] = %p\n", i, p);
 }
@@ -171,5 +171,5 @@ void vector_test()
 	vector_putp(v, i, p);
 	kernel_printk("v[%d] = %p\n", i, vector_getp(v, i));
 
-	vector_walkp(v, vector_test_walk);
+	vector_walkp(v, 0, vector_test_walk);
 }
