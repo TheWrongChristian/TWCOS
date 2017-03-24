@@ -16,10 +16,6 @@ typedef struct slab_type {
 
 #define SLAB_TYPE(s, m, f) {.magic=0, .esize=s, .mark=m, .finalize=f}
 
-typedef struct {
-	void * p;
-} slab_weak_ref_t;
-
 #endif
 
 typedef struct slab {
@@ -55,35 +51,6 @@ void slab_type_create(slab_type_t * stype, size_t esize, void (*mark)(void *), v
 	LIST_APPEND(types, stype);
 }
 #endif
-
-static void slab_weak_ref_mark(void * p)
-{
-	/* Intentionally empty */
-}
-
-static void slab_weak_ref_finalize(void * p)
-{
-	slab_weak_ref_t * ref = p;
-	ref->p = 0;
-}
-
-static slab_type_t wr[1] = {SLAB_TYPE(sizeof(slab_weak_ref_t), slab_weak_ref_mark, slab_weak_ref_finalize)};
-
-slab_weak_ref_t * slab_weak_ref(void * p)
-{
-	slab_weak_ref_t * ref = slab_alloc(wr);
-	ref->p = p;
-
-	return ref;
-}
-
-void * slab_weak_ref_get(slab_weak_ref_t * ref)
-{
-	thread_lock(slab_alloc);
-	void * p = ref->p;
-	thread_unlock(slab_alloc);
-	return p;
-}
 
 void slab_init()
 {
@@ -346,17 +313,14 @@ void slab_test()
 	void * p[4];
 
 	p[0] = slab_alloc(t);
-	slab_weak_ref_t * ref = slab_weak_ref(p[0]);
 	p[1] = slab_alloc(t);
 	p[2] = slab_alloc(t);
 	p[3] = slab_alloc(t);
 
 	/* Nothing should be finalized here */
 	thread_gc();
-	kernel_printk("Weak p[0] = 0x%p\n", slab_weak_ref_get(ref));
 	p[0] = p[1] = p[2] = p[3] = 0;
 
 	/* p array should be finalized here */
 	thread_gc();
-	kernel_printk("Weak p[0] = 0x%p\n", slab_weak_ref_get(ref));
 }
