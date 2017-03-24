@@ -171,5 +171,5 @@ void vector_test()
 	vector_putp(v, i, p);
 	kernel_printk("v[%d] = %p\n", i, vector_getp(v, i));
 
-	vector_walkp(v, 0, vector_test_walk);
+	vector_walkp(v, vector_test_walk, 0);
 }
