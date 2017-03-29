@@ -4,6 +4,7 @@ errorcode_isr ()
 {
 	cat <<EOF
 .global isr_$1
+.type isr_$1, @function
 isr_$1:
 	pushl %ds
 	pushal
@@ -18,6 +19,7 @@ isr ()
 {
 	cat <<EOF
 .global isr_$1
+.type isr_$1, @function
 isr_$1:
 	push \$0
 	pushl %ds
