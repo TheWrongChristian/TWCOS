@@ -42,6 +42,7 @@ extern char _bootstrap_start[];
 extern char _bootstrap_end[];
 extern char _bootstrap_nextalloc[];
 static char * nextalloc = _bootstrap_nextalloc;
+static char * heapend;
 
 #define ALIGNMENT 16
 
@@ -81,6 +82,7 @@ void arch_init()
 	ptrdiff_t koffset = _bootstrap_nextalloc - _bootstrap_end;
 	page_t pstart;
 	page_t pend;
+	int pcount = 0;
 
 	for(i=0;;i++) {
 		multiboot_memory_map_t * mmap = multiboot_mmap(i);
@@ -91,18 +93,22 @@ void arch_init()
 				 * Add the memory to the pool of available
 				 * memory.
 				 */
-				uint32_t page = mmap->addr >> 12;
-				uint32_t count = mmap->len >> 12;
+				uint32_t page = mmap->addr >> ARCH_PAGE_SIZE_LOG2;
+				uint32_t count = mmap->len >> ARCH_PAGE_SIZE_LOG2;
 
 				page_add_range(page, count);
+				pcount += count;
 			}
 		} else {
 			break;
 		}
 	}
 
-	pstart = ((uint32_t)&_bootstrap_start)>>12;
-	pend = ((uint32_t)(nextalloc-koffset))>>12;
+	/* 64MB heap by default */
+	heapend = data_start + 0x4000000;
+
+	pstart = ((uint32_t)&_bootstrap_start)>>ARCH_PAGE_SIZE_LOG2;
+	pend = ((uint32_t)(nextalloc-koffset))>>ARCH_PAGE_SIZE_LOG2;
 	for(i=0;;i++) {
 		multiboot_memory_map_t * mmap = multiboot_mmap(i);
 
@@ -112,8 +118,8 @@ void arch_init()
 				 * Add the memory to the pool of available
 				 * memory.
 				 */
-				uint32_t page = mmap->addr >> 12;
-				uint32_t count = mmap->len >> 12;
+				uint32_t page = mmap->addr >> ARCH_PAGE_SIZE_LOG2;
+				uint32_t count = mmap->len >> ARCH_PAGE_SIZE_LOG2;
 				int i;
 
 				for(i=0; i<count; i++, page++) {
@@ -130,6 +136,11 @@ void arch_init()
 	vmap_init();
 	bootstrap_finish();
 	vm_init();
+	page_t code_page = ((uintptr_t)code_start - koffset) >> ARCH_PAGE_SIZE_LOG2;
+	page_t data_page = ((uintptr_t)data_start - koffset) >> ARCH_PAGE_SIZE_LOG2;
+	map_put(kas, code_start, vm_segment_direct(code_start, data_start - code_start, SEGMENT_R | SEGMENT_X, code_page ));
+	map_put(kas, data_start, vm_segment_direct(data_start, nextalloc - data_start, SEGMENT_R | SEGMENT_W, data_page ));
+	map_put(kas, nextalloc, vm_segment_anonymous(nextalloc, heapend - nextalloc, SEGMENT_R | SEGMENT_W ));
 	pci_scan();
 
 #if 0
