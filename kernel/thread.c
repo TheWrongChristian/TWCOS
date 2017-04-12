@@ -424,9 +424,6 @@ void thread_init()
 {
 	INIT_ONCE();
 
-	/* Create the kernel address space */
-	kas = tree_new(0, TREE_SPLAY);
-
 	/* Craft a new bootstrap thread to replace the static defined thread */
 	arch_thread_init(slab_alloc(threads));
 }

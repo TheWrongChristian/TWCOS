@@ -29,10 +29,10 @@ SECTIONS
 	. += 0xc0000000;
 	_kernel_offset = .;
 
-	code_start = .;
 	/* Next we'll put the .text section. */
 	.text ALIGN(4K) : AT(ADDR(.text) - 0xc0000000)
 	{
+		code_start = .;
 		*(.text)
 	}
 
@@ -42,10 +42,10 @@ SECTIONS
 		*(.rodata)
 	}
 
-	data_start = .;
 	/* Read-write data (initialized) */
 	.data ALIGN(4K) : AT(ADDR(.data) - 0xc0000000)
 	{
+		data_start = .;
 		*(.data)
 	}
 
