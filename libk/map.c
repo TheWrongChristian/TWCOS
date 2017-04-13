@@ -4,7 +4,8 @@
 
 #include <stdint.h>
 
-typedef void (*walk_func)(void * data);
+typedef void (*walk_func)(void * p, map_key key, intptr_t data);
+typedef void (*walkp_func)(void * p, map_key key, void * data);
 
 typedef uintptr_t map_key;
 #define MAP_PKEY(key) ((map_key)key)
@@ -12,16 +13,16 @@ typedef uintptr_t map_key;
 
 struct map_ops {
         void (*destroy)( map_t * map );
-        void (*walk)( map_t * map, walk_func func );
+        void (*walk)( map_t * map, walk_func func, void *p );
 
-        void * (*put)( map_t * map, map_key key, void * data );
+        void * (*put)( map_t * map, map_key key, intptr_t data );
         void * (*get)( map_t * map, map_key key );
         void * (*get_le)( map_t * map, map_key key );
         void * (*remove)( map_t * map, map_key key );
 
 	void (*optimize)(map_t * map);
 
-        iterator_t * (*iterator)( map_t * map, int keys );
+        iterator_t * (*iterator)( map_t * map );
 };
 
 typedef struct map {
@@ -36,19 +37,50 @@ void map_destroy( map_t * map )
 	slab_free(map);
 }
 
-void map_walk( map_t * map, walk_func func )
+struct walkp_wrapper
 {
-	map->ops->walk(map, func);
+	walkp_func func;
+	void * p;
+};
+
+static void walk_walkp_func( void * p, map_key key, intptr_t data )
+{
+	struct walkp_wrapper * w = (struct walkp_wrapper*)p;
+	w->func(w->p, key, (void*)data);
 }
 
-void * map_put( map_t * map, map_key key, void * data )
+void map_walkp( map_t * map, walkp_func func, void * p )
+{
+	struct walkp_wrapper wrapper = {
+		func,
+		p
+	};
+	map->ops->walk(map, walk_walkp_func, &wrapper);
+}
+
+void map_walk( map_t * map, walk_func func, void * p )
+{
+	map->ops->walk(map, func, p);
+}
+
+void * map_put( map_t * map, map_key key, intptr_t data )
 {
 	return map->ops->put(map, key, data);
 }
 
-void * map_get( map_t * map, map_key key )
+void * map_putp( map_t * map, map_key key, void * data )
+{
+	return map->ops->put(map, key, (intptr_t)data);
+}
+
+intptr_t map_get( map_t * map, map_key key )
 {
 	return map->ops->get(map, key);
+}
+
+void * map_getp( map_t * map, map_key key )
+{
+	return (void*)map->ops->get(map, key);
 }
 
 void * map_get_le( map_t * map, map_key key )
@@ -56,7 +88,12 @@ void * map_get_le( map_t * map, map_key key )
 	return map->ops->get_le(map, key);
 }
 
-void * map_remove( map_t * map, map_key key )
+intptr_t map_remove( map_t * map, map_key key )
+{
+	return map->ops->remove(map, key);
+}
+
+void * map_removep( map_t * map, map_key key )
 {
 	return map->ops->remove(map, key);
 }
@@ -66,7 +103,7 @@ void map_optimize(map_t * map)
 	map->ops->optimize(map);
 }
 
-iterator_t * map_iterator( map_t * map, int keys )
+iterator_t * map_iterator( map_t * map)
 {
-        return map->ops->iterator(map, keys);
+        return map->ops->iterator(map);
 }
