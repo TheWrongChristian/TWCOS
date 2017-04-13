@@ -5,11 +5,12 @@
 #include <stdint.h>
 
 typedef struct vector_s {
+	struct map_ops * ops;
 	struct vector_table_s * table;
 } vector_t;
 
-typedef void (*vector_walk_func)(vector_t * v, void * arg, int i, intptr_t d);
-typedef void (*vector_walkp_func)(vector_t * v, void * arg, int i, void * p);
+typedef void (*vector_walk_func)(vector_t * v, void * arg, map_key i, intptr_t d);
+typedef void (*vector_walkp_func)(vector_t * v, void * arg, map_key i, void * p);
 
 #endif
 
@@ -39,7 +40,7 @@ static vector_table_t * vector_table_new(int level)
 	return table;
 }
 
-static intptr_t * vector_entry_get(vector_table_t * table, int i, int create)
+static intptr_t * vector_entry_get(vector_table_t * table, map_key i, int create)
 {
 	if (table->level) {
 		int shift = VECTOR_TABLE_ENTRIES_LOG2*table->level;
@@ -61,7 +62,7 @@ static intptr_t * vector_entry_get(vector_table_t * table, int i, int create)
 	}
 }
 
-static void vector_checksize(vector_t * v, int i)
+static void vector_checksize(vector_t * v, map_key i)
 {
 	/* Extend the table as necessary */
 	while(1<<(VECTOR_TABLE_ENTRIES_LOG2*(v->table->level+1))<i) {
@@ -71,7 +72,7 @@ static void vector_checksize(vector_t * v, int i)
 	}
 }
 
-intptr_t vector_put(vector_t * v, int i, intptr_t d)
+intptr_t vector_put(vector_t * v, map_key i, intptr_t d)
 {
 	vector_checksize(v, i);
 	intptr_t * entry = vector_entry_get(v->table, i, 1);
@@ -80,12 +81,12 @@ intptr_t vector_put(vector_t * v, int i, intptr_t d)
 	return old;
 }
 
-void * vector_putp(vector_t * v, int i, void * p)
+void * vector_putp(vector_t * v, map_key i, void * p)
 {
 	return (void*)vector_put(v, i, (intptr_t)p);
 }
 
-intptr_t vector_get(vector_t * v, int i)
+intptr_t vector_get(vector_t * v, map_key i)
 {
 	intptr_t * entry = vector_entry_get(v->table, i, 0);
 
@@ -96,15 +97,24 @@ intptr_t vector_get(vector_t * v, int i)
 	return 0;
 }
 
-void * vector_getp(vector_t * v, int i)
+void * vector_getp(vector_t * v, map_key i)
 {
 	return (void*)vector_get(v, i);
 }
 
-vector_t * vector_new()
+map_t * vector_new()
 {
-	vector_init();
 	vector_t * v = slab_calloc(vectors);
+	static struct map_ops tree_ops = {
+                destroy: 0,
+                walk: tree_walk,
+                put: vector_put,
+                get: vector_get,
+                get_le: 0,
+                optimize: 0,
+                remove: 0 /* vector_remove */,
+                iterator: 0 /* vector_iterator */
+        };
 
 	v->table = vector_table_new(0);
 
@@ -142,7 +152,7 @@ void vector_walkp(vector_t * v, vector_walkp_func f, void * arg )
 	}
 }
 
-static void vector_test_walk(vector_t * v, void * ignored, int i, void * p)
+static void vector_test_walk(vector_t * v, void * ignored, map_key i, void * p)
 {
 	kernel_printk("v[%d] = %p\n", i, p);
 }
@@ -152,7 +162,7 @@ void vector_test()
 	vector_init();
 
 	int i = 3;
-	vector_t * v = vector_new();
+	map_t * v = vector_new();
 	void * p = vector_test;
 
 	kernel_printk("v[%d] = %p\n", i, vector_getp(v, i));
