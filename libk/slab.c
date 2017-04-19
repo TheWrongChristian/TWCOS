@@ -98,9 +98,24 @@ static slab_t * slab_new(slab_type_t * stype)
 	return slab;
 }
 
+static int slabspin[1];
+static void slab_lock()
+{
+	while(1) {
+		if (arch_spin_trylock(slabspin)) {
+			return;
+		}
+	}
+}
+
+static void slab_unlock()
+{
+	arch_spin_unlock(slabspin);
+}
+
 void * slab_alloc(slab_type_t * stype)
 {
-	thread_lock(slab_alloc);
+	slab_lock();
 
 	slab_t * slab = stype->first ? stype->first : slab_new(stype);
 
@@ -128,7 +143,7 @@ void * slab_alloc(slab_type_t * stype)
 
 				slab->available[i/32] &= ~mask;
 
-				thread_unlock(slab_alloc);
+				slab_unlock();
 				return slab->data + slab->type->esize*slot;
 			}
 		}
@@ -139,7 +154,7 @@ void * slab_alloc(slab_type_t * stype)
 		}
 	}
 
-	thread_unlock(slab_alloc);
+	slab_unlock();
 	/* FIXME: Throw out of memory error */
 	return 0;
 }
@@ -167,7 +182,7 @@ static void slab_mark_available_all(slab_t * slab)
 
 void slab_gc_begin()
 {
-	thread_lock(slab_alloc);
+	slab_lock();
 	slab_type_t * stype = types;
 
 	/* Mark all elements available */
@@ -279,7 +294,7 @@ void slab_gc_end()
 
 		LIST_NEXT(types, stype);
 	}
-	thread_unlock(slab_alloc);
+	slab_unlock();
 }
 
 void slab_free(void * p)
