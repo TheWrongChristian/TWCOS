@@ -222,21 +222,21 @@ static void tree_destroy( map_t * map )
 {
 }
 
-static void tree_walk_node( node_t * node, walk_func func )
+static void tree_walk_node( node_t * node, walk_func func, void * p )
 {
         if (NULL == node) {
                 return;
         }
 
-        tree_walk_node(node->left, func);
-        func(node->data);
-        tree_walk_node(node->right, func);
+        tree_walk_node(node->left, func, p);
+        func(p, node->key, node->data);
+        tree_walk_node(node->right, func, p);
 }
 
-void tree_walk( map_t * map, walk_func func )
+void tree_walk( map_t * map, walk_func func, void * p )
 {
         tree_t * tree = (tree_t*)map;
-        tree_walk_node(tree->root, func);
+        tree_walk_node(tree->root, func, p);
 }
 
 static void node_verify( tree_t * tree, node_t * node )
@@ -290,7 +290,7 @@ static void tree_verify( tree_t * tree, node_t * node )
 	}
 }
 
-static void * tree_put( map_t * map, map_key key, void * data )
+static map_data tree_put( map_t * map, map_key key, map_data data )
 {
         tree_t * tree = (tree_t*)map;
         node_t * node = tree->root;
@@ -299,7 +299,7 @@ static void * tree_put( map_t * map, map_key key, void * data )
 
         tree_verify(tree, NULL);
         while(node) {
-		int diff = (tree->comp) ? tree->comp(key, node->key) : key - node->key;
+		intptr_t diff = (tree->comp) ? tree->comp(key, node->key) : key - node->key;
 
                 if (diff<0) {
                         parent = node;
@@ -570,7 +570,7 @@ static void tree_graph_node(node_t * node, int level)
 	}
 }
 
-static void tree_walk_dump(void * data)
+static void tree_walk_dump(void * p, map_key key, void * data)
 {
 	kernel_printk("%s\n", data);
 }
@@ -609,7 +609,7 @@ void tree_test()
 	tree_graph_node(((tree_t*)map)->root, 0);
 	map_optimize(map);
 	tree_graph_node(((tree_t*)map)->root, 0);
-	tree_walk(map, tree_walk_dump);
+	map_walkp(map, tree_walk_dump, 0);
 
 	kernel_printk("%s LE Christ\n", map_get_le(map, "Christ"));
 #if 0
