@@ -290,7 +290,7 @@ static void tree_verify( tree_t * tree, node_t * node )
 	}
 }
 
-static void * tree_put( map_t * map, map_key key, void * data )
+static map_data tree_put( map_t * map, map_key key, map_data data )
 {
         tree_t * tree = (tree_t*)map;
         node_t * node = tree->root;
@@ -299,7 +299,7 @@ static void * tree_put( map_t * map, map_key key, void * data )
 
         tree_verify(tree, NULL);
         while(node) {
-		int diff = (tree->comp) ? tree->comp(key, node->key) : key - node->key;
+		intptr_t diff = (tree->comp) ? tree->comp(key, node->key) : key - node->key;
 
                 if (diff<0) {
                         parent = node;
