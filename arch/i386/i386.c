@@ -323,7 +323,7 @@ static void i386_pf(uint32_t num, uint32_t * state)
 	void * cr2;
 
 	asm volatile("movl %%cr2, %0" : "=r"(cr2));
-	vmap_fault(cr2, state[ISR_ERRORCODE] & 0x2, state[ISR_ERRORCODE] & 0x4);
+	vm_page_fault(cr2, state[ISR_ERRORCODE] & 0x2, state[ISR_ERRORCODE] & 0x4, state[ISR_ERRORCODE] & 0x1);
 }
 
 static void i386_mf(uint32_t num, uint32_t * state)
@@ -376,7 +376,7 @@ void arch_thread_mark(thread_t * thread)
 		setjmp(thread->context.state);
 	}
 
-	void ** esp = thread->context.state[1];
+	void ** esp = (void**)thread->context.state[1];
 	void ** stacktop = (void**)((char*)thread->context.stack + ARCH_PAGE_SIZE);
 
 	if (!arch_is_heap_pointer(esp)) {
@@ -474,6 +474,8 @@ static thread_t initial;
 
 void i386_init()
 {
+	INIT_ONCE();
+
 	int i;
 	thread_t ** stackbase = ARCH_GET_VPAGE(&stackbase);
 
@@ -514,15 +516,12 @@ void i386_init()
 
 void arch_thread_init(thread_t * thread)
 {
+	INIT_ONCE();
 
 	if (arch_thread_fork(thread)) {
 		arch_thread_switch(thread);
 	}
-#if 0
-	/* Fix up stack base pointer to thread */
-	thread_t ** stackbase = thread->context.stack;
-	*stackbase = thread;
-#endif
+	arch_get_thread()->as = tree_new(0, TREE_TREAP);
 }
 
 void arch_idle()
@@ -592,13 +591,13 @@ int arch_thread_fork(thread_t * dest)
 	uint32_t * spage = (uint32_t*)ARCH_GET_VPAGE(source->context.stack);
 
 	/* Set pointer to thread */
-	dpage[0] = (ptri)dest;
+	dpage[0] = (uintptr_t)dest;
 
 	/* Copy the source thread stack */
 	for(int i=1; i<ARCH_PAGE_SIZE/sizeof(*dpage); i++) {
 		if (ARCH_PTRI_BASE(spage[i]) == ARCH_PTRI_BASE(spage)) {
 			/* Adjust pointer */
-			dpage[i] = (ptri)dpage | ARCH_PTRI_OFFSET(spage[i]);
+			dpage[i] = (uintptr_t)dpage | ARCH_PTRI_OFFSET(spage[i]);
 		} else {
 			dpage[i] = spage[i];
 		}
@@ -612,14 +611,14 @@ int arch_thread_fork(thread_t * dest)
 	/* Adjust destination context */
 	for(int i=0; i<sizeof(dest->context.state)/sizeof(dest->context.state[0]); i++) {
 		if (ARCH_PTRI_BASE(dest->context.state[i]) == ARCH_PTRI_BASE(spage)) {
-			dest->context.state[i] = (ptri)dpage | ARCH_PTRI_OFFSET(dest->context.state[i]);
+			dest->context.state[i] = (uintptr_t)dpage | ARCH_PTRI_OFFSET(dest->context.state[i]);
 		}
 	}
 
 	/* Adjust TLS */
 	for(int i=0; i<sizeof(dest->tls)/sizeof(dest->tls[0]); i++) {
 		if (ARCH_PTRI_BASE(dest->tls[i]) == ARCH_PTRI_BASE(spage)) {
-			dest->tls[i] = (ptri)dpage | ARCH_PTRI_OFFSET(dest->tls[i]);
+			dest->tls[i] = (void*)((uintptr_t)dpage | ARCH_PTRI_OFFSET(dest->tls[i]));
 		}
 	}
 
@@ -682,16 +681,11 @@ void arch_spin_unlock(int * p)
 #define ARCH_PAGE_TABLE_SIZE (1<<ARCH_PAGE_TABLE_SIZE_LOG2)
 
 /*
- * Pointers as integers
- */
-typedef uint32_t ptri;
-
-/*
  *
  */
 #define ARCH_PTRI_OFFSET_MASK (ARCH_PAGE_SIZE-1)
-#define ARCH_PTRI_OFFSET(p) ((ptri)(p) & (ARCH_PTRI_OFFSET_MASK))
-#define ARCH_PTRI_BASE(p) ((ptri)(p) & ~(ARCH_PTRI_OFFSET_MASK))
+#define ARCH_PTRI_OFFSET(p) ((uintptr_t)(p) & (ARCH_PTRI_OFFSET_MASK))
+#define ARCH_PTRI_BASE(p) ((uintptr_t)(p) & ~(ARCH_PTRI_OFFSET_MASK))
 #define ARCH_GET_VPAGE(p) ((void*)ARCH_PTRI_BASE(p))
 
 #endif

@@ -1,32 +1,49 @@
 #!/bin/sh
 
-errorcode_isr ()
+isr_body()
 {
 	cat <<EOF
-.global isr_$1
-isr_$1:
 	pushl %ds
 	pushal
 	pushl %esp
 	pushl \$$1
-	jmp isr
+	cld
+	movw \$0x10, %ax
+	movw %ax, %ds
+	call i386_isr
+	addl \$8, %esp
+	popal
+	popl %ds
+	mov %ebp, %esp
+	popl %ebp
+	iret
 
 EOF
 }
 
-isr () 
+errorcode_isr ()
 {
 	cat <<EOF
 .global isr_$1
+.type isr_$1, @function
 isr_$1:
-	push \$0
-	pushl %ds
-	pushal
+	xchgl (%esp), %ebp
 	pushl %esp
-	pushl \$$1
-	jmp isr
-
+	xchgl (%esp), %ebp
 EOF
+	isr_body $1
+}
+
+noerrorcode_isr () 
+{
+	cat <<EOF
+.global isr_$1
+.type isr_$1, @function
+isr_$1:
+	pushl %ebp
+	movl %esp, %ebp
+EOF
+	isr_body $1
 }
 
 for i in $(seq 0 255)
@@ -35,6 +52,6 @@ do
 	then
 		errorcode_isr $i
 	else
-		isr $i
+		noerrorcode_isr $i
 	fi
 done

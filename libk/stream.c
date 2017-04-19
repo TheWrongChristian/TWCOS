@@ -51,17 +51,18 @@ static void stream_putint(struct stream * stream, int base, int i)
 	}
 }
 
-static void stream_putptr(struct stream * stream, const void * p)
-{
-	stream_putulong(stream, 16, (unsigned int)p);
-}
-
 static void stream_putstr(struct stream * stream, const char * s)
 {
 	char c;
 	while((c = *s++)) {
 		stream_putc(stream, c);
 	}
+}
+
+static void stream_putptr(struct stream * stream, const void * p)
+{
+	stream_putstr(stream, "0x");
+	stream_putulong(stream, 16, (unsigned int)p);
 }
 
 struct fmt_opts {
@@ -71,6 +72,7 @@ struct fmt_opts {
 	int alternate;
 };
 
+#if 0
 static void parse_fmt_opts( struct fmt_opts * opts, const char * s )
 {
 	opts->rjustify = opts->pad0 = opts->longint = opts->alternate = 0;
@@ -89,13 +91,14 @@ static void parse_fmt_opts( struct fmt_opts * opts, const char * s )
 		break;	
 	}
 }
+#endif
 
 int stream_vprintf(struct stream * stream, const char * fmt, va_list ap)
 {
 	long start = stream_tell(stream);
 	char c;
 
-	while(c=*fmt++) {
+	while((c=*fmt++)) {
 		if ('%' == c) {
 			switch(c = *fmt++) {
 			case '%':
