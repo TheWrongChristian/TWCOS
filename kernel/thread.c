@@ -12,6 +12,7 @@ typedef struct thread_s {
 	/* Runtime data */
 	void * tls[TLS_MAX];
 	arch_context_t context;
+	map_t * as;
 
 	/* Run state */
 	tstate state;
@@ -27,6 +28,15 @@ typedef struct thread_s {
 
 enum tstate { THREAD_NEW, THREAD_RUNNABLE, THREAD_RUNNING, THREAD_SLEEPING, THREAD_TERMINATED };
 enum tpriority { THREAD_INTERRUPT = 0, THREAD_NORMAL, THREAD_IDLE, THREAD_PRIORITIES };
+
+#define INIT_ONCE() \
+	do { \
+		static int inited = 0; \
+		if (inited) { \
+			return; \
+		} \
+		inited = 1; \
+	} while(0)
 
 #endif
 
@@ -58,7 +68,8 @@ void * tls_get(int key)
 	return thread->tls[key];
 }
 
-static slab_type_t threads[1];
+static void thread_mark(void * p);
+static slab_type_t threads[1] = {SLAB_TYPE(sizeof(thread_t), thread_mark, 0)};
 
 #define LOCK_COUNT 64
 static struct lock_s {
@@ -141,7 +152,7 @@ static void thread_cond_wait(struct lock_s * lock)
 
 static struct lock_s * thread_lock_hash(void * p)
 {
-	int hash = ((ptri)p * 997) & (LOCK_COUNT-1);
+	int hash = ((uintptr_t)p * 997) & (LOCK_COUNT-1);
 	struct lock_s * lock = locks+hash;
 
 	/*  */
@@ -328,6 +339,7 @@ thread_t * thread_fork()
 	thread_t * thread = slab_alloc(threads);
 
 	thread->priority = this->priority;
+	thread->as = this->as;
 
 	if (0 == arch_thread_fork(thread)) {
 		return 0;
@@ -382,6 +394,7 @@ void thread_gc()
 {
 	slab_gc_begin();
 	slab_gc_mark(arch_get_thread());
+	slab_gc_mark(kas);
 	for(int i=0; i<sizeof(queue)/sizeof(queue[0]); i++) {
 		slab_gc_mark(queue[i]);
 	}
@@ -409,7 +422,7 @@ static void thread_mark(void * p)
 
 void thread_init()
 {
-	slab_type_create(threads, sizeof(thread_t), thread_mark, 0);
+	INIT_ONCE();
 
 	/* Craft a new bootstrap thread to replace the static defined thread */
 	arch_thread_init(slab_alloc(threads));

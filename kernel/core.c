@@ -83,11 +83,15 @@ page_t page_alloc()
 	return 0;
 }
 
+segment_t * heap;
 void * page_valloc()
 {
-	page_t page = page_alloc();
 	void * p = arch_heap_page();
-	vmap_map(0, p, page, 1, 0);
+	if (0 == heap) {
+		/* VM heap not configured yet, map manually! */
+		page_t page = page_alloc();
+		vmap_map(0, p, page, 1, 0);
+	}
 	memset(p, 0, ARCH_PAGE_SIZE);
 
 	return p;
