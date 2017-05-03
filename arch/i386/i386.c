@@ -663,6 +663,15 @@ int arch_spin_trylock(int * p)
 	return *p;
 }
 
+void arch_spin_lock(int * p)
+{
+	while(1) {
+		if (arch_spin_trylock(p)) {
+			return;
+		}
+	}
+}
+
 void arch_spin_unlock(int * p)
 {
 	*p = 0;
