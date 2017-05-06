@@ -17,17 +17,14 @@ typedef void (*walkp_func)(void * p, map_key key, void * data);
 #define i2p(d) ((void *)d)
 
 struct map_ops {
-        void (*destroy)( map_t * map );
-        void (*walk)( map_t * map, walk_func func, void *p );
-
-        map_data (*put)( map_t * map, map_key key, map_data data );
-        map_data (*get)( map_t * map, map_key key );
-        map_data (*get_le)( map_t * map, map_key key );
-        map_data (*remove)( map_t * map, map_key key );
-
+	void (*destroy)( map_t * map );
+	void (*walk)( map_t * map, walk_func func, void *p );
+	map_data (*put)( map_t * map, map_key key, map_data data );
+	map_data (*get)( map_t * map, map_key key );
+	map_data (*get_le)( map_t * map, map_key key );
+	map_data (*remove)( map_t * map, map_key key );
 	void (*optimize)(map_t * map);
-
-        iterator_t * (*iterator)( map_t * map );
+	iterator_t * (*iterator)( map_t * map );
 };
 
 typedef struct map {
