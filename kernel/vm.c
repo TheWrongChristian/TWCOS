@@ -296,14 +296,21 @@ void vm_kas_start(void * p)
 	kas_next = p;
 }
 
-void * vm_kas_get( size_t size )
+void * vm_kas_get_aligned( size_t size, size_t align )
 {
 	static int lock[1];
 
 	arch_spin_lock(lock);
+	kas_next += (align-1);
+	kas_next &= ~(align-1);
 	void * p = kas_next;
 	kas_next += size;
 	arch_spin_unlock(lock);
 
 	return p;
+}
+
+void * vm_kas_get( size_t size )
+{
+	return vm_kas_get_aligned(size, sizeof(intptr_t));
 }
