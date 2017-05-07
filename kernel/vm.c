@@ -62,7 +62,7 @@ typedef struct vmobject_s {
 			size_t size;
 		} direct;
 		struct {
-			vector_t * pages;
+			map_t * pages;
 		} anon;
 		struct {
 		} file;
@@ -161,7 +161,7 @@ void vm_page_fault(void * p, int write, int user, int present)
  */
 static page_t vm_anon_get_page(vmobject_t * anon, int offset)
 {
-	page_t page = vector_get(anon->anon.pages, offset >> ARCH_PAGE_SIZE_LOG2);
+	page_t page = map_get(anon->anon.pages, offset >> ARCH_PAGE_SIZE_LOG2);
 
 	if (!page) {
 		page = page_alloc();
@@ -174,14 +174,14 @@ static vmobject_ops_t anon_ops = {
 	get_page: vm_anon_get_page
 };
 
-static void vm_object_anon_copy_pages(vector_t * v, void * arg, int i, void * p)
+static void vm_object_anon_copy_pages(void * arg, int i, void * p)
 {
 	vm_page_t * vmp = p;
-	vector_t * to = arg;
+	map_t * to = arg;
 
 	/* Increment the reference count on the page */
 	arch_atomic_postinc(&vmp->ref);
-	vector_putp(to, i, vmp);
+	map_putip(to, i, vmp);
 }
 
 static vmobject_t * vm_object_anon_copy(vmobject_t * from)
