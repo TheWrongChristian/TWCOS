@@ -472,7 +472,7 @@ static map_data tree_remove( map_t * map, map_key key )
 }
 
 
-static iterator_t * tree_iterator( map_t * map, int keys )
+static iterator_t * tree_iterator( map_t * map)
 {
 	return 0;
 }

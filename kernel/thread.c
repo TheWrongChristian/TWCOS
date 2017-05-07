@@ -173,11 +173,11 @@ static struct lock_s * thread_lock_get(void * p)
 				locktable = tree_new(0, TREE_SPLAY);
 			}
 
-			lock_t * lock = map_getp(locktable, p);
+			lock_t * lock = map_getpp(locktable, p);
 			if (0 == lock) {
 				lock = slab_calloc(locks);
 				lock->p = p;
-				map_putp(locktable, p, lock);
+				map_putpp(locktable, p, lock);
 			}
 			spin_unlock(&locktablespin);
 
