@@ -122,12 +122,12 @@ void vm_page_fault(void * p, int write, int user, int present)
 {
 	map_t * as = 0;
 	thread_lock(kas);
-	segment_t * seg = map_getp_le(kas, p);
+	segment_t * seg = map_getpp_le(kas, p);
 	thread_unlock(kas);
 	if (0 == seg) {
 		as = arch_get_thread()->as;
 		thread_lock(as);
-		seg = map_getp_le(as, p);
+		seg = map_getpp_le(as, p);
 		thread_unlock(as);
 	}
 

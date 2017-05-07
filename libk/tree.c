@@ -9,7 +9,7 @@ EXCEPTION_DEF(OutOfBoundsException,RuntimeException);
 
 typedef struct node {
 	map_key key;
-	void * data;
+	map_data data;
 
 	/* Count of nodes, including this one */
 	int count;
@@ -202,7 +202,7 @@ static void node_count_balance( node_t * node )
         }
 }
 
-static node_t * tree_node_new( node_t * parent, map_key key, void * data )
+static node_t * tree_node_new( node_t * parent, map_key key, map_data data )
 {
         node_t * node = slab_alloc(nodes);
         node->key = key;
@@ -311,7 +311,7 @@ static map_data tree_put( map_t * map, map_key key, map_data data )
                         node = node->right;
                 } else {
                         /* Replace existing data */
-                        void * olddata = node->data;
+                        map_data olddata = node->data;
                         node->key = key;
                         node->data = data;
                         tree_verify(tree, node);
@@ -367,7 +367,7 @@ static node_t * tree_get_node( tree_t * tree, map_key key, int cond )
 			if (node->left) {
 				node = node->left;
 			} else if (NODE_GT == cond) {
-				return node->data;
+				return node;
 			} else {
 				node = node->left;
 			}
@@ -375,7 +375,7 @@ static node_t * tree_get_node( tree_t * tree, map_key key, int cond )
 			if (node->right) {
 				node = node->right;
 			} else if (NODE_LE == cond) {
-				return node->data;
+				return node;
 			} else {
 				node = node->right;
 			}
@@ -389,24 +389,31 @@ static node_t * tree_get_node( tree_t * tree, map_key key, int cond )
 					}
 				}
 			}
-			return node->data;
+			return node;
 		}
 	}
 
 	return 0;
 }
 
-static void * tree_get_le(map_t * map, map_key key )
+static map_data tree_get_data( tree_t * tree, map_key key, int cond )
 {
-	return tree_get_node((tree_t*)map, key, NODE_LE);
+	node_t * node = tree_get_node(tree, key, cond);
+
+	return (node) ? node->data : 0;
 }
 
-static void * tree_get(map_t * map, map_key key )
+static map_data tree_get_le(map_t * map, map_key key )
 {
-	return tree_get_node((tree_t*)map, key, NODE_EQ);
+	return tree_get_data((tree_t*)map, key, NODE_LE);
 }
 
-static void * tree_remove( map_t * map, map_key key )
+static map_data tree_get(map_t * map, map_key key )
+{
+	return tree_get_data((tree_t*)map, key, NODE_EQ);
+}
+
+static map_data tree_remove( map_t * map, map_key key )
 {
 	tree_t * tree = (tree_t*)map;
         node_t * node = tree->root;
@@ -420,7 +427,7 @@ static void * tree_remove( map_t * map, map_key key )
                 } else if (diff>0) {
                         node = node->right;
                 } else {
-                        void * data = node->data;
+                        map_data data = node->data;
                         node_t * parent = NULL;
 
                         /* Bubble the node down to a leaf */
@@ -570,7 +577,7 @@ static void tree_graph_node(node_t * node, int level)
 	}
 }
 
-static void tree_walk_dump(void * p, map_key key, void * data)
+static void tree_walk_dump(void * p, void * key, void * data)
 {
 	kernel_printk("%s\n", data);
 }
@@ -603,17 +610,14 @@ void tree_test()
 	};
 
 	for( int i=0; i<(sizeof(data)/sizeof(data[0])); i++) {
-		map_put(map, MAP_PKEY(data[i]), data[i]);
+		map_putpp(map, data[i], data[i]);
 	}
 
 	tree_graph_node(((tree_t*)map)->root, 0);
 	map_optimize(map);
 	tree_graph_node(((tree_t*)map)->root, 0);
-	map_walkp(map, tree_walk_dump, 0);
+	map_walkpp(map, tree_walk_dump, 0);
 
-	kernel_printk("%s LE Christ\n", map_get_le(map, "Christ"));
-#if 0
-	kernel_printk("%s GE Christ\n", map_get_gt(map, "Christ"));
-#endif
-	kernel_printk("%s EQ Christmas\n", map_get(map, "Christmas"));
+	kernel_printk("%s LE Christ\n", map_getpp_le(map, "Christ"));
+	kernel_printk("%s EQ Christmas\n", map_getpp(map, "Christmas"));
 }
