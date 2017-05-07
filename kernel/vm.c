@@ -188,7 +188,7 @@ static void vm_object_anon_copy_walk(void * p, map_key key, void * data)
 {
 	vmobject_t * anon = (vmobject_t *)p;
 
-	map_putp(anon->anon.pages, key, data);
+	map_putip(anon->anon.pages, key, data);
 }
 
 static vmobject_t * vm_object_anon_copy(vmobject_t * from)
@@ -198,7 +198,7 @@ static vmobject_t * vm_object_anon_copy(vmobject_t * from)
 	anon->ops = &anon_ops;
 	anon->type = OBJECT_ANON;
 	anon->anon.pages = vector_new();
-	map_walkp(from->anon.pages, vm_object_anon_copy_walk, anon);
+	map_walkip(from->anon.pages, vm_object_anon_copy_walk, anon);
 	
 	return anon;
 }
@@ -289,7 +289,7 @@ segment_t * vm_segment_copy(segment_t * from, int private)
 	return seg;
 }
 
-static char * kas_next;
+static void * kas_next;
 
 void vm_kas_start(void * p)
 {
@@ -301,13 +301,13 @@ void * vm_kas_get_aligned( size_t size, size_t align )
 	static int lock[1];
 
 	arch_spin_lock(lock);
-	kas_next += (align-1);
-	kas_next &= ~(align-1);
-	void * p = kas_next;
-	kas_next += size;
+	uintptr_t p = (uintptr_t)kas_next;
+	p += (align-1);
+	p &= ~(align-1);
+	kas_next = (void*)p + size;
 	arch_spin_unlock(lock);
 
-	return p;
+	return (void*)p;
 }
 
 void * vm_kas_get( size_t size )

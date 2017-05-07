@@ -19,12 +19,14 @@ void * memset(void *s, int c, size_t n)
 
 void *memcpy(void *dest, const void *src, size_t n)
 {
-	char * cs = src;
+	const char * cs = src;
 	char * cd = dest;
 
 	for(int i=0; i<n; i++) {
 		cd[i] = cs[i];
 	}
+
+	return dest;
 }
 
 int strcmp( const char * s1, const char * s2 )

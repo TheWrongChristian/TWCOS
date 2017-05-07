@@ -21,7 +21,7 @@ arena_t * arena_new(size_t size)
 	arena->base = arena->next = vm_kas_get(size);
 	arena->seg = vm_segment_anonymous(arena->base, size, SEGMENT_R | SEGMENT_W);
 	arena->top  = arena->base + size;
-	map_putp(kas, arena->base, arena);
+	map_putpp(kas, arena->base, arena);
 
 	return arena;
 }
@@ -31,4 +31,7 @@ void * arena_alloc(arena_t * arena, size_t size)
 	void * p = arena->next;
 	size += (sizeof(intptr_t)-1);
 	size &= ~(sizeof(intptr_t)-1);
+	arena->next += size;
+
+	return p;
 }
