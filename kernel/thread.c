@@ -108,6 +108,16 @@ void spin_unlock(int * l)
 	arch_spin_unlock(l);
 }
 
+static thread_t * thread_prequeue(thread_t * queue, thread_t * thread, tstate state)
+{
+	if (0 == thread) {
+		thread = arch_get_thread();
+	}
+	thread->state = state;
+	LIST_PREPEND(queue, thread);
+	return queue;
+}
+
 static thread_t * thread_queue(thread_t * queue, thread_t * thread, tstate state)
 {
 	if (0 == thread) {
@@ -184,10 +194,12 @@ static struct lock_s * thread_lock_get(void * p)
 			while(1) {
 				if (spin_trylock(&lock->spin)) {
 					return lock;
+#if 0
 				} else {
 					/* Lock in use by another pointer */
 					contended++;
 					thread_lock_wait(lock);
+#endif
 				}
 			}
 		}
@@ -314,6 +326,16 @@ static void scheduler_unlock()
 	spin_unlock(&queuelock);
 }
 
+void thread_preempt()
+{
+	thread_t * this = arch_get_thread();
+	tpriority priority = this->priority;
+	scheduler_lock();
+	queue[priority] = thread_prequeue(queue[priority], this, THREAD_RUNNABLE);
+	scheduler_unlock();
+	thread_schedule();
+}
+
 void thread_yield()
 {
 	thread_t * this = arch_get_thread();
@@ -343,10 +365,7 @@ void thread_schedule()
 			thread_t * next = queue[i];
 			LIST_DELETE(queue[i], next);
 			scheduler_unlock();
-			if (arch_get_thread() != next) {
-				/* Changing threads */
-				arch_thread_switch(next);
-			}
+			arch_thread_switch(next);
 			return;
 		}
 	}

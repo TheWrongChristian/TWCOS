@@ -629,6 +629,11 @@ void arch_thread_switch(thread_t * thread)
 {
 	thread_t * old = arch_get_thread();
 
+	if (old == thread) {
+		thread->state = THREAD_RUNNING;
+		return;
+	}
+
 	if (old->state == THREAD_RUNNING) {
 		old->state = THREAD_RUNNABLE;
 	}
