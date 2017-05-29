@@ -18,14 +18,14 @@ typedef void * arena_state;
 #endif
 
 static slab_type_t arenas[1] = {SLAB_TYPE(sizeof(arena_t), 0, 0)};
-arena_t * arena_create(size_t size)
+static arena_t * arena_create(size_t size)
 {
 	arena_t * arena = slab_alloc(arenas);
 
 	arena->base = arena->state = vm_kas_get(size);
 	arena->seg = vm_segment_anonymous(arena->base, size, SEGMENT_R | SEGMENT_W);
 	arena->top  = arena->base + size;
-	map_putpp(kas, arena->base, arena);
+	map_putpp(kas, arena->seg->base, arena->seg);
 
 	return arena;
 }
@@ -75,6 +75,23 @@ void arena_free(arena_t * arena)
 {
 	thread_lock(&free);
 	arena->next = free;
+	arena->state = arena->base;
 	free = arena;
 	thread_unlock(&free);
+}
+
+void arena_test()
+{
+	arena_t * arena = arena_get();
+	arena_state state = arena_getstate(arena);
+	int * p1 = arena_alloc(arena, sizeof(int));
+	int * p2 = arena_alloc(arena, sizeof(int));
+	*p1 = 0x18767686;
+	*p2 = 0xef65da9d;
+	arena_setstate(arena, state);
+	int * p3 = arena_alloc(arena, sizeof(int));
+	int * p4 = arena_alloc(arena, sizeof(int));
+
+	assert(*p1 == *p3);
+	assert(*p2 == *p4);
 }
