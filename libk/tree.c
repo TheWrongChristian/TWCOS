@@ -280,6 +280,7 @@ static void tree_verify( tree_t * tree, node_t * node )
 		 */
 		if (tree->root) {
 			assert(tree->root->count == node_count(tree->root));
+			assert(tree->root->parent == 0);
 		}
 
 		/*
@@ -472,7 +473,7 @@ static map_data tree_remove( map_t * map, map_key key )
 }
 
 
-static iterator_t * tree_iterator( map_t * map, int keys )
+static iterator_t * tree_iterator( map_t * map)
 {
 	return 0;
 }
