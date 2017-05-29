@@ -37,8 +37,13 @@ static pte_t * vmap_get_pgtable(asid vid)
 	int lowi;
 	static int seq = 0;
 
+	if (0 == vid) {
+		return pgtbls;
+	}
+
 	for(i=0; i<ASID_COUNT; i++) {
 		if (vid == asids[i].vid) {
+			asids[i].seq = seq;
 			return pgtbls+ARCH_PAGE_TABLE_SIZE*i;
 		}
 	}
@@ -60,6 +65,9 @@ static pte_t * vmap_get_pgtable(asid vid)
 pte_t * vmap_get_pgdir(asid vid)
 {
 	pte_t * pgdir = vmap_get_pgtable(vid);
+	if (0 == vid) {
+		return &pgdir[ARCH_PAGE_TABLE_SIZE-ASID_COUNT];
+	}
 	int i = (pgdir-pgtbls) >> ARCH_PAGE_TABLE_SIZE_LOG2;
 
 	return &pgdir[ARCH_PAGE_TABLE_SIZE-ASID_COUNT+i];
@@ -74,8 +82,9 @@ void vmap_set_asid(asid vid)
 
 page_t vmap_get_page(asid vid, void * vaddress)
 {
+	page_t vpage = (uint32_t)vaddress >> ARCH_PAGE_SIZE_LOG2;
 	pte_t * pgtbl = vmap_get_pgtable(vid);
-	uint32_t pte = pgtbl[(uint32_t)vaddress >> ARCH_PAGE_SIZE_LOG2];
+	uint32_t pte = pgtbl[vpage];
 
 	if (pte & 0x1) {
 		return pte >> ARCH_PAGE_SIZE_LOG2;
@@ -85,8 +94,17 @@ page_t vmap_get_page(asid vid, void * vaddress)
 
 void vmap_map(asid vid, void * vaddress, page_t page, int rw, int user)
 {
+	page_t vpage = (uint32_t)vaddress >> ARCH_PAGE_SIZE_LOG2;
+	pte_t * pgtbl = vmap_get_pgtable(vid);
+	if (0 == vmap_get_page(vid, pgtbls+vpage)) {
+		page_t page = page_alloc();
+		pte_t * pgtbl = pgtbls;
+
+		for(int i=0; i<ASID_COUNT; i++, pgtbl += ARCH_PAGE_TABLE_SIZE) {
+			vmap_map(0, pgtbl+vpage, page, 1, 0);
+		}
+	}
 	if (vid) {
-		pte_t * pgtbl = vmap_get_pgtable(vid);
 		uint32_t pte = page << ARCH_PAGE_SIZE_LOG2 | 0x1;
 		if (rw) {
 			pte |= 0x2;
@@ -94,7 +112,7 @@ void vmap_map(asid vid, void * vaddress, page_t page, int rw, int user)
 		if (user) {
 			pte |= 0x4;
 		}
-		pgtbl[(uint32_t)vaddress >> ARCH_PAGE_SIZE_LOG2] = pte;
+		pgtbl[vpage] = pte;
 	} else {
 		int i = 0;
 		pte_t * pgtbl = pgtbls;
@@ -107,7 +125,7 @@ void vmap_map(asid vid, void * vaddress, page_t page, int rw, int user)
 			if (user) {
 				pte |= 0x4;
 			}
-			pgtbl[(uint32_t)vaddress >> ARCH_PAGE_SIZE_LOG2] = pte;
+			pgtbl[vpage] = pte;
 		}
 	}
 }
@@ -129,9 +147,14 @@ void vmap_unmap(asid vid, void * vaddress)
 /*
  * Page fault handler
  */
-void vmap_fault(void * p, int rw, int user)
+void vmap_fault(void * p, int write, int user, int present)
 {
-	kernel_panic("Cannot handle page fault\n");
+	if ((char*)p > (char*)pgtbls) {
+		/* Handle page tables specially */
+	} else {
+		/* Hand off to VM to resolve */
+		vm_page_fault(p, write, user, present);
+	}
 }
 
 static void vmap_test()

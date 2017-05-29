@@ -31,6 +31,7 @@ void kernel_main() {
 		tree_test();
 		slab_test();
 		vector_test();
+		arena_test();
 
 		char * p = arch_heap_page();
 		*p = 0;

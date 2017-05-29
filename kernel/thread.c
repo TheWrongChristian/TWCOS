@@ -173,11 +173,11 @@ static struct lock_s * thread_lock_get(void * p)
 				locktable = tree_new(0, TREE_SPLAY);
 			}
 
-			lock_t * lock = map_getp(locktable, p);
+			lock_t * lock = map_getpp(locktable, p);
 			if (0 == lock) {
 				lock = slab_calloc(locks);
 				lock->p = p;
-				map_putp(locktable, p, lock);
+				map_putpp(locktable, p, lock);
 			}
 			spin_unlock(&locktablespin);
 
@@ -418,7 +418,7 @@ void thread_gc()
 	for(int i=0; i<sizeof(queue)/sizeof(queue[0]); i++) {
 		slab_gc_mark(queue[i]);
 	}
-	slab_gc_mark(locks);
+	slab_gc_mark(locktable);
 	slab_gc_end();
 }
 
