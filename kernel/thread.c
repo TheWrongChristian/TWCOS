@@ -418,7 +418,7 @@ void thread_gc()
 	for(int i=0; i<sizeof(queue)/sizeof(queue[0]); i++) {
 		slab_gc_mark(queue[i]);
 	}
-	slab_gc_mark(locks);
+	slab_gc_mark(locktable);
 	slab_gc_end();
 }
 
