@@ -280,6 +280,7 @@ static void tree_verify( tree_t * tree, node_t * node )
 		 */
 		if (tree->root) {
 			assert(tree->root->count == node_count(tree->root));
+			assert(tree->root->parent == 0);
 		}
 
 		/*
