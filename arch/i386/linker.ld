@@ -26,37 +26,37 @@ SECTIONS
 
 	/* Rest of the kernel lives in high memory */
 	_kernel_offset_bootstrap = .;
-	. += 0xc0000000;
+	. += 0xe0000000;
 	_kernel_offset = .;
 
 	/* Next we'll put the .text section. */
-	.text ALIGN(4K) : AT(ADDR(.text) - 0xc0000000)
+	.text ALIGN(4K) : AT(ADDR(.text) - 0xe0000000)
 	{
 		code_start = .;
 		*(.text)
 	}
 
 	/* Read-only data. */
-	.rodata ALIGN(4K) : AT(ADDR(.rodata) - 0xc0000000)
+	.rodata ALIGN(4K) : AT(ADDR(.rodata) - 0xe0000000)
 	{
 		*(.rodata)
 	}
 
 	/* Read-write data (initialized) */
-	.data ALIGN(4K) : AT(ADDR(.data) - 0xc0000000)
+	.data ALIGN(4K) : AT(ADDR(.data) - 0xe0000000)
 	{
 		data_start = .;
 		*(.data)
 	}
 
 	/* Read-write page aligned data (uninitialized) */
-	.aligned ALIGN(4K) : AT(ADDR(.aligned) - 0xc0000000)
+	.aligned ALIGN(4K) : AT(ADDR(.aligned) - 0xe0000000)
 	{
 		*(.aligned)
 	}
 
 	/* Read-write data (uninitialized) */
-	.bss ALIGN(4K) : AT(ADDR(.bss) - 0xc0000000)
+	.bss ALIGN(4K) : AT(ADDR(.bss) - 0xe0000000)
 	{
 		*(COMMON)
 		*(.bss)
@@ -65,6 +65,6 @@ SECTIONS
 	/* The compiler may produce other sections, by default it will put them in
 	   a segment with the same name. Simply add stuff here as needed. */
 	_bootstrap_nextalloc = .;
-	. -= 0xc0000000;
+	. -= 0xe0000000;
 	_bootstrap_end = .; 
 }
