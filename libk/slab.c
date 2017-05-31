@@ -240,7 +240,7 @@ void slab_gc_mark(void * root)
 
 void slab_gc_mark_block(void ** block, size_t size)
 {
-	for(int i=0; i<size/sizeof(*block); i+=sizeof(*block)) {
+	for(int i=0; i<size/sizeof(*block); i++) {
 		slab_gc_mark(block[i]);
 	}
 }
