@@ -92,10 +92,11 @@ page_t vmap_get_page(asid vid, void * vaddress)
 	return 0;
 }
 
-void vmap_map(asid vid, void * vaddress, page_t page, int rw, int user)
+static void vmap_set_pte(asid vid, void * vaddress, pte_t pte)
 {
 	page_t vpage = (uint32_t)vaddress >> ARCH_PAGE_SIZE_LOG2;
 	pte_t * pgtbl = vmap_get_pgtable(vid);
+
 	if (0 == vmap_get_page(vid, pgtbls+vpage)) {
 		page_t page = page_alloc();
 		pte_t * pgtbl = pgtbls;
@@ -104,30 +105,21 @@ void vmap_map(asid vid, void * vaddress, page_t page, int rw, int user)
 			vmap_map(0, pgtbl+vpage, page, 1, 0);
 		}
 	}
-	if (vid) {
-		uint32_t pte = page << ARCH_PAGE_SIZE_LOG2 | 0x1;
-		if (rw) {
-			pte |= 0x2;
-		}
-		if (user) {
-			pte |= 0x4;
-		}
-		pgtbl[vpage] = pte;
-	} else {
-		int i = 0;
-		pte_t * pgtbl = pgtbls;
+	pgtbl[vpage] = pte;
+	invlpg(vaddress);
+}
 
-		for(; i<ASID_COUNT; i++, pgtbl += ARCH_PAGE_TABLE_SIZE) {
-			uint32_t pte = page << ARCH_PAGE_SIZE_LOG2 | 0x1;
-			if (rw) {
-				pte |= 0x2;
-			}
-			if (user) {
-				pte |= 0x4;
-			}
-			pgtbl[vpage] = pte;
-		}
+void vmap_map(asid vid, void * vaddress, page_t page, int rw, int user)
+{
+	/* Map the new page table entry */
+	pte_t pte = page << ARCH_PAGE_SIZE_LOG2 | 0x1;
+	if (rw) {
+		pte |= 0x2;
 	}
+	if (user) {
+		pte |= 0x4;
+	}
+	vmap_set_pte(vid, vaddress, pte);
 }
 
 void vmap_mapn(asid vid, int n, void * vaddress, page_t page, int rw, int user)
@@ -142,6 +134,7 @@ void vmap_mapn(asid vid, int n, void * vaddress, page_t page, int rw, int user)
 
 void vmap_unmap(asid vid, void * vaddress)
 {
+	vmap_set_pte(vid, vaddress, 0);
 }
 
 /*

@@ -145,13 +145,11 @@ void vm_page_fault(void * p, int write, int user, int present)
 			} else {
 				vm_invalid_pointer(p, write, user, present);
 			}
-#if 0
-			/* Defer to the segment driver */
-			seg->fault(seg, p, write, user, present);
-#endif
+
 			return;
 		}
 	}
+
 	/* Invalid pointer */
 	vm_invalid_pointer(p, write, user, present);
 }
