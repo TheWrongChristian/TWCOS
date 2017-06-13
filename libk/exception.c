@@ -62,7 +62,7 @@ EXCEPTION_DEF(TestException, Exception);
 struct exception_def exception_def_Throwable = { "Throwable", 0 };
 
 static tls_key exception_key;
-static slab_type_t causes;
+static slab_type_t causes[1] = {SLAB_TYPE(sizeof(struct exception_cause), 0, 0)};
 
 enum estates { EXCEPTION_NEW = 0, EXCEPTION_TRYING, EXCEPTION_CATCHING, EXCEPTION_FINISHING };
 
@@ -70,7 +70,6 @@ exception_frame * exception_push(exception_frame * frame)
 {
 	if (0 == exception_key) {
 		exception_key = tls_get_key();
-		slab_type_create(&causes,sizeof(struct exception_cause), 0, 0);
 	}
 
 	/* Link the frame into the chain */
@@ -84,21 +83,28 @@ exception_frame * exception_push(exception_frame * frame)
 	return frame;
 }
 
-void exception_throw(struct exception_def * type, char * file, int line, char * message, ...)
+static void exception_throw_cause(struct exception_cause * cause)
 {
 	struct exception_frame * frame = tls_get(exception_key);
 
+	frame->cause = cause;
+
+	longjmp(frame->env, 1);
+}
+
+void exception_throw(struct exception_def * type, char * file, int line, char * message, ...)
+{
 	va_list ap;
 	va_start(ap,message);
 
-	frame->cause = slab_alloc(&causes);
-	frame->cause->type = type;
-	frame->cause->file = file;
-	frame->cause->line = line;
-	vsnprintf(frame->cause->message, sizeof(frame->cause->message), message, ap);
+	struct exception_cause * cause = slab_alloc(causes);
+	cause->type = type;
+	cause->file = file;
+	cause->line = line;
+	vsnprintf(cause->message, sizeof(cause->message), message, ap);
 	va_end(ap);
 
-	longjmp(frame->env, 1);
+	exception_throw_cause(cause);
 }
 
 int exception_finished(char * file, int line)
@@ -129,7 +135,7 @@ int exception_finished(char * file, int line)
 	case EXCEPTION_FINISHING:
 		tls_set(exception_key, frame->next);
 		if (frame->cause && 0 == frame->caught) {
-			exception_throw(frame->cause->type, frame->cause->file, frame->cause->line, frame->cause->message);
+			exception_throw_cause(frame->cause);
 		}
 		return 1;
 	}

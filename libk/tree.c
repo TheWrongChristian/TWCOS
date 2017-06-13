@@ -1,15 +1,15 @@
 #include "tree.h"
 
 #if INTERFACE
-enum treemode { TREE_SPLAY, TREE_TREAP, TREE_COUNT };
+enum treemode { TREE_SPLAY=0, TREE_TREAP, TREE_COUNT };
 
 EXCEPTION_DEF(OutOfBoundsException,RuntimeException);
 
 #endif
 
 typedef struct node {
-	void * key;
-	void * data;
+	map_key key;
+	map_data data;
 
 	/* Count of nodes, including this one */
 	int count;
@@ -30,12 +30,12 @@ typedef struct {
 
 	int mode;
 
-	int (*comp)(void * k1, void * k2);
+	int (*comp)(map_key k1, map_key k2);
 } tree_t;
 
 
-static slab_type_t nodes[1];
-static slab_type_t trees[1];
+static slab_type_t nodes[1] = { SLAB_TYPE(sizeof(node_t), 0, 0)};
+static slab_type_t trees[1] = { SLAB_TYPE(sizeof(tree_t), 0, 0)};
 
 /*
  * Rotate left:
@@ -174,7 +174,7 @@ static void node_splay( node_t * node )
 
 static void node_prioritize( node_t * node )
 {
-        node->priority = ((ptri)node * 997) & 0xff;
+        node->priority = ((uintptr_t)node * 997) & 0xff;
         while(node->parent && node->priority < node->parent->priority) {
                 if (node_is_left(node)) {
                         node_rotate_right(node->parent);
@@ -202,7 +202,7 @@ static void node_count_balance( node_t * node )
         }
 }
 
-static node_t * tree_node_new( node_t * parent, void * key, void * data )
+static node_t * tree_node_new( node_t * parent, map_key key, map_data data )
 {
         node_t * node = slab_alloc(nodes);
         node->key = key;
@@ -222,21 +222,21 @@ static void tree_destroy( map_t * map )
 {
 }
 
-static void tree_walk_node( node_t * node, walk_func func )
+static void tree_walk_node( node_t * node, walk_func func, void * p )
 {
         if (NULL == node) {
                 return;
         }
 
-        tree_walk_node(node->left, func);
-        func(node->data);
-        tree_walk_node(node->right, func);
+        tree_walk_node(node->left, func, p);
+        func(p, node->key, node->data);
+        tree_walk_node(node->right, func, p);
 }
 
-void tree_walk( map_t * map, walk_func func )
+void tree_walk( map_t * map, walk_func func, void * p )
 {
         tree_t * tree = (tree_t*)map;
-        tree_walk_node(tree->root, func);
+        tree_walk_node(tree->root, func, p);
 }
 
 static void node_verify( tree_t * tree, node_t * node )
@@ -280,6 +280,7 @@ static void tree_verify( tree_t * tree, node_t * node )
 		 */
 		if (tree->root) {
 			assert(tree->root->count == node_count(tree->root));
+			assert(tree->root->parent == 0);
 		}
 
 		/*
@@ -290,7 +291,7 @@ static void tree_verify( tree_t * tree, node_t * node )
 	}
 }
 
-static void * tree_put( map_t * map, void * key, void * data )
+static map_data tree_put( map_t * map, map_key key, map_data data )
 {
         tree_t * tree = (tree_t*)map;
         node_t * node = tree->root;
@@ -299,7 +300,7 @@ static void * tree_put( map_t * map, void * key, void * data )
 
         tree_verify(tree, NULL);
         while(node) {
-                int diff = tree->comp(key, node->key);
+		intptr_t diff = (tree->comp) ? tree->comp(key, node->key) : key - node->key;
 
                 if (diff<0) {
                         parent = node;
@@ -311,7 +312,7 @@ static void * tree_put( map_t * map, void * key, void * data )
                         node = node->right;
                 } else {
                         /* Replace existing data */
-                        void * olddata = node->data;
+                        map_data olddata = node->data;
                         node->key = key;
                         node->data = data;
                         tree_verify(tree, node);
@@ -354,18 +355,31 @@ static void * tree_put( map_t * map, void * key, void * data )
 	return 0;
 }
 
-static void * tree_get( map_t * map, void * key )
+enum condition { NODE_LE, NODE_EQ, NODE_GT };
+static node_t * tree_get_node( tree_t * tree, map_key key, int cond )
 {
-	tree_t * tree = (tree_t*)map;
 	node_t * node = tree->root;
 
+	/* FIXME: All this logic needs checking! */
 	while(node) {
-		int diff = tree->comp(node->key, key);
+		int diff = (tree->comp) ? tree->comp(key, node->key) : key - node->key;
 
 		if (diff<0) {
-			node = node->left;
+			if (node->left) {
+				node = node->left;
+			} else if (NODE_GT == cond) {
+				return node;
+			} else {
+				node = node->left;
+			}
 		} else if (diff>0) {
-			node = node->right;
+			if (node->right) {
+				node = node->right;
+			} else if (NODE_LE == cond) {
+				return node;
+			} else {
+				node = node->right;
+			}
 		} else {
 			if (TREE_SPLAY == tree->mode) {
 				node_splay(node);
@@ -376,28 +390,45 @@ static void * tree_get( map_t * map, void * key )
 					}
 				}
 			}
-			return node->data;
+			return node;
 		}
 	}
 
 	return 0;
 }
 
-static void * tree_remove( map_t * map, void * key )
+static map_data tree_get_data( tree_t * tree, map_key key, int cond )
+{
+	node_t * node = tree_get_node(tree, key, cond);
+
+	return (node) ? node->data : 0;
+}
+
+static map_data tree_get_le(map_t * map, map_key key )
+{
+	return tree_get_data((tree_t*)map, key, NODE_LE);
+}
+
+static map_data tree_get(map_t * map, map_key key )
+{
+	return tree_get_data((tree_t*)map, key, NODE_EQ);
+}
+
+static map_data tree_remove( map_t * map, map_key key )
 {
 	tree_t * tree = (tree_t*)map;
         node_t * node = tree->root;
 
         tree_verify(tree, NULL);
         while(node) {
-                int diff = tree->comp(key, node->key);
+		int diff = (tree->comp) ? tree->comp(key, node->key) : key - node->key;
 
                 if (diff<0) {
                         node = node->left;
                 } else if (diff>0) {
                         node = node->right;
                 } else {
-                        void * data = node->data;
+                        map_data data = node->data;
                         node_t * parent = NULL;
 
                         /* Bubble the node down to a leaf */
@@ -442,7 +473,7 @@ static void * tree_remove( map_t * map, void * key )
 }
 
 
-static iterator_t * tree_iterator( map_t * map, int keys )
+static iterator_t * tree_iterator( map_t * map)
 {
 	return 0;
 }
@@ -505,18 +536,20 @@ static void tree_optimize(map_t * map)
 
 void tree_init()
 {
-	slab_type_create(trees, sizeof(tree_t), 0, 0);
-	slab_type_create(nodes, sizeof(node_t), 0, 0);
+	INIT_ONCE();
+
 }
 
-map_t * tree_new(int (*comp)(void * k1, void * k2), int mode)
+map_t * tree_new(int (*comp)(map_key k1, map_key k2), treemode mode)
 {
+	tree_init();
 	tree_t * tree = slab_alloc(trees);
 	static struct map_ops tree_ops = {
 		destroy: tree_destroy,
 		walk: tree_walk,
 		put: tree_put,
 		get: tree_get,
+		get_le: tree_get_le,
 		optimize: tree_optimize,
 		remove: tree_remove,
 		iterator: tree_iterator
@@ -545,15 +578,20 @@ static void tree_graph_node(node_t * node, int level)
 	}
 }
 
-static void tree_walk_dump(void * data)
+static void tree_walk_dump(void * p, void * key, void * data)
 {
 	kernel_printk("%s\n", data);
+}
+
+int tree_strcmp(map_key k1, map_key k2)
+{
+	return strcmp((char*)k1, (char*)k2);
 }
 
 void tree_test()
 {
 	tree_init();
-	map_t * map = tree_new(strcmp, TREE_TREAP);
+	map_t * map = tree_new(tree_strcmp, TREE_TREAP);
 	char * data[] = {
 		"Jonas",
 		"Christmas",
@@ -573,11 +611,14 @@ void tree_test()
 	};
 
 	for( int i=0; i<(sizeof(data)/sizeof(data[0])); i++) {
-		map_put(map, data[i], data[i]);
+		map_putpp(map, data[i], data[i]);
 	}
 
 	tree_graph_node(((tree_t*)map)->root, 0);
 	map_optimize(map);
 	tree_graph_node(((tree_t*)map)->root, 0);
-	tree_walk(map, tree_walk_dump);
+	map_walkpp(map, tree_walk_dump, 0);
+
+	kernel_printk("%s LE Christ\n", map_getpp_le(map, "Christ"));
+	kernel_printk("%s EQ Christmas\n", map_getpp(map, "Christmas"));
 }
