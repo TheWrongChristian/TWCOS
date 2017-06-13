@@ -120,24 +120,11 @@ irq_func add_irq(int irq, irq_func handler)
 static int wait_irq()
 {
 	int irq = 0;
-	int gc = 0;
-	static int gc_rolling = 0;
 
 	while(0 == irq_flag) {
-	#if 0
 		hlt();
-	#else
-		thread_gc();
-		gc++;
-	#endif
 	}
 
-	gc_rolling = (7*gc_rolling + gc) >> 3;
-
-	kernel_printk("  GC count: %d rolling %d     \r", gc, gc_rolling);
-	#if 0
-	kernel_printk("  Got interrupt\r");
-	#endif
 	for(; irq<16; irq++) {
 		int mask = 1<<irq;
 		if (irq_flag & mask) {
@@ -174,6 +161,7 @@ void arch_idle()
 				reset();
 			}
 		}
+		thread_gc();
 	}
 	kernel_panic("idle finished");
 }
