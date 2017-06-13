@@ -1,6 +1,3 @@
-#if !defined(__cplusplus)
-#include <stdbool.h> /* C doesn't have booleans by default. */
-#endif
 #include <stddef.h>
 #include <stdint.h>
 
@@ -85,7 +82,10 @@ uint8_t keyq_get()
 	return scancode;
 }
 
-void console_initialize() {
+void console_initialize()
+{
+	INIT_ONCE();
+
 	page_t fb = 0xb8;
 	add_irq(1, keyb_isr);
 	keyhead = keytail = 0;
@@ -93,7 +93,8 @@ void console_initialize() {
 	console_column = 0;
 	console_color = make_color(COLOR_LIGHT_GREY, COLOR_BLACK);
 	console_buffer = (uint16_t*) 0xC00B8000;
-	vmap_mapn(0, 2, console_buffer, fb, 1, 0);
+	segment_t * seg = vm_segment_direct(console_buffer, 0x2000, SEGMENT_W, fb);
+	map_putpp(kas, seg->base, seg);
 	for (size_t y = 0; y < VGA_HEIGHT; y++) {
 		for (size_t x = 0; x < VGA_WIDTH; x++) {
 			const size_t index = y * VGA_WIDTH + x;

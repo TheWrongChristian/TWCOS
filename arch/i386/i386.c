@@ -175,79 +175,6 @@ static void encodeGdtEntry( uint8_t * entry, void * pbase, uint32_t size, uint8_
 	entry[5] = type;
 }
 
-/* reinitialize the PIC controllers, giving them specified vector offsets
-   rather than 8h and 70h, as configured by default */
-
-#define PIC1		0x20
-#define PIC2		0xA0   
-#define PIC1_COMMAND    PIC1
-#define PIC1_DATA       (PIC1+1)
-#define PIC2_COMMAND    PIC2
-#define PIC2_DATA       (PIC2+1)
-#define PIC_EOI		0x20
-
-#define PIC_IRQ_BASE	0x20
-
- 
-#define ICW1_ICW4	0x01		/* ICW4 (not) needed */
-#define ICW1_SINGLE	0x02		/* Single (cascade) mode */
-#define ICW1_INTERVAL4	0x04		/* Call address interval 4 (8) */
-#define ICW1_LEVEL	0x08		/* Level triggered (edge) mode */
-#define ICW1_INIT	0x10		/* Initialization - required! */
- 
-#define ICW4_8086	0x01		/* 8086/88 (MCS-80/85) mode */
-#define ICW4_AUTO	0x02		/* Auto (normal) EOI */
-#define ICW4_BUF_SLAVE	0x08		/* Buffered mode/slave */
-#define ICW4_BUF_MASTER	0x0C		/* Buffered mode/master */
-#define ICW4_SFNM	0x10		/* Special fully nested (not) */
- 
-/*
-arguments:
-	offset1 - vector offset for master PIC
-		vectors on the master become offset1..offset1+7
-	offset2 - same for slave PIC: offset2..offset2+7
-*/
-static void io_wait()
-{
-}
-
-static void PIC_eoi(int irq)
-{
-	if(irq >= 8)
-		outb(PIC2_COMMAND,PIC_EOI);
-
-	outb(PIC1_COMMAND,PIC_EOI);
-}
-
-static void PIC_remap(int offset1, int offset2)
-{
-	unsigned char a1, a2;
- 
-	a1 = inb(PIC1_DATA);                        // save masks
-	a2 = inb(PIC2_DATA);
- 
-	outb(PIC1_COMMAND, ICW1_INIT+ICW1_ICW4);  // starts the initialization sequence (in cascade mode)
-	io_wait();
-	outb(PIC2_COMMAND, ICW1_INIT+ICW1_ICW4);
-	io_wait();
-	outb(PIC1_DATA, offset1);                 // ICW2: Master PIC vector offset
-	io_wait();
-	outb(PIC2_DATA, offset2);                 // ICW2: Slave PIC vector offset
-	io_wait();
-	outb(PIC1_DATA, 4);                       // ICW3: tell Master PIC that there is a slave PIC at IRQ2 (0000 0100)
-	io_wait();
-	outb(PIC2_DATA, 2);                       // ICW3: tell Slave PIC its cascade identity (0000 0010)
-	io_wait();
- 
-	outb(PIC1_DATA, ICW4_8086);
-	io_wait();
-	outb(PIC2_DATA, ICW4_8086);
-	io_wait();
- 
-	outb(PIC1_DATA, a1);   // restore saved masks.
-	outb(PIC2_DATA, a2);
-}
-
 static void i386_unhandled(uint32_t num, uint32_t * state)
 {
 	kernel_panic("Unhandled exception: %d\n", num);
@@ -323,7 +250,7 @@ static void i386_pf(uint32_t num, uint32_t * state)
 	void * cr2;
 
 	asm volatile("movl %%cr2, %0" : "=r"(cr2));
-	vmap_fault(cr2, state[ISR_ERRORCODE] & 0x2, state[ISR_ERRORCODE] & 0x4);
+	vm_page_fault(cr2, state[ISR_ERRORCODE] & 0x2, state[ISR_ERRORCODE] & 0x4, state[ISR_ERRORCODE] & 0x1);
 }
 
 static void i386_mf(uint32_t num, uint32_t * state)
@@ -376,7 +303,7 @@ void arch_thread_mark(thread_t * thread)
 		setjmp(thread->context.state);
 	}
 
-	void ** esp = thread->context.state[1];
+	void ** esp = (void**)thread->context.state[1];
 	void ** stacktop = (void**)((char*)thread->context.stack + ARCH_PAGE_SIZE);
 
 	if (!arch_is_heap_pointer(esp)) {
@@ -387,67 +314,6 @@ void arch_thread_mark(thread_t * thread)
 	/* Mark each potential address on the stack */
 	slab_gc_mark_range(esp, stacktop);
 	slab_gc_mark_block((void**)thread->context.state, sizeof(thread->context.state));
-}
-
-static irq_func irq_table[] =  {
-	0, 0, 0, 0,
-	0, 0, 0, 0,
-	0, 0, 0, 0,
-	0, 0, 0, 0 };
-
-static volatile uint32_t irq_flag = 0;
-static void i386_irq(uint32_t num, uint32_t * state)
-{
-	int irq = num - PIC_IRQ_BASE;
-
-	irq_flag |= (1 << irq);
-
-	if (irq_table[irq]) {
-		irq_table[irq]();
-	}
-
-	PIC_eoi(irq);
-}
-
-irq_func add_irq(int irq, irq_func handler)
-{
-	irq_func old = irq_table[irq];
-	irq_table[irq] = handler;
-	return old;
-}
-
-static int wait_irq()
-{
-	int irq = 0;
-	int gc = 0;
-	static int gc_rolling = 0;
-
-	while(0 == irq_flag) {
-#if 0
-		hlt();
-#else
-		thread_gc();
-		gc++;
-#endif
-	}
-
-	gc_rolling = (7*gc_rolling + gc) >> 3;
-
-	kernel_printk("  GC count: %d rolling %d     \r", gc, gc_rolling);
-#if 0
-	kernel_printk("  Got interrupt\r");
-#endif
-	for(; irq<16; irq++) {
-		int mask = 1<<irq;
-		if (irq_flag & mask) {
-			cli();
-			irq_flag &= ~mask;
-			sti();
-			return irq;
-		}
-	}
-
-	return 0;
 }
 
 static isr_t itable[256] = {
@@ -472,8 +338,11 @@ static isr_t itable[256] = {
 
 static thread_t initial;
 
+#define PIC_IRQ_BASE    0x20
 void i386_init()
 {
+	INIT_ONCE();
+
 	int i;
 	thread_t ** stackbase = ARCH_GET_VPAGE(&stackbase);
 
@@ -514,42 +383,12 @@ void i386_init()
 
 void arch_thread_init(thread_t * thread)
 {
+	INIT_ONCE();
 
 	if (arch_thread_fork(thread)) {
 		arch_thread_switch(thread);
 	}
-#if 0
-	/* Fix up stack base pointer to thread */
-	thread_t ** stackbase = thread->context.stack;
-	*stackbase = thread;
-#endif
-}
-
-void arch_idle()
-{
-	int i = 0;
-	static char wheel[] = {'|', '/', '-', '\\' };
-	while(1) {
-		int irq = wait_irq();
-
-		switch(irq) {
-		case 0:
-			kernel_printk("%c\r", wheel[i]);
-			i=(i+1)&3;
-			break;
-		default:
-			kernel_printk("%d\n", irq);
-			break;
-		}
-		uint8_t scancode = keyq_get();
-		if (scancode) {
-			kernel_printk("%x\n", scancode);
-			if (0x13 == scancode) {
-				reset();
-			}
-		}
-	}
-	kernel_panic("idle finished");
+	arch_get_thread()->as = tree_new(0, TREE_TREAP);
 }
 
 void arch_panic(const char * fmt, va_list ap)
@@ -592,13 +431,13 @@ int arch_thread_fork(thread_t * dest)
 	uint32_t * spage = (uint32_t*)ARCH_GET_VPAGE(source->context.stack);
 
 	/* Set pointer to thread */
-	dpage[0] = (ptri)dest;
+	dpage[0] = (uintptr_t)dest;
 
 	/* Copy the source thread stack */
 	for(int i=1; i<ARCH_PAGE_SIZE/sizeof(*dpage); i++) {
 		if (ARCH_PTRI_BASE(spage[i]) == ARCH_PTRI_BASE(spage)) {
 			/* Adjust pointer */
-			dpage[i] = (ptri)dpage | ARCH_PTRI_OFFSET(spage[i]);
+			dpage[i] = (uintptr_t)dpage | ARCH_PTRI_OFFSET(spage[i]);
 		} else {
 			dpage[i] = spage[i];
 		}
@@ -612,14 +451,14 @@ int arch_thread_fork(thread_t * dest)
 	/* Adjust destination context */
 	for(int i=0; i<sizeof(dest->context.state)/sizeof(dest->context.state[0]); i++) {
 		if (ARCH_PTRI_BASE(dest->context.state[i]) == ARCH_PTRI_BASE(spage)) {
-			dest->context.state[i] = (ptri)dpage | ARCH_PTRI_OFFSET(dest->context.state[i]);
+			dest->context.state[i] = (uintptr_t)dpage | ARCH_PTRI_OFFSET(dest->context.state[i]);
 		}
 	}
 
 	/* Adjust TLS */
 	for(int i=0; i<sizeof(dest->tls)/sizeof(dest->tls[0]); i++) {
 		if (ARCH_PTRI_BASE(dest->tls[i]) == ARCH_PTRI_BASE(spage)) {
-			dest->tls[i] = (ptri)dpage | ARCH_PTRI_OFFSET(dest->tls[i]);
+			dest->tls[i] = (void*)((uintptr_t)dpage | ARCH_PTRI_OFFSET(dest->tls[i]));
 		}
 	}
 
@@ -664,6 +503,15 @@ int arch_spin_trylock(int * p)
 	return *p;
 }
 
+void arch_spin_lock(int * p)
+{
+	while(1) {
+		if (arch_spin_trylock(p)) {
+			return;
+		}
+	}
+}
+
 void arch_spin_unlock(int * p)
 {
 	*p = 0;
@@ -682,16 +530,11 @@ void arch_spin_unlock(int * p)
 #define ARCH_PAGE_TABLE_SIZE (1<<ARCH_PAGE_TABLE_SIZE_LOG2)
 
 /*
- * Pointers as integers
- */
-typedef uint32_t ptri;
-
-/*
  *
  */
 #define ARCH_PTRI_OFFSET_MASK (ARCH_PAGE_SIZE-1)
-#define ARCH_PTRI_OFFSET(p) ((ptri)(p) & (ARCH_PTRI_OFFSET_MASK))
-#define ARCH_PTRI_BASE(p) ((ptri)(p) & ~(ARCH_PTRI_OFFSET_MASK))
+#define ARCH_PTRI_OFFSET(p) ((uintptr_t)(p) & (ARCH_PTRI_OFFSET_MASK))
+#define ARCH_PTRI_BASE(p) ((uintptr_t)(p) & ~(ARCH_PTRI_OFFSET_MASK))
 #define ARCH_GET_VPAGE(p) ((void*)ARCH_PTRI_BASE(p))
 
 #endif
