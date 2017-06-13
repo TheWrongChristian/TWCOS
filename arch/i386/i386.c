@@ -423,7 +423,8 @@ static int wait_irq()
 	static int gc_rolling = 0;
 
 	while(0 == irq_flag) {
-#if 0
+#if 1
+		thread_gc();
 		hlt();
 #else
 		thread_gc();
