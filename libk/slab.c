@@ -302,6 +302,7 @@ void slab_free(void * p)
 	slab_t * slab = slab_get(p);
 
 	if (slab) {
+		slab_lock();
 		char * cp = p;
 		int i = (cp - slab->data) / slab->type->esize;
 		slab->available[i/32] |= (0x80000000 >> i%32);
@@ -309,6 +310,7 @@ void slab_free(void * p)
 			slab->type->finalize(p);
 		}
 		p = 0;
+		slab_unlock();
 	}
 }
 
