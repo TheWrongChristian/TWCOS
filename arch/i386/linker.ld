@@ -33,23 +33,28 @@ SECTIONS
 	_kernel_offset = .;
 
 	/* Next we'll put the .text section. */
+	.text ALIGN(4K) : AT(ADDR(.trampoline) - kernel_offset)
+	{
+		*(EXCLUDE_FILE (usermode/*) .trampoline)
+	}
+
 	.text ALIGN(4K) : AT(ADDR(.text) - kernel_offset)
 	{
 		code_start = .;
-		*(.text)
+		*(EXCLUDE_FILE (usermode/*) .text)
 	}
 
 	/* Read-only data. */
 	.rodata ALIGN(4K) : AT(ADDR(.rodata) - kernel_offset)
 	{
-		*(.rodata)
+		*(EXCLUDE_FILE (usermode/*.o) .rodata)
 	}
 
 	/* Read-write data (initialized) */
 	.data ALIGN(4K) : AT(ADDR(.data) - kernel_offset)
 	{
 		data_start = .;
-		*(.data)
+		*(EXCLUDE_FILE (usermode/*.o) .data)
 	}
 
 	/* Read-write page aligned data (uninitialized) */
@@ -70,4 +75,29 @@ SECTIONS
 	_bootstrap_nextalloc = .;
 	. -= kernel_offset;
 	_bootstrap_end = .; 
+
+	/* Usermode init code */
+	.utext ALIGN(4K) :
+	{
+		user_code = .;
+		usermode/*.o (.text)
+	}
+
+	.urodata ALIGN(4K) :
+	{
+		usermode/*.o (.rodata)
+	}
+
+	.udata ALIGN(4K) :
+	{
+		user_data = .;
+		usermode/*.o (.data)
+	}
+
+	.ubss ALIGN(4K) :
+	{
+		usermode/*.o (.bss)
+	}
+
+	user_data_end = .;
 }

@@ -57,6 +57,25 @@ pt_00000000:
 	.word 0
 	.endr
 
+//
+// User mode interface trampoline code
+//
+.section .trampoline
+
+// System call
+.global _call_kernel
+.type _call_kernel, @function
+_call_kernel:
+	int $0x80
+	ret
+
+// Signal delivery trampoline
+.global _signal_trampoline
+.type _signal_trampoline, @function
+_signal_trampoline:
+	// call _signal_deliver
+	ret
+
 // The linker script specifies _start as the entry point to the kernel and the
 // bootloader will jump to this position once the kernel has been loaded. It
 // doesn't make sense to return from this function as the bootloader is gone.

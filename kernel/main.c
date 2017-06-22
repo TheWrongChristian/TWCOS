@@ -19,6 +19,9 @@
 #endif
 
 static void idle() {
+	extern char[1] user_code;
+	extern char[1] user_data;
+	extern char[1] user_data_end;
 	arch_idle();
 }
  
@@ -37,11 +40,15 @@ void kernel_main() {
 		vector_test();
 		arena_test();
 
-		char * p = arch_heap_page();
-		*p = 0;
-
 		idle();
 	} KCATCH(Throwable) {
 		kernel_panic("Error in initialization: %s\n", exception_message());
 	}
 }
+
+
+/*
+ *
+ */
+#define USERMODE_CODE __attribute__((section(".ucode")))
+#define USERMODE_CODE __attribute__((section(".udata")))

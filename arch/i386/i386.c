@@ -283,6 +283,12 @@ static void i386_sx(uint32_t num, uint32_t * state)
 	i386_unhandled(num, state);
 }
 
+static void i386_syscall(uint32_t num, uint32_t * state)
+{
+	uintptr_t * stack = (void*)state[ISR_REG_ESP];
+	do_syscall(state[ISR_REG_EAX], stack);
+}
+
 #if INTERFACE
 #include <stdarg.h>
 #include <stdint.h>
@@ -319,21 +325,46 @@ void arch_thread_mark(thread_t * thread)
 static isr_t itable[256] = {
 	i386_de, i386_db, i386_nmi, i386_bp,
 	i386_of, i386_br, i386_ud, i386_nm,
-
 	i386_df, 0, i386_ts, i386_np,
 	i386_ss, i386_gp, i386_pf, 0,
 
 	i386_mf, i386_ac, i386_mc, i386_xm,
 	i386_ve, 0, 0, 0,
-
 	0, 0, 0, 0,
 	0, 0, i386_sx, 0,
 
 	i386_irq, i386_irq, i386_irq, i386_irq,
 	i386_irq, i386_irq, i386_irq, i386_irq,
-
 	i386_irq, i386_irq, i386_irq, i386_irq,
-	i386_irq, i386_irq, i386_irq, i386_irq
+	i386_irq, i386_irq, i386_irq, i386_irq,
+
+	0,0,0,0,
+	0,0,0,0,
+	0,0,0,0,
+	0,0,0,0,
+
+	0,0,0,0,
+	0,0,0,0,
+	0,0,0,0,
+	0,0,0,0,
+
+	0,0,0,0,
+	0,0,0,0,
+	0,0,0,0,
+	0,0,0,0,
+
+	0,0,0,0,
+	0,0,0,0,
+	0,0,0,0,
+	0,0,0,0,
+
+	0,0,0,0,
+	0,0,0,0,
+	0,0,0,0,
+	0,0,0,0,
+
+	/* 0x80 */
+	i386_syscall
 };
 
 static thread_t initial;
