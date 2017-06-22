@@ -38,6 +38,8 @@ enum tpriority { THREAD_INTERRUPT = 0, THREAD_NORMAL, THREAD_IDLE, THREAD_PRIORI
 		inited = 1; \
 	} while(0)
 
+#define SPIN_AUTOLOCK(lock) int s##__LINE__ = 0; while((s##__LINE__=spin_autolock(lock, s##__LINE__)))
+
 #endif
 
 static tls_key tls_next = 1;
@@ -69,7 +71,8 @@ void * tls_get(int key)
 }
 
 static void thread_mark(void * p);
-static slab_type_t threads[1] = {SLAB_TYPE(sizeof(thread_t), thread_mark, 0)};
+static void thread_finalize(void * p);
+static slab_type_t threads[1] = {SLAB_TYPE(sizeof(thread_t), thread_mark, thread_finalize)};
 
 typedef struct lock_s {
 	int spin;
@@ -107,6 +110,24 @@ void spin_unlock(int * l)
 {
 	arch_spin_unlock(l);
 }
+
+void spin_lock(int * l)
+{
+	arch_spin_lock(l);
+}
+
+int spin_autolock(int * lock, int state)
+{
+        if (state) {
+                spin_unlock(lock);
+                state = 0;
+        } else {
+                spin_lock(lock);
+                state = 1;
+        }
+
+        return state;
+} 
 
 static thread_t * thread_queue(thread_t * queue, thread_t * thread, tstate state)
 {
@@ -433,6 +454,12 @@ static void thread_mark(void * p)
 	slab_gc_mark(thread->retval);
 
 	arch_thread_mark(thread);
+}
+
+static void thread_finalize(void * p)
+{
+	thread_t * thread = (thread_t *)p;
+	arch_thread_finalize(thread);
 }
 
 void thread_init()

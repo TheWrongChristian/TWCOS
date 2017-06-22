@@ -60,7 +60,7 @@ void slab_init()
 static slab_t * slab_new(slab_type_t * stype)
 {
 	/* Allocate and map page */
-	slab_t * slab = page_valloc();
+	slab_t * slab = page_heap_alloc();
 
 	if (0 == stype->magic) {
 		/* Initialize type */
