@@ -83,18 +83,39 @@ page_t page_alloc()
 	return 0;
 }
 
-segment_t * heap;
-void * page_valloc()
-{
-	void * p = arch_heap_page();
-	page_t page = page_alloc();
-	vmap_map(0, p, page, 1, 0);
 
-	if (heap) {
-		/* VM heap not configured yet, map manually! */
+segment_t * heap;
+static int heap_cache_lock;
+static void ** heap_cache;
+void * page_heap_alloc()
+{
+	void * p = 0;
+	SPIN_AUTOLOCK(&heap_cache_lock) {
+		if (heap_cache) {
+			p = heap_cache;
+			heap_cache = heap_cache[0];
+		} else {
+			p = arch_heap_page();
+			page_t page = page_alloc();
+			vmap_map(0, p, page, 1, 0);
+
+			if (heap) {
+				/* VM heap not configured yet, map manually! */
+			}
+		}
+
+		memset(p, 0, ARCH_PAGE_SIZE);
 	}
 
-	memset(p, 0, ARCH_PAGE_SIZE);
-
 	return p;
+}
+
+void page_heap_free(void * p)
+{
+	void ** pp = (void**)p;
+
+	SPIN_AUTOLOCK(&heap_cache_lock) {
+		pp[0] = heap_cache;
+		heap_cache = pp;
+	}
 }
