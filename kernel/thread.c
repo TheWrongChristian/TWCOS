@@ -78,6 +78,7 @@ typedef struct lock_s {
 	int spin;
 	void * p;
 	int count;
+	int getting;
 	thread_t * owner;
 	thread_t * waiting;
 	thread_t * condwaiting;
@@ -200,10 +201,13 @@ static struct lock_s * thread_lock_get(void * p)
 				lock->p = p;
 				map_putpp(locktable, p, lock);
 			}
+
+			lock->getting = 1;
 			spin_unlock(&locktablespin);
 
 			while(1) {
 				if (spin_trylock(&lock->spin)) {
+					lock->getting = 0;
 					return lock;
 				} else {
 					/* Lock in use by another pointer */
@@ -325,7 +329,7 @@ static void thread_cleanlocks_copy(void * p, void * key, void * data)
 	struct lock_s * lock = (struct lock_s *)data;
 
 	SPIN_AUTOLOCK(&lock->spin) {
-		if (0 == lock->count && 0 == lock->owner && 0 == lock->waiting && lock->condwaiting) {
+		if (lock->owner || lock->waiting || lock->condwaiting || lock->getting) {
 			/* lock in use, copy */
 			map_putpp(newlocktable, key, data);
 		}
