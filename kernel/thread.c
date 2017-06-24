@@ -319,6 +319,28 @@ void thread_wait(void *p)
 	}
 }
 
+static void thread_cleanlocks_copy(void * p, void * key, void * data)
+{
+	map_t * newlocktable = (map_t*)p;
+	struct lock_s * lock = (struct lock_s *)data;
+
+	SPIN_AUTOLOCK(&lock->spin) {
+		if (0 == lock->count && 0 == lock->owner && 0 == lock->waiting && lock->condwaiting) {
+			/* lock in use, copy */
+			map_putpp(newlocktable, key, data);
+		}
+	}
+}
+
+static void thread_cleanlocks()
+{
+	SPIN_AUTOLOCK(&locktablespin) {
+		map_t * newlocktable = tree_new(0, TREE_SPLAY);
+		map_walkpp(locktable, thread_cleanlocks_copy, newlocktable);
+		locktable = newlocktable;
+	}
+}
+
 /* Simple RR scheduler */
 static thread_t * queue[THREAD_PRIORITIES];
 static int queuelock;
@@ -431,8 +453,10 @@ void thread_set_priority(thread_t * thread, tpriority priority)
 	thread->priority = priority;
 }
 
+static void thread_cleanlocks();
 void thread_gc()
 {
+	thread_cleanlocks();
 	slab_gc_begin();
 	slab_gc_mark(arch_get_thread());
 	slab_gc_mark(kas);
@@ -488,11 +512,13 @@ void thread_test()
 	thread1 = thread_fork();
 	if (thread1) {
 		thread_join(thread1);
+		thread1 = 0;
 	} else {
 		thread_t * thread2 = thread_fork();
 		if (thread2) {
 			thread_test1();
 			thread_join(thread2);
+			thread2 = 0;
 			thread_exit(0);
 		} else {
 			thread_test2();
