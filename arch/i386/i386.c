@@ -491,6 +491,11 @@ void arch_thread_switch(thread_t * thread)
 	}
 }
 
+void ** arch_thread_backtrace(int levels)
+{
+	return 0;
+}
+
 int arch_atomic_postinc(int * p)
 {
 	int i;

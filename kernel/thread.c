@@ -509,6 +509,11 @@ static void thread_finalize(void * p)
 	arch_thread_finalize(thread);
 }
 
+void ** thread_backtrace(int levels)
+{
+	return arch_thread_backtrace(levels);
+}
+
 void thread_init()
 {
 	INIT_ONCE();
