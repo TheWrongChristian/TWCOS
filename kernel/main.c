@@ -17,6 +17,10 @@
 #error "This tutorial needs to be compiled with a ix86-elf compiler"
 #endif
 #endif
+
+static void idle() {
+	arch_idle();
+}
  
 void kernel_main() {
 	/* Initialize console interface */
@@ -31,11 +35,12 @@ void kernel_main() {
 		tree_test();
 		slab_test();
 		vector_test();
+		arena_test();
 
 		char * p = arch_heap_page();
 		*p = 0;
 
-		arch_idle();
+		idle();
 	} KCATCH(Throwable) {
 		kernel_panic("Error in initialization: %s\n", exception_message());
 	}
