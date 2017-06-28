@@ -62,7 +62,7 @@ typedef struct vmobject_s {
 			size_t size;
 		} direct;
 		struct {
-			vector_t * pages;
+			map_t * pages;
 		} anon;
 		struct {
 		} file;
@@ -122,12 +122,12 @@ void vm_page_fault(void * p, int write, int user, int present)
 {
 	map_t * as = 0;
 	thread_lock(kas);
-	segment_t * seg = map_getp_le(kas, p);
+	segment_t * seg = map_getpp_le(kas, p);
 	thread_unlock(kas);
 	if (0 == seg) {
 		as = arch_get_thread()->as;
 		thread_lock(as);
-		seg = map_getp_le(as, p);
+		seg = map_getpp_le(as, p);
 		thread_unlock(as);
 	}
 
@@ -145,13 +145,11 @@ void vm_page_fault(void * p, int write, int user, int present)
 			} else {
 				vm_invalid_pointer(p, write, user, present);
 			}
-#if 0
-			/* Defer to the segment driver */
-			seg->fault(seg, p, write, user, present);
-#endif
+
 			return;
 		}
 	}
+
 	/* Invalid pointer */
 	vm_invalid_pointer(p, write, user, present);
 }
@@ -161,7 +159,7 @@ void vm_page_fault(void * p, int write, int user, int present)
  */
 static page_t vm_anon_get_page(vmobject_t * anon, int offset)
 {
-	page_t page = vector_get(anon->anon.pages, offset >> ARCH_PAGE_SIZE_LOG2);
+	page_t page = map_get(anon->anon.pages, offset >> ARCH_PAGE_SIZE_LOG2);
 
 	if (!page) {
 		page = page_alloc();
@@ -174,14 +172,21 @@ static vmobject_ops_t anon_ops = {
 	get_page: vm_anon_get_page
 };
 
-static void vm_object_anon_copy_pages(vector_t * v, void * arg, int i, void * p)
+static void vm_object_anon_copy_pages(void * arg, int i, void * p)
 {
 	vm_page_t * vmp = p;
-	vector_t * to = arg;
+	map_t * to = arg;
 
 	/* Increment the reference count on the page */
 	arch_atomic_postinc(&vmp->ref);
-	vector_putp(to, i, vmp);
+	map_putip(to, i, vmp);
+}
+
+static void vm_object_anon_copy_walk(void * p, map_key key, void * data)
+{
+	vmobject_t * anon = (vmobject_t *)p;
+
+	map_putip(anon->anon.pages, key, data);
 }
 
 static vmobject_t * vm_object_anon_copy(vmobject_t * from)
@@ -191,6 +196,7 @@ static vmobject_t * vm_object_anon_copy(vmobject_t * from)
 	anon->ops = &anon_ops;
 	anon->type = OBJECT_ANON;
 	anon->anon.pages = vector_new();
+	map_walkip(from->anon.pages, vm_object_anon_copy_walk, anon);
 	
 	return anon;
 }
@@ -201,6 +207,7 @@ static vmobject_t * vm_object_anon()
 	anon->ops = &anon_ops;
 	anon->type = OBJECT_ANON;
 	anon->anon.pages = vector_new();
+
 	return anon;
 }
 
@@ -278,4 +285,30 @@ segment_t * vm_segment_copy(segment_t * from, int private)
 	}
 
 	return seg;
+}
+
+static void * kas_next;
+
+void vm_kas_start(void * p)
+{
+	kas_next = p;
+}
+
+void * vm_kas_get_aligned( size_t size, size_t align )
+{
+	static int lock[1];
+
+	arch_spin_lock(lock);
+	uintptr_t p = (uintptr_t)kas_next;
+	p += (align-1);
+	p &= ~(align-1);
+	kas_next = (void*)p + size;
+	arch_spin_unlock(lock);
+
+	return (void*)p;
+}
+
+void * vm_kas_get( size_t size )
+{
+	return vm_kas_get_aligned(size, sizeof(intptr_t));
 }

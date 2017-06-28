@@ -38,6 +38,8 @@ enum tpriority { THREAD_INTERRUPT = 0, THREAD_NORMAL, THREAD_IDLE, THREAD_PRIORI
 		inited = 1; \
 	} while(0)
 
+#define SPIN_AUTOLOCK(lock) int s##__LINE__ = 0; while((s##__LINE__=spin_autolock(lock, s##__LINE__)))
+
 #endif
 
 static tls_key tls_next = 1;
@@ -69,12 +71,14 @@ void * tls_get(int key)
 }
 
 static void thread_mark(void * p);
-static slab_type_t threads[1] = {SLAB_TYPE(sizeof(thread_t), thread_mark, 0)};
+static void thread_finalize(void * p);
+static slab_type_t threads[1] = {SLAB_TYPE(sizeof(thread_t), thread_mark, thread_finalize)};
 
 typedef struct lock_s {
 	int spin;
 	void * p;
 	int count;
+	int getting;
 	thread_t * owner;
 	thread_t * waiting;
 	thread_t * condwaiting;
@@ -117,6 +121,24 @@ static thread_t * thread_prequeue(thread_t * queue, thread_t * thread, tstate st
 	LIST_PREPEND(queue, thread);
 	return queue;
 }
+
+void spin_lock(int * l)
+{
+	arch_spin_lock(l);
+}
+
+int spin_autolock(int * lock, int state)
+{
+        if (state) {
+                spin_unlock(lock);
+                state = 0;
+        } else {
+                spin_lock(lock);
+                state = 1;
+        }
+
+        return state;
+} 
 
 static thread_t * thread_queue(thread_t * queue, thread_t * thread, tstate state)
 {
@@ -183,16 +205,19 @@ static struct lock_s * thread_lock_get(void * p)
 				locktable = tree_new(0, TREE_SPLAY);
 			}
 
-			lock_t * lock = map_getp(locktable, p);
+			lock_t * lock = map_getpp(locktable, p);
 			if (0 == lock) {
 				lock = slab_calloc(locks);
 				lock->p = p;
-				map_putp(locktable, p, lock);
+				map_putpp(locktable, p, lock);
 			}
+
+			lock->getting = 1;
 			spin_unlock(&locktablespin);
 
 			while(1) {
 				if (spin_trylock(&lock->spin)) {
+					lock->getting = 0;
 					return lock;
 #if 0
 				} else {
@@ -307,6 +332,28 @@ void thread_wait(void *p)
 		}
 	} else {
 		kernel_panic("Unlocking unowned lock\n");
+	}
+}
+
+static void thread_cleanlocks_copy(void * p, void * key, void * data)
+{
+	map_t * newlocktable = (map_t*)p;
+	struct lock_s * lock = (struct lock_s *)data;
+
+	SPIN_AUTOLOCK(&lock->spin) {
+		if (lock->owner || lock->waiting || lock->condwaiting || lock->getting) {
+			/* lock in use, copy */
+			map_putpp(newlocktable, key, data);
+		}
+	}
+}
+
+static void thread_cleanlocks()
+{
+	SPIN_AUTOLOCK(&locktablespin) {
+		map_t * newlocktable = tree_new(0, TREE_SPLAY);
+		map_walkpp(locktable, thread_cleanlocks_copy, newlocktable);
+		locktable = newlocktable;
 	}
 }
 
@@ -429,15 +476,17 @@ void thread_set_priority(thread_t * thread, tpriority priority)
 	thread->priority = priority;
 }
 
+static void thread_cleanlocks();
 void thread_gc()
 {
+	thread_cleanlocks();
 	slab_gc_begin();
 	slab_gc_mark(arch_get_thread());
 	slab_gc_mark(kas);
 	for(int i=0; i<sizeof(queue)/sizeof(queue[0]); i++) {
 		slab_gc_mark(queue[i]);
 	}
-	slab_gc_mark(locks);
+	slab_gc_mark(locktable);
 	slab_gc_end();
 }
 
@@ -452,6 +501,12 @@ static void thread_mark(void * p)
 	slab_gc_mark(thread->retval);
 
 	arch_thread_mark(thread);
+}
+
+static void thread_finalize(void * p)
+{
+	thread_t * thread = (thread_t *)p;
+	arch_thread_finalize(thread);
 }
 
 void thread_init()
@@ -480,11 +535,13 @@ void thread_test()
 	thread1 = thread_fork();
 	if (thread1) {
 		thread_join(thread1);
+		thread1 = 0;
 	} else {
 		thread_t * thread2 = thread_fork();
 		if (thread2) {
 			thread_test1();
 			thread_join(thread2);
+			thread2 = 0;
 			thread_exit(0);
 		} else {
 			thread_test2();
