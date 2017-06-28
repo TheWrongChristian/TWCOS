@@ -35,9 +35,11 @@ boot.iso: grub.cfg $(KERNEL)
 clean::
 	rm -rf $(OBJS) $(SRCS_C:.c=.h) boot.iso
 
-qemu: all
+.gdbinit:
 	echo target remote localhost:1234 | tee .gdbinit
 	echo symbol-file $(KERNEL) | tee -a .gdbinit
+
+qemu: all .gdbinit
 	qemu-system-i386 -m 16 -s -S -kernel $(KERNEL) &
 
 includes::

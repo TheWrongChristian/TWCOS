@@ -161,7 +161,9 @@ void arch_idle()
 				reset();
 			}
 		}
+		thread_lock(arch_idle);
 		thread_gc();
+		thread_unlock(arch_idle);
 	}
 	kernel_panic("idle finished");
 }

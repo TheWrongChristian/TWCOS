@@ -17,7 +17,8 @@ typedef void * arena_state;
 
 #endif
 
-static slab_type_t arenas[1] = {SLAB_TYPE(sizeof(arena_t), 0, 0)};
+static void arena_mark(void * p);
+static slab_type_t arenas[1] = {SLAB_TYPE(sizeof(arena_t), arena_mark, 0)};
 static arena_t * arena_create(size_t size)
 {
 	arena_t * arena = slab_alloc(arenas);
@@ -28,6 +29,13 @@ static arena_t * arena_create(size_t size)
 	map_putpp(kas, arena->seg->base, arena->seg);
 
 	return arena;
+}
+
+static void arena_mark(void * p)
+{
+	arena_t * arena = (arena_t *)p;
+
+	slab_gc_mark_range(arena->base, arena->state);
 }
 
 void * arena_alloc(arena_t * arena, size_t size)
@@ -91,6 +99,8 @@ void arena_test()
 	arena_setstate(arena, state);
 	int * p3 = arena_alloc(arena, sizeof(int));
 	int * p4 = arena_alloc(arena, sizeof(int));
+
+	thread_gc();
 
 	assert(*p1 == *p3);
 	assert(*p2 == *p4);
