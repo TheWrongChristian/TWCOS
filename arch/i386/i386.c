@@ -316,6 +316,11 @@ void arch_thread_mark(thread_t * thread)
 	slab_gc_mark_block((void**)thread->context.state, sizeof(thread->context.state));
 }
 
+void arch_thread_finalize(thread_t * thread)
+{
+	page_heap_free(thread->context.stack);
+}
+
 static isr_t itable[256] = {
 	i386_de, i386_db, i386_nmi, i386_bp,
 	i386_of, i386_br, i386_ud, i386_nm,
@@ -427,7 +432,7 @@ int arch_thread_fork(thread_t * dest)
 	memcpy(dest, source, sizeof(*dest));
 
 	/* Stacks */
-	uint32_t * dpage = (uint32_t*)ARCH_GET_VPAGE(dest->context.stack = page_valloc());
+	uint32_t * dpage = (uint32_t*)ARCH_GET_VPAGE(dest->context.stack = page_heap_alloc());
 	uint32_t * spage = (uint32_t*)ARCH_GET_VPAGE(source->context.stack);
 
 	/* Set pointer to thread */
