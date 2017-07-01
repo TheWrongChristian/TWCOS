@@ -525,12 +525,20 @@ void thread_init()
 static void thread_test2();
 static void thread_test1()
 {
+	void ** bt = thread_backtrace(15);
 	kernel_printk("thread_test1\n");
+	while(*bt) {
+		kernel_printk("\t%p\n", *bt++);
+	}
 }
 
 static void thread_test2()
 {
+	void ** bt = thread_backtrace(15);
 	kernel_printk("thread_test2\n");
+	while(*bt) {
+		kernel_printk("\t%p\n", *bt++);
+	}
 }
 
 void thread_test()

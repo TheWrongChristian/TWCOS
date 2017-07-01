@@ -491,9 +491,34 @@ void arch_thread_switch(thread_t * thread)
 	}
 }
 
+static int arch_is_text(void * p)
+{
+	char * cp = p;
+	extern char code_start[];
+	extern char code_end[];
+
+	return cp >= code_start && cp < code_end;
+}
+
 void ** arch_thread_backtrace(int levels)
 {
-	return 0;
+	void ** backtrace = malloc(sizeof(*backtrace)*levels+1);
+	thread_t * thread = arch_get_thread();
+	setjmp(thread->context.state);
+	void * stacktop = (void**)((char*)thread->context.stack + ARCH_PAGE_SIZE);
+	void ** bp = thread->context.state[2];
+	int i;
+
+	for(i=0; i<levels && bp > thread->context.state[1] && bp<stacktop; ) {
+		void * ret = bp[1];
+		if(arch_is_text(ret)) {
+			backtrace[i++] = ret;
+		}
+		bp = bp[0];
+	}
+	backtrace[i] = 0;
+	
+	return backtrace;
 }
 
 int arch_atomic_postinc(int * p)
