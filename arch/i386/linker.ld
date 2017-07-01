@@ -37,6 +37,7 @@ SECTIONS
 	{
 		code_start = .;
 		*(.text)
+		code_end = .;
 	}
 
 	/* Read-only data. */

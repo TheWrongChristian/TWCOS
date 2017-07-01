@@ -42,6 +42,9 @@ clean::
 qemu: all .gdbinit
 	qemu-system-i386 -m 16 -s -S -kernel $(KERNEL) &
 
+run: all
+	qemu-system-i386 -m 16 -kernel $(KERNEL) &
+
 includes::
 	rm -f $(SRCS_C:.c=.h)
 	$(MAKEHEADERS) $(SRCS_C)
