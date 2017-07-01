@@ -112,6 +112,16 @@ void spin_unlock(int * l)
 	arch_spin_unlock(l);
 }
 
+static thread_t * thread_prequeue(thread_t * queue, thread_t * thread, tstate state)
+{
+	if (0 == thread) {
+		thread = arch_get_thread();
+	}
+	thread->state = state;
+	LIST_PREPEND(queue, thread);
+	return queue;
+}
+
 void spin_lock(int * l)
 {
 	arch_spin_lock(l);
@@ -209,10 +219,12 @@ static struct lock_s * thread_lock_get(void * p)
 				if (spin_trylock(&lock->spin)) {
 					lock->getting = 0;
 					return lock;
+#if 0
 				} else {
 					/* Lock in use by another pointer */
 					contended++;
 					thread_lock_wait(lock);
+#endif
 				}
 			}
 		}
@@ -361,6 +373,16 @@ static void scheduler_unlock()
 	spin_unlock(&queuelock);
 }
 
+void thread_preempt()
+{
+	thread_t * this = arch_get_thread();
+	tpriority priority = this->priority;
+	scheduler_lock();
+	queue[priority] = thread_prequeue(queue[priority], this, THREAD_RUNNABLE);
+	scheduler_unlock();
+	thread_schedule();
+}
+
 void thread_yield()
 {
 	thread_t * this = arch_get_thread();
@@ -390,10 +412,7 @@ void thread_schedule()
 			thread_t * next = queue[i];
 			LIST_DELETE(queue[i], next);
 			scheduler_unlock();
-			if (arch_get_thread() != next) {
-				/* Changing threads */
-				arch_thread_switch(next);
-			}
+			arch_thread_switch(next);
 			return;
 		}
 	}
@@ -490,6 +509,11 @@ static void thread_finalize(void * p)
 	arch_thread_finalize(thread);
 }
 
+void ** thread_backtrace(int levels)
+{
+	return arch_thread_backtrace(levels);
+}
+
 void thread_init()
 {
 	INIT_ONCE();
@@ -501,12 +525,20 @@ void thread_init()
 static void thread_test2();
 static void thread_test1()
 {
+	void ** bt = thread_backtrace(15);
 	kernel_printk("thread_test1\n");
+	while(*bt) {
+		kernel_printk("\t%p\n", *bt++);
+	}
 }
 
 static void thread_test2()
 {
+	void ** bt = thread_backtrace(15);
 	kernel_printk("thread_test2\n");
+	while(*bt) {
+		kernel_printk("\t%p\n", *bt++);
+	}
 }
 
 void thread_test()
