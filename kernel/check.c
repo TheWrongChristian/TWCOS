@@ -1,10 +1,10 @@
 #include "check.h"
 
-struct exception_def exception_def_CheckException = { "CheckException", &exception_def_Exception };
-struct exception_def exception_def_NullCheckException = { "NullCheckException", &exception_def_CheckException };
-struct exception_def exception_def_IntBoundsException = { "IntBoundsException", &exception_def_CheckException };
-struct exception_def exception_def_PtrBoundsException = { "PtrBoundsException", &exception_def_CheckException };
-struct exception_def exception_def_IntValueException = { "IntValueException", &exception_def_CheckException };
+exception_def CheckException = { "CheckException", &Exception };
+exception_def NullCheckException = { "NullCheckException", &CheckException };
+exception_def IntBoundsException = { "IntBoundsException", &CheckException };
+exception_def PtrBoundsException = { "PtrBoundsException", &CheckException };
+exception_def IntValueException = { "IntValueException", &CheckException };
 
 void check_not_null(void * p, const char * error)
 {
