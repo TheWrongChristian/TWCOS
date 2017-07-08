@@ -59,33 +59,33 @@ void arena_setstate(arena_t * arena, arena_state state)
 	arena->state = (char*)state;
 }
 
-static arena_t * free = 0;
+static arena_t * free_arenas = 0;
 
 arena_t * arena_get()
 {
 	arena_t * arena = 0;
 
-	thread_lock(&free);
+	thread_lock(&free_arenas);
 
-	if (free) {
-		arena = free;
-		free = free->next;
+	if (free_arenas) {
+		arena = free_arenas;
+		free_arenas = free_arenas->next;
 	} else {
 		arena = arena_create(0x400000);
 	}
 
-	thread_unlock(&free);
+	thread_unlock(&free_arenas);
 
 	return arena;
 }
 
 void arena_free(arena_t * arena)
 {
-	thread_lock(&free);
-	arena->next = free;
+	thread_lock(&free_arenas);
+	arena->next = free_arenas;
 	arena->state = arena->base;
-	free = arena;
-	thread_unlock(&free);
+	free_arenas = arena;
+	thread_unlock(&free_arenas);
 }
 
 void arena_test()
