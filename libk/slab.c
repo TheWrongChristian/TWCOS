@@ -18,6 +18,8 @@ typedef struct slab_type {
 
 #endif
 
+exception_def OutOfMemoryException = { "OutOfMemoryException", &Exception };
+
 typedef struct slab {
 	uint32_t magic;
 	struct slab * next, * prev;
@@ -155,7 +157,9 @@ void * slab_alloc(slab_type_t * stype)
 	}
 
 	slab_unlock();
-	/* FIXME: Throw out of memory error */
+	
+	KTHROW(OutOfMemoryException, "Out of memory");
+	/* Shouldn't get here */
 	return 0;
 }
 
@@ -356,6 +360,44 @@ void * malloc(size_t size)
 	return 0;
 }
 
+void free(void *p)
+{
+}
+
+void * calloc(size_t num, size_t size)
+{
+	void * p = malloc(num*size);
+	if (p) {
+		memset(p, 0, num*size);
+	}
+
+	return p;
+}
+
+void *realloc(void *p, size_t size)
+{
+	if (0 == p) {
+		return malloc(size);
+	}
+
+	slab_t * slab = slab_get(p);
+
+	if (slab) {
+		if (size <= slab->type->esize) {
+			/* Nothing to do, new memory fits in existing slot */
+			return p;
+		} else {
+			void * new = malloc(size);
+
+			/* Copy old data (of old size) to new buffer */
+			return memcpy(new, p, slab->type->esize);
+		}
+	} else {
+		/* FIXME: We should do something here to warn of misuse */
+		kernel_panic("realloc: Invalid heap pointer: %p\n", p);
+	}
+}
+
 void slab_test()
 {
 	static slab_type_t t[1] = {SLAB_TYPE(1270, slab_test_mark, slab_test_finalize)};
@@ -373,7 +415,8 @@ void slab_test()
 	/* p array should be finalized here */
 	thread_gc();
 
-	p[0] = p[1] = p[2] = p[3] = 0;
+	p[0] = p[1] = p[2] = p[3] = realloc(p[0], 736);
+	p[0] = p[1] = p[2] = p[3] = realloc(p[0], 1736);
 
 	thread_gc();
 }

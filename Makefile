@@ -46,11 +46,14 @@ run: all
 	qemu-system-i386 -m 16 -kernel $(KERNEL) &
 
 includes::
-	rm -f $(SRCS_C:.c=.h)
+	echo rm -f $(SRCS_C:.c=.h)
 	$(MAKEHEADERS) $(SRCS_C)
 
 cflow:
 	cflow -d 4 -r $(SRCS_C)
+
+cxref:
+	cxref -html-src $(SRCS_C) $(SRCS_C:.c=.h)
 
 ctags:
 	ctags $(SRCS_C)
