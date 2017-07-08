@@ -3,9 +3,9 @@
 #if INTERFACE
 enum treemode { TREE_SPLAY=0, TREE_TREAP, TREE_COUNT };
 
-EXCEPTION_DEF(OutOfBoundsException,RuntimeException);
-
 #endif
+
+exception_def OutOfBoundsException = { "OutOfBoundsException", &RuntimeException };
 
 typedef struct node {
 	map_key key;
