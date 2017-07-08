@@ -102,6 +102,7 @@ typedef struct segment_anonymous_s {
 	segment_t segment;
 }segment_anonymous_t;
 
+static map_t * rmap;
 map_t * kas;
 static slab_type_t segments[1] = {SLAB_TYPE(sizeof(segment_t), 0, 0)};
 static slab_type_t objects[1] = {SLAB_TYPE(sizeof(vmobject_t), 0, 0)};
@@ -111,6 +112,7 @@ void vm_init()
 
 	tree_init();
 	kas = tree_new(0, TREE_TREAP);
+	rmap = vector_new();
 }
 
 static void vm_invalid_pointer(void * p, int write, int user, int present)
@@ -311,4 +313,28 @@ void * vm_kas_get_aligned( size_t size, size_t align )
 void * vm_kas_get( size_t size )
 {
 	return vm_kas_get_aligned(size, sizeof(intptr_t));
+}
+
+static int rmap_lock;
+
+typedef struct rmap_s {
+	int count;
+	struct {
+		asid id;
+		void * p;
+	} maps[1];
+} rmap_t;
+
+void vm_rmap_add( page_t page, asid as, void * p )
+{
+	SPIN_AUTOLOCK(&rmap_lock) {
+		rmap_t * maps = map_getip(rmap, page);
+	}
+}
+
+void vm_rmap_remove( page_t page, asid as, void * p )
+{
+	SPIN_AUTOLOCK(&rmap_lock) {
+		rmap_t * maps = map_getip(rmap, page);
+	}
 }

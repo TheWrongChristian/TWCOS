@@ -38,7 +38,9 @@ enum tpriority { THREAD_INTERRUPT = 0, THREAD_NORMAL, THREAD_IDLE, THREAD_PRIORI
 		inited = 1; \
 	} while(0)
 
-#define SPIN_AUTOLOCK(lock) int s##__LINE__ = 0; while((s##__LINE__=spin_autolock(lock, s##__LINE__)))
+#define SPIN_AUTOLOCK_CONCAT(a, b) a ## b
+#define SPIN_AUTOLOCK_VAR(line) SPIN_AUTOLOCK_CONCAT(s,line)
+#define SPIN_AUTOLOCK(lock) int SPIN_AUTOLOCK_VAR(__LINE__) = 0; while((SPIN_AUTOLOCK_VAR(__LINE__) =spin_autolock(lock, SPIN_AUTOLOCK_VAR(__LINE__) )))
 
 #endif
 
