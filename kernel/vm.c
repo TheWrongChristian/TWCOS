@@ -102,7 +102,7 @@ typedef struct segment_anonymous_s {
 	segment_t segment;
 }segment_anonymous_t;
 
-static map_t * rmap;
+static map_t * rmaps;
 map_t * kas;
 static slab_type_t segments[1] = {SLAB_TYPE(sizeof(segment_t), 0, 0)};
 static slab_type_t objects[1] = {SLAB_TYPE(sizeof(vmobject_t), 0, 0)};
@@ -112,7 +112,7 @@ void vm_init()
 
 	tree_init();
 	kas = tree_new(0, TREE_TREAP);
-	rmap = vector_new();
+	rmaps = vector_new();
 }
 
 static void vm_invalid_pointer(void * p, int write, int user, int present)
@@ -134,16 +134,19 @@ void vm_page_fault(void * p, int write, int user, int present)
 	}
 
 	if (seg) {
-
 		long offset = (char*)p - (char*)seg->base;
 
 		if (offset < seg->size) {
+			/* Adjust p to page boundary */
+			p = ARCH_PAGE_ALIGN(p);
 			if (!present) {
 				page_t page = seg->dirty->ops->get_page(seg->dirty, offset);
 				vmap_map(as, p, page, SEGMENT_W & seg->perms, SEGMENT_U & seg->perms);
+				vm_rmap_map(page, as, p);
 			} else if (write && SEGMENT_W & seg->perms) {
 				page_t page = vmap_get_page(as, p);
 				vmap_map(as, p, page, SEGMENT_W & seg->perms, SEGMENT_U & seg->perms);
+				vm_rmap_map(page, as, p);
 			} else {
 				vm_invalid_pointer(p, write, user, present);
 			}
@@ -315,26 +318,51 @@ void * vm_kas_get( size_t size )
 	return vm_kas_get_aligned(size, sizeof(intptr_t));
 }
 
-static int rmap_lock;
+static int rmaps_lock;
 
 typedef struct rmap_s {
 	int count;
 	struct {
-		asid id;
+		asid as;
 		void * p;
-	} maps[1];
+	} maps[];
 } rmap_t;
 
-void vm_rmap_add( page_t page, asid as, void * p )
+void vm_rmap_map( page_t page, asid as, void * p )
 {
-	SPIN_AUTOLOCK(&rmap_lock) {
-		rmap_t * maps = map_getip(rmap, page);
+	SPIN_AUTOLOCK(&rmaps_lock) {
+		rmap_t * rmap = map_getip(rmaps, page);
+		int count = 4;
+
+		if (rmap) {
+			count = rmap->count+1;
+		} else {
+			count = 1;
+		}
+
+		rmap = realloc(rmap, sizeof(*rmap) + count*sizeof(rmap->maps[0]));
+		rmap->count = count;
+		rmap->maps[count-1].as = as;
+		rmap->maps[count-1].p = p;
+
+		/* maps might have changed, update it */
+		map_putip(rmaps, page, rmap);
 	}
 }
 
-void vm_rmap_remove( page_t page, asid as, void * p )
+void vm_rmap_unmap( page_t page, asid as, void * p )
 {
-	SPIN_AUTOLOCK(&rmap_lock) {
-		rmap_t * maps = map_getip(rmap, page);
+	SPIN_AUTOLOCK(&rmaps_lock) {
+		rmap_t * rmap = map_getip(rmaps, page);
+
+		if (rmap)  {
+			for(int i=0; i<rmap->count; i++) {
+				if (rmap->maps[i].as == as && rmap->maps[i].p == p) {
+					rmap->maps[i].as = rmap->maps[rmap->count-1].as;
+					rmap->maps[i].p = rmap->maps[rmap->count-1].p;
+					i = rmap->count--;
+				}
+			}
+		}
 	}
 }

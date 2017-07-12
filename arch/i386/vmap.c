@@ -106,6 +106,7 @@ static void vmap_set_pte(asid vid, void * vaddress, pte_t pte)
 		}
 	}
 	pgtbl[vpage] = pte;
+	/* FIXME: Only need this if vid is current or kernel as */
 	invlpg(vaddress);
 }
 
