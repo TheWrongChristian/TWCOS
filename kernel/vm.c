@@ -141,11 +141,11 @@ void vm_page_fault(void * p, int write, int user, int present)
 			p = ARCH_PAGE_ALIGN(p);
 			if (!present) {
 				page_t page = seg->dirty->ops->get_page(seg->dirty, offset);
-				vmap_map(as, p, page, SEGMENT_W & seg->perms, SEGMENT_U & seg->perms);
+				vmap_map(as, p, page, write && SEGMENT_W & seg->perms, SEGMENT_U & seg->perms);
 				vm_vmpage_map(page, as, p);
 			} else if (write && SEGMENT_W & seg->perms) {
 				page_t page = vmap_get_page(as, p);
-				vmap_map(as, p, page, SEGMENT_W & seg->perms, SEGMENT_U & seg->perms);
+				vmap_map(as, p, page, write && SEGMENT_W & seg->perms, SEGMENT_U & seg->perms);
 				vm_vmpage_map(page, as, p);
 			} else {
 				vm_invalid_pointer(p, write, user, present);
@@ -404,6 +404,24 @@ void vm_vmpage_trapwrites(page_t page)
 				if (vmap_ismapped(as, p)) {
 					int user = vmap_isuser(as, p);
 					vmap_map(as, p, page, 0, user);
+				}
+			}
+		}
+	}
+}
+
+void vm_vmpage_trapaccess(page_t page)
+{
+	SPIN_AUTOLOCK(&vmpages_lock) {
+		vmpage_t * vmpage = map_getip(vmpages, page);
+		if (vmpage)  {
+			for(int i=0; i<vmpage->count; i++) {
+				asid as = vmpage->maps[i].as;
+				void * p = vmpage->maps[i].p;
+
+				/* Remove each mapping */
+				if (vmap_ismapped(as, p)) {
+					vmap_unmap(as, p);
 				}
 			}
 		}

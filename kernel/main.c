@@ -38,6 +38,7 @@ void kernel_main() {
 		arena_test();
 
 		char * p = arch_heap_page();
+		char c = *p;
 		*p = 0;
 
 		idle();
