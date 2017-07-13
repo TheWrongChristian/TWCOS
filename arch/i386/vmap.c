@@ -92,6 +92,18 @@ page_t vmap_get_page(asid vid, void * vaddress)
 	return 0;
 }
 
+static pte_t vmap_get_pte(asid vid, void * vaddress)
+{
+	page_t vpage = (uint32_t)vaddress >> ARCH_PAGE_SIZE_LOG2;
+	pte_t * pgtbl = vmap_get_pgtable(vid);
+
+	if (0 == vmap_get_page(vid, pgtbls+vpage)) {
+		return 0;
+	}
+
+	return pgtbl[vpage];
+}
+
 static void vmap_set_pte(asid vid, void * vaddress, pte_t pte)
 {
 	page_t vpage = (uint32_t)vaddress >> ARCH_PAGE_SIZE_LOG2;
@@ -131,6 +143,27 @@ void vmap_mapn(asid vid, int n, void * vaddress, page_t page, int rw, int user)
 	for(i=0; i<n; i++, vp += ARCH_PAGE_SIZE) {
 		vmap_map(vid, vp, page+i, rw, user);
 	}
+}
+
+int vmap_ismapped(asid vid, void * vaddress)
+{
+	pte_t pte = vmap_get_pte(vid, vaddress);
+
+	return pte & 0x1;
+}
+
+int vmap_iswriteable(asid vid, void * vaddress)
+{
+	pte_t pte = vmap_get_pte(vid, vaddress);
+
+	return pte & 0x2;
+}
+
+int vmap_isuser(asid vid, void * vaddress)
+{
+	pte_t pte = vmap_get_pte(vid, vaddress);
+
+	return pte & 0x4;
 }
 
 void vmap_unmap(asid vid, void * vaddress)
