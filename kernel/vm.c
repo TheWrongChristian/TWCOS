@@ -102,7 +102,7 @@ typedef struct segment_anonymous_s {
 	segment_t segment;
 }segment_anonymous_t;
 
-static map_t * rmaps;
+static map_t * vmpages;
 map_t * kas;
 static slab_type_t segments[1] = {SLAB_TYPE(sizeof(segment_t), 0, 0)};
 static slab_type_t objects[1] = {SLAB_TYPE(sizeof(vmobject_t), 0, 0)};
@@ -112,7 +112,7 @@ void vm_init()
 
 	tree_init();
 	kas = tree_new(0, TREE_TREAP);
-	rmaps = vector_new();
+	vmpages = vector_new();
 }
 
 static void vm_invalid_pointer(void * p, int write, int user, int present)
@@ -142,11 +142,11 @@ void vm_page_fault(void * p, int write, int user, int present)
 			if (!present) {
 				page_t page = seg->dirty->ops->get_page(seg->dirty, offset);
 				vmap_map(as, p, page, SEGMENT_W & seg->perms, SEGMENT_U & seg->perms);
-				vm_rmap_map(page, as, p);
+				vm_vmpage_map(page, as, p);
 			} else if (write && SEGMENT_W & seg->perms) {
 				page_t page = vmap_get_page(as, p);
 				vmap_map(as, p, page, SEGMENT_W & seg->perms, SEGMENT_U & seg->perms);
-				vm_rmap_map(page, as, p);
+				vm_vmpage_map(page, as, p);
 			} else {
 				vm_invalid_pointer(p, write, user, present);
 			}
@@ -318,49 +318,92 @@ void * vm_kas_get( size_t size )
 	return vm_kas_get_aligned(size, sizeof(intptr_t));
 }
 
-static int rmaps_lock;
+static int vmpages_lock;
 
-typedef struct rmap_s {
+#define VMPAGE_PINNED 0x1
+#define VMPAGE_DIRTY 0x2
+
+typedef struct vmpage_s {
 	int count;
+	int flags;
 	struct {
 		asid as;
 		void * p;
 	} maps[];
-} rmap_t;
+} vmpage_t;
 
-void vm_rmap_map( page_t page, asid as, void * p )
+void vm_vmpage_map( page_t page, asid as, void * p )
 {
-	SPIN_AUTOLOCK(&rmaps_lock) {
-		rmap_t * rmap = map_getip(rmaps, page);
-		int count = 4;
+	SPIN_AUTOLOCK(&vmpages_lock) {
+		vmpage_t * vmpage = map_getip(vmpages, page);
+		int count = 1;
 
-		if (rmap) {
-			count = rmap->count+1;
-		} else {
-			count = 1;
+		if (vmpage) {
+			count = vmpage->count+1;
 		}
 
-		rmap = realloc(rmap, sizeof(*rmap) + count*sizeof(rmap->maps[0]));
-		rmap->count = count;
-		rmap->maps[count-1].as = as;
-		rmap->maps[count-1].p = p;
+		vmpage = realloc(vmpage, sizeof(*vmpage) + count*sizeof(vmpage->maps[0]));
+		vmpage->count = count;
+		vmpage->maps[count-1].as = as;
+		vmpage->maps[count-1].p = p;
 
 		/* maps might have changed, update it */
-		map_putip(rmaps, page, rmap);
+		map_putip(vmpages, page, vmpage);
 	}
 }
 
-void vm_rmap_unmap( page_t page, asid as, void * p )
+void vm_vmpage_unmap( page_t page, asid as, void * p )
 {
-	SPIN_AUTOLOCK(&rmaps_lock) {
-		rmap_t * rmap = map_getip(rmaps, page);
+	SPIN_AUTOLOCK(&vmpages_lock) {
+		vmpage_t * vmpage = map_getip(vmpages, page);
 
-		if (rmap)  {
-			for(int i=0; i<rmap->count; i++) {
-				if (rmap->maps[i].as == as && rmap->maps[i].p == p) {
-					rmap->maps[i].as = rmap->maps[rmap->count-1].as;
-					rmap->maps[i].p = rmap->maps[rmap->count-1].p;
-					i = rmap->count--;
+		if (vmpage)  {
+			for(int i=0; i<vmpage->count; i++) {
+				if (vmpage->maps[i].as == as && vmpage->maps[i].p == p) {
+					vmpage->maps[i].as = vmpage->maps[vmpage->count-1].as;
+					vmpage->maps[i].p = vmpage->maps[vmpage->count-1].p;
+					i = vmpage->count--;
+				}
+			}
+		}
+	}
+}
+
+void vm_vmpage_setflags(page_t page, int flags)
+{
+	SPIN_AUTOLOCK(&vmpages_lock) {
+		vmpage_t * vmpage = map_getip(vmpages, page);
+
+		if (vmpage)  {
+			vmpage->flags |= flags;
+		}
+	}
+}
+
+void vm_vmpage_resetflags(page_t page, int flags)
+{
+	SPIN_AUTOLOCK(&vmpages_lock) {
+		vmpage_t * vmpage = map_getip(vmpages, page);
+
+		if (vmpage)  {
+			vmpage->flags &= ~flags;
+		}
+	}
+}
+
+void vm_vmpage_trapwrites(page_t page)
+{
+	SPIN_AUTOLOCK(&vmpages_lock) {
+		vmpage_t * vmpage = map_getip(vmpages, page);
+		if (vmpage)  {
+			for(int i=0; i<vmpage->count; i++) {
+				asid as = vmpage->maps[i].as;
+				void * p = vmpage->maps[i].p;
+
+				/* Mark each mapping as read only */
+				if (vmap_ismapped(as, p)) {
+					int user = vmap_isuser(as, p);
+					vmap_map(as, p, page, 0, user);
 				}
 			}
 		}
