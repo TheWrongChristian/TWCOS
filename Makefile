@@ -38,6 +38,7 @@ clean::
 .gdbinit:
 	echo target remote localhost:1234 | tee .gdbinit
 	echo symbol-file $(KERNEL) | tee -a .gdbinit
+	echo break kernel_main | tee -a .gdbinit
 
 qemu: all .gdbinit
 	qemu-system-i386 -m 16 -s -S -kernel $(KERNEL) &
