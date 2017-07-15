@@ -40,6 +40,9 @@ void kernel_main() {
 		char * p = arch_heap_page();
 		char c = *p;
 		*p = 0;
+		
+		vm_vmpage_trapwrites(vmap_get_page(0, p));
+		*p = 0;
 
 		idle();
 	} KCATCH(Throwable) {
