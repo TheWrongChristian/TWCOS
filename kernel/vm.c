@@ -168,6 +168,7 @@ static page_t vm_anon_get_page(vmobject_t * anon, int offset)
 
 	if (!page) {
 		page = page_alloc();
+		map_put(anon->anon.pages, offset >> ARCH_PAGE_SIZE_LOG2, page);
 	}
 
 	return page;
@@ -339,7 +340,15 @@ void vm_vmpage_map( page_t page, asid as, void * p )
 		int count = 1;
 
 		if (vmpage) {
-			count = vmpage->count+1;
+			/* Check if we already have this mapping */
+			for(int i=0; i<vmpage->count; i++) {
+				if (vmpage->maps[i].as == as && vmpage->maps[i].p == p) {
+					spin_unlock(&vmpages_lock);
+					return;
+				}
+			}
+
+			count = vmpage->count + 1;
 		}
 
 		vmpage = realloc(vmpage, sizeof(*vmpage) + count*sizeof(vmpage->maps[0]));
@@ -347,7 +356,7 @@ void vm_vmpage_map( page_t page, asid as, void * p )
 		vmpage->maps[count-1].as = as;
 		vmpage->maps[count-1].p = p;
 
-		/* maps might have changed, update it */
+		/* vmpage might have changed in realloc, update it */
 		map_putip(vmpages, page, vmpage);
 	}
 }
@@ -403,7 +412,8 @@ void vm_vmpage_trapwrites(page_t page)
 				/* Mark each mapping as read only */
 				if (vmap_ismapped(as, p)) {
 					int user = vmap_isuser(as, p);
-					vmap_map(as, p, page, 0, user);
+					//vmap_map(as, p, page, 0, user);
+					vmap_unmap(as, p);
 				}
 			}
 		}
