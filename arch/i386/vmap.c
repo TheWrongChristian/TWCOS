@@ -22,9 +22,6 @@ static __attribute__((section(".aligned"))) pte_t pgktbl[1024];
  */
 static pte_t * pgtbls = (void *)(0xffffffff << (2 + ARCH_PAGE_TABLE_SIZE_LOG2 + ASID_COUNT_LOG2));
 
-#if 0
-static asid asids[1 << ASID_COUNT_LOG2];
-#endif
 static struct {
 	asid vid;
 	int seq;
