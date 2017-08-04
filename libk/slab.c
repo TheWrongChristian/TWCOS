@@ -18,6 +18,8 @@ typedef struct slab_type {
 
 #endif
 
+exception_def OutOfMemoryException = { "OutOfMemoryException", &Exception };
+
 typedef struct slab {
 	uint32_t magic;
 	struct slab * next, * prev;
@@ -60,7 +62,7 @@ void slab_init()
 static slab_t * slab_new(slab_type_t * stype)
 {
 	/* Allocate and map page */
-	slab_t * slab = page_valloc();
+	slab_t * slab = page_heap_alloc();
 
 	if (0 == stype->magic) {
 		/* Initialize type */
@@ -98,9 +100,24 @@ static slab_t * slab_new(slab_type_t * stype)
 	return slab;
 }
 
+static int slabspin[1];
+static void slab_lock()
+{
+	while(1) {
+		if (arch_spin_trylock(slabspin)) {
+			return;
+		}
+	}
+}
+
+static void slab_unlock()
+{
+	arch_spin_unlock(slabspin);
+}
+
 void * slab_alloc(slab_type_t * stype)
 {
-	thread_lock(slab_alloc);
+	slab_lock();
 
 	slab_t * slab = stype->first ? stype->first : slab_new(stype);
 
@@ -128,7 +145,7 @@ void * slab_alloc(slab_type_t * stype)
 
 				slab->available[i/32] &= ~mask;
 
-				thread_unlock(slab_alloc);
+				slab_unlock();
 				return slab->data + slab->type->esize*slot;
 			}
 		}
@@ -139,8 +156,10 @@ void * slab_alloc(slab_type_t * stype)
 		}
 	}
 
-	thread_unlock(slab_alloc);
-	/* FIXME: Throw out of memory error */
+	slab_unlock();
+	
+	KTHROW(OutOfMemoryException, "Out of memory");
+	/* Shouldn't get here */
 	return 0;
 }
 
@@ -167,7 +186,7 @@ static void slab_mark_available_all(slab_t * slab)
 
 void slab_gc_begin()
 {
-	thread_lock(slab_alloc);
+	slab_lock();
 	slab_type_t * stype = types;
 
 	/* Mark all elements available */
@@ -279,7 +298,7 @@ void slab_gc_end()
 
 		LIST_NEXT(types, stype);
 	}
-	thread_unlock(slab_alloc);
+	slab_unlock();
 }
 
 void slab_free(void * p)
@@ -287,6 +306,7 @@ void slab_free(void * p)
 	slab_t * slab = slab_get(p);
 
 	if (slab) {
+		slab_lock();
 		char * cp = p;
 		int i = (cp - slab->data) / slab->type->esize;
 		slab->available[i/32] |= (0x80000000 >> i%32);
@@ -294,6 +314,7 @@ void slab_free(void * p)
 			slab->type->finalize(p);
 		}
 		p = 0;
+		slab_unlock();
 	}
 }
 
@@ -305,6 +326,76 @@ static void slab_test_finalize(void * p)
 static void slab_test_mark(void *p)
 {
 	kernel_printk("Marking: %p\n", p);
+}
+
+static slab_type_t pools[] = {
+	SLAB_TYPE(8, 0, 0),
+	SLAB_TYPE(12, 0, 0),
+	SLAB_TYPE(16, 0, 0),
+	SLAB_TYPE(24, 0, 0),
+	SLAB_TYPE(32, 0, 0),
+	SLAB_TYPE(48, 0, 0),
+	SLAB_TYPE(64, 0, 0),
+	SLAB_TYPE(96, 0, 0),
+	SLAB_TYPE(128, 0, 0),
+	SLAB_TYPE(196, 0, 0),
+	SLAB_TYPE(256, 0, 0),
+	SLAB_TYPE(384, 0, 0),
+	SLAB_TYPE(512, 0, 0),
+	SLAB_TYPE(768, 0, 0),
+	SLAB_TYPE(1024, 0, 0),
+	SLAB_TYPE(1536, 0, 0),
+	SLAB_TYPE((ARCH_PAGE_SIZE-2*sizeof(uint32_t))/2, 0, 0),
+	SLAB_TYPE((ARCH_PAGE_SIZE-2*sizeof(uint32_t)), 0, 0),
+};
+
+void * malloc(size_t size)
+{
+	for(int i=0; i<sizeof(pools)/sizeof(pools[0]);i++) {
+		if (pools[i].esize > size) {
+			return slab_alloc(pools+i);
+		}
+	}
+
+	return 0;
+}
+
+void free(void *p)
+{
+}
+
+void * calloc(size_t num, size_t size)
+{
+	void * p = malloc(num*size);
+	if (p) {
+		memset(p, 0, num*size);
+	}
+
+	return p;
+}
+
+void *realloc(void *p, size_t size)
+{
+	if (0 == p) {
+		return malloc(size);
+	}
+
+	slab_t * slab = slab_get(p);
+
+	if (slab) {
+		if (size <= slab->type->esize) {
+			/* Nothing to do, new memory fits in existing slot */
+			return p;
+		} else {
+			void * new = malloc(size);
+
+			/* Copy old data (of old size) to new buffer */
+			return memcpy(new, p, slab->type->esize);
+		}
+	} else {
+		/* FIXME: We should do something here to warn of misuse */
+		kernel_panic("realloc: Invalid heap pointer: %p\n", p);
+	}
 }
 
 void slab_test()
@@ -319,8 +410,13 @@ void slab_test()
 
 	/* Nothing should be finalized here */
 	thread_gc();
-	p[0] = p[1] = p[2] = p[3] = 0;
+	p[0] = p[1] = p[2] = p[3] = malloc(653);
 
 	/* p array should be finalized here */
+	thread_gc();
+
+	p[0] = p[1] = p[2] = p[3] = realloc(p[0], 736);
+	p[0] = p[1] = p[2] = p[3] = realloc(p[0], 1736);
+
 	thread_gc();
 }

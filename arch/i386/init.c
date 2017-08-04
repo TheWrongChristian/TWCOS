@@ -156,6 +156,7 @@ void arch_init()
 		}
 	}
 #endif
+	vm_kas_start(heapend);
 	kernel_printk("Bootstrap end - %p\n", nextalloc);
 }
 
