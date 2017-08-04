@@ -6,10 +6,14 @@
 #if INTERFACE
 #include <setjmp.h>
 #include <stdarg.h>
-#include <libk/exception.h>
+
+typedef struct exception_def {
+        const char * name;
+        struct exception_def * parent;
+} exception_def;
 
 struct exception_cause {
-	struct exception_def * type;
+	exception_def * type;
 	
 	/* Exception location */
 	char * file;
@@ -49,17 +53,21 @@ struct exception_frame {
 	while(!exception_finished(__FILE__, __LINE__)) \
 		if (exception_try())
 #define KCATCH(type) \
-		else if (exception_match(&(exception_def_ ## type)))
+		else if (exception_match(&type))
 #define KFINALLY \
 		else if (exception_finally())
 
-#define KTHROW(type,message) exception_throw(&exception_def_ ## type, __FILE__, __LINE__, message)
-#define KTHROWF(type,message, ...) exception_throw(&exception_def_ ## type, __FILE__, __LINE__, message, __VA_ARGS__ )
+#define KTHROW(type,message) exception_throw(&type, __FILE__, __LINE__, message)
+#define KTHROWF(type,message, ...) exception_throw(&type, __FILE__, __LINE__, message, __VA_ARGS__ )
 
+#define EXCEPTION_DEF(type,parent) static exception_def type = { #type, &parent }
 EXCEPTION_DEF(TestException, Exception);
 
 #endif
-struct exception_def exception_def_Throwable = { "Throwable", 0 };
+exception_def Throwable = { "Throwable", 0 };
+exception_def Exception = { "Exception", &Throwable };
+exception_def Error = { "Error", &Throwable };
+exception_def RuntimeException = { "RuntimeException", &Exception };
 
 static tls_key exception_key;
 static slab_type_t causes[1] = {SLAB_TYPE(sizeof(struct exception_cause), 0, 0)};
@@ -83,21 +91,28 @@ exception_frame * exception_push(exception_frame * frame)
 	return frame;
 }
 
-void exception_throw(struct exception_def * type, char * file, int line, char * message, ...)
+static void exception_throw_cause(struct exception_cause * cause)
 {
 	struct exception_frame * frame = tls_get(exception_key);
 
+	frame->cause = cause;
+
+	longjmp(frame->env, 1);
+}
+
+void exception_throw(exception_def * type, char * file, int line, char * message, ...)
+{
 	va_list ap;
 	va_start(ap,message);
 
-	frame->cause = slab_alloc(causes);
-	frame->cause->type = type;
-	frame->cause->file = file;
-	frame->cause->line = line;
-	vsnprintf(frame->cause->message, sizeof(frame->cause->message), message, ap);
+	struct exception_cause * cause = slab_alloc(causes);
+	cause->type = type;
+	cause->file = file;
+	cause->line = line;
+	vsnprintf(cause->message, sizeof(cause->message), message, ap);
 	va_end(ap);
 
-	longjmp(frame->env, 1);
+	exception_throw_cause(cause);
 }
 
 int exception_finished(char * file, int line)
@@ -128,7 +143,7 @@ int exception_finished(char * file, int line)
 	case EXCEPTION_FINISHING:
 		tls_set(exception_key, frame->next);
 		if (frame->cause && 0 == frame->caught) {
-			exception_throw(frame->cause->type, frame->cause->file, frame->cause->line, frame->cause->message);
+			exception_throw_cause(frame->cause);
 		}
 		return 1;
 	}
@@ -147,7 +162,7 @@ int exception_try()
 	return 0;
 }
 
-int exception_match( struct exception_def * match )
+int exception_match( exception_def * match )
 {
 	exception_frame * frame = tls_get(exception_key);
 

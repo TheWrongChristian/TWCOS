@@ -175,79 +175,6 @@ static void encodeGdtEntry( uint8_t * entry, void * pbase, uint32_t size, uint8_
 	entry[5] = type;
 }
 
-/* reinitialize the PIC controllers, giving them specified vector offsets
-   rather than 8h and 70h, as configured by default */
-
-#define PIC1		0x20
-#define PIC2		0xA0   
-#define PIC1_COMMAND    PIC1
-#define PIC1_DATA       (PIC1+1)
-#define PIC2_COMMAND    PIC2
-#define PIC2_DATA       (PIC2+1)
-#define PIC_EOI		0x20
-
-#define PIC_IRQ_BASE	0x20
-
- 
-#define ICW1_ICW4	0x01		/* ICW4 (not) needed */
-#define ICW1_SINGLE	0x02		/* Single (cascade) mode */
-#define ICW1_INTERVAL4	0x04		/* Call address interval 4 (8) */
-#define ICW1_LEVEL	0x08		/* Level triggered (edge) mode */
-#define ICW1_INIT	0x10		/* Initialization - required! */
- 
-#define ICW4_8086	0x01		/* 8086/88 (MCS-80/85) mode */
-#define ICW4_AUTO	0x02		/* Auto (normal) EOI */
-#define ICW4_BUF_SLAVE	0x08		/* Buffered mode/slave */
-#define ICW4_BUF_MASTER	0x0C		/* Buffered mode/master */
-#define ICW4_SFNM	0x10		/* Special fully nested (not) */
- 
-/*
-arguments:
-	offset1 - vector offset for master PIC
-		vectors on the master become offset1..offset1+7
-	offset2 - same for slave PIC: offset2..offset2+7
-*/
-static void io_wait()
-{
-}
-
-static void PIC_eoi(int irq)
-{
-	if(irq >= 8)
-		outb(PIC2_COMMAND,PIC_EOI);
-
-	outb(PIC1_COMMAND,PIC_EOI);
-}
-
-static void PIC_remap(int offset1, int offset2)
-{
-	unsigned char a1, a2;
- 
-	a1 = inb(PIC1_DATA);                        // save masks
-	a2 = inb(PIC2_DATA);
- 
-	outb(PIC1_COMMAND, ICW1_INIT+ICW1_ICW4);  // starts the initialization sequence (in cascade mode)
-	io_wait();
-	outb(PIC2_COMMAND, ICW1_INIT+ICW1_ICW4);
-	io_wait();
-	outb(PIC1_DATA, offset1);                 // ICW2: Master PIC vector offset
-	io_wait();
-	outb(PIC2_DATA, offset2);                 // ICW2: Slave PIC vector offset
-	io_wait();
-	outb(PIC1_DATA, 4);                       // ICW3: tell Master PIC that there is a slave PIC at IRQ2 (0000 0100)
-	io_wait();
-	outb(PIC2_DATA, 2);                       // ICW3: tell Slave PIC its cascade identity (0000 0010)
-	io_wait();
- 
-	outb(PIC1_DATA, ICW4_8086);
-	io_wait();
-	outb(PIC2_DATA, ICW4_8086);
-	io_wait();
- 
-	outb(PIC1_DATA, a1);   // restore saved masks.
-	outb(PIC2_DATA, a2);
-}
-
 static void i386_unhandled(uint32_t num, uint32_t * state)
 {
 	kernel_panic("Unhandled exception: %d\n", num);
@@ -389,65 +316,9 @@ void arch_thread_mark(thread_t * thread)
 	slab_gc_mark_block((void**)thread->context.state, sizeof(thread->context.state));
 }
 
-static irq_func irq_table[] =  {
-	0, 0, 0, 0,
-	0, 0, 0, 0,
-	0, 0, 0, 0,
-	0, 0, 0, 0 };
-
-static volatile uint32_t irq_flag = 0;
-static void i386_irq(uint32_t num, uint32_t * state)
+void arch_thread_finalize(thread_t * thread)
 {
-	int irq = num - PIC_IRQ_BASE;
-
-	irq_flag |= (1 << irq);
-
-	if (irq_table[irq]) {
-		irq_table[irq]();
-	}
-
-	PIC_eoi(irq);
-}
-
-irq_func add_irq(int irq, irq_func handler)
-{
-	irq_func old = irq_table[irq];
-	irq_table[irq] = handler;
-	return old;
-}
-
-static int wait_irq()
-{
-	int irq = 0;
-	int gc = 0;
-	static int gc_rolling = 0;
-
-	while(0 == irq_flag) {
-#if 0
-		hlt();
-#else
-		thread_gc();
-		gc++;
-#endif
-	}
-
-	gc_rolling = (7*gc_rolling + gc) >> 3;
-
-	kernel_printk("  GC count: %d rolling %d     \r", gc, gc_rolling);
-#if 0
-	kernel_printk("  Got interrupt\r");
-#endif
-	for(; irq<16; irq++) {
-		int mask = 1<<irq;
-		if (irq_flag & mask) {
-			cli();
-			irq_flag &= ~mask;
-			sti();
-			return irq;
-		}
-	}
-
-	return 0;
+	page_heap_free(thread->context.stack);
 }
 
 static isr_t itable[256] = {
@@ -472,6 +343,7 @@ static isr_t itable[256] = {
 
 static thread_t initial;
 
+#define PIC_IRQ_BASE    0x20
 void i386_init()
 {
 	INIT_ONCE();
@@ -524,33 +396,6 @@ void arch_thread_init(thread_t * thread)
 	arch_get_thread()->as = tree_new(0, TREE_TREAP);
 }
 
-void arch_idle()
-{
-	int i = 0;
-	static char wheel[] = {'|', '/', '-', '\\' };
-	while(1) {
-		int irq = wait_irq();
-
-		switch(irq) {
-		case 0:
-			kernel_printk("%c\r", wheel[i]);
-			i=(i+1)&3;
-			break;
-		default:
-			kernel_printk("%d\n", irq);
-			break;
-		}
-		uint8_t scancode = keyq_get();
-		if (scancode) {
-			kernel_printk("%x\n", scancode);
-			if (0x13 == scancode) {
-				reset();
-			}
-		}
-	}
-	kernel_panic("idle finished");
-}
-
 void arch_panic(const char * fmt, va_list ap)
 {
 	cli();
@@ -587,7 +432,7 @@ int arch_thread_fork(thread_t * dest)
 	memcpy(dest, source, sizeof(*dest));
 
 	/* Stacks */
-	uint32_t * dpage = (uint32_t*)ARCH_GET_VPAGE(dest->context.stack = page_valloc());
+	uint32_t * dpage = (uint32_t*)ARCH_GET_VPAGE(dest->context.stack = page_heap_alloc());
 	uint32_t * spage = (uint32_t*)ARCH_GET_VPAGE(source->context.stack);
 
 	/* Set pointer to thread */
@@ -629,6 +474,11 @@ void arch_thread_switch(thread_t * thread)
 {
 	thread_t * old = arch_get_thread();
 
+	if (old == thread) {
+		thread->state = THREAD_RUNNING;
+		return;
+	}
+
 	if (old->state == THREAD_RUNNING) {
 		old->state = THREAD_RUNNABLE;
 	}
@@ -639,6 +489,36 @@ void arch_thread_switch(thread_t * thread)
 		tss[1] = (uint32_t)thread->context.stack + ARCH_PAGE_SIZE;
 		longjmp(thread->context.state, 1);
 	}
+}
+
+static int arch_is_text(void * p)
+{
+	char * cp = p;
+	extern char code_start[];
+	extern char code_end[];
+
+	return cp >= code_start && cp < code_end;
+}
+
+void ** arch_thread_backtrace(int levels)
+{
+	void ** backtrace = malloc(sizeof(*backtrace)*levels+1);
+	thread_t * thread = arch_get_thread();
+	setjmp(thread->context.state);
+	void * stacktop = (void**)((char*)thread->context.stack + ARCH_PAGE_SIZE);
+	void ** bp = thread->context.state[2];
+	int i;
+
+	for(i=0; i<levels && bp > thread->context.state[1] && bp<stacktop; ) {
+		void * ret = bp[1];
+		if(arch_is_text(ret)) {
+			backtrace[i++] = ret;
+		}
+		bp = bp[0];
+	}
+	backtrace[i] = 0;
+	
+	return backtrace;
 }
 
 int arch_atomic_postinc(int * p)
@@ -661,6 +541,15 @@ int arch_spin_trylock(int * p)
 	}
 	*p=1;
 	return *p;
+}
+
+void arch_spin_lock(int * p)
+{
+	while(1) {
+		if (arch_spin_trylock(p)) {
+			return;
+		}
+	}
 }
 
 void arch_spin_unlock(int * p)

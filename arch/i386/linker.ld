@@ -2,6 +2,9 @@
    designated as the entry point. */
 ENTRY(_start)
 
+
+kernel_offset = 0xf0000000;
+
 /* Tell where the various sections of the object files will be put in the final
    kernel image. */
 SECTIONS
@@ -26,37 +29,38 @@ SECTIONS
 
 	/* Rest of the kernel lives in high memory */
 	_kernel_offset_bootstrap = .;
-	. += 0xc0000000;
+	. += kernel_offset;
 	_kernel_offset = .;
 
 	/* Next we'll put the .text section. */
-	.text ALIGN(4K) : AT(ADDR(.text) - 0xc0000000)
+	.text ALIGN(4K) : AT(ADDR(.text) - kernel_offset)
 	{
 		code_start = .;
 		*(.text)
+		code_end = .;
 	}
 
 	/* Read-only data. */
-	.rodata ALIGN(4K) : AT(ADDR(.rodata) - 0xc0000000)
+	.rodata ALIGN(4K) : AT(ADDR(.rodata) - kernel_offset)
 	{
 		*(.rodata)
 	}
 
 	/* Read-write data (initialized) */
-	.data ALIGN(4K) : AT(ADDR(.data) - 0xc0000000)
+	.data ALIGN(4K) : AT(ADDR(.data) - kernel_offset)
 	{
 		data_start = .;
 		*(.data)
 	}
 
 	/* Read-write page aligned data (uninitialized) */
-	.aligned ALIGN(4K) : AT(ADDR(.aligned) - 0xc0000000)
+	.aligned ALIGN(4K) : AT(ADDR(.aligned) - kernel_offset)
 	{
 		*(.aligned)
 	}
 
 	/* Read-write data (uninitialized) */
-	.bss ALIGN(4K) : AT(ADDR(.bss) - 0xc0000000)
+	.bss ALIGN(4K) : AT(ADDR(.bss) - kernel_offset)
 	{
 		*(COMMON)
 		*(.bss)
@@ -65,6 +69,6 @@ SECTIONS
 	/* The compiler may produce other sections, by default it will put them in
 	   a segment with the same name. Simply add stuff here as needed. */
 	_bootstrap_nextalloc = .;
-	. -= 0xc0000000;
+	. -= kernel_offset;
 	_bootstrap_end = .; 
 }
