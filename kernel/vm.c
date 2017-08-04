@@ -96,6 +96,11 @@ typedef struct segment_s {
 	off_t read_offset;
 	vmobject_t * clean;
 } segment_t;
+
+#define VMPAGE_PINNED 0x1
+#define VMPAGE_ACCESSED 0x2
+#define VMPAGE_DIRTY 0x4
+
 #endif
 
 typedef struct segment_anonymous_s {
@@ -118,6 +123,19 @@ void vm_init()
 static void vm_invalid_pointer(void * p, int write, int user, int present)
 {
 	kernel_panic("Invalid pointer: %p\n", p);
+}
+
+static segment_t * vm_get_segment(map_t * as, void * p)
+{
+	/* Check for kernel address space */
+	if (0 == as) {
+		as = kas;
+	}
+	thread_lock(as);
+	segment_t * seg = map_getpp_le(as, p);
+	thread_unlock(as);
+
+	return seg;
 }
 
 void vm_page_fault(void * p, int write, int user, int present)
@@ -143,10 +161,12 @@ void vm_page_fault(void * p, int write, int user, int present)
 				page_t page = seg->dirty->ops->get_page(seg->dirty, offset);
 				vmap_map(as, p, page, write && SEGMENT_W & seg->perms, SEGMENT_U & seg->perms);
 				vm_vmpage_map(page, as, p);
+				vm_vmpage_setflags(page, VMPAGE_ACCESSED | (write) ? VMPAGE_DIRTY : 0);
 			} else if (write && SEGMENT_W & seg->perms) {
 				page_t page = vmap_get_page(as, p);
 				vmap_map(as, p, page, write && SEGMENT_W & seg->perms, SEGMENT_U & seg->perms);
 				vm_vmpage_map(page, as, p);
+				vm_vmpage_setflags(page, VMPAGE_ACCESSED | VMPAGE_DIRTY);
 			} else {
 				vm_invalid_pointer(p, write, user, present);
 			}
@@ -321,12 +341,10 @@ void * vm_kas_get( size_t size )
 
 static int vmpages_lock;
 
-#define VMPAGE_PINNED 0x1
-#define VMPAGE_DIRTY 0x2
-
 typedef struct vmpage_s {
 	int count;
 	int flags;
+	int age;
 	struct {
 		asid as;
 		void * p;
@@ -411,7 +429,7 @@ void vm_vmpage_trapwrites(page_t page)
 
 				/* Mark each mapping as read only */
 				if (vmap_ismapped(as, p)) {
-					int user = vmap_isuser(as, p);
+					//int user = vmap_isuser(as, p);
 					//vmap_map(as, p, page, 0, user);
 					vmap_unmap(as, p);
 				}
@@ -433,6 +451,25 @@ void vm_vmpage_trapaccess(page_t page)
 				if (vmap_ismapped(as, p)) {
 					vmap_unmap(as, p);
 				}
+			}
+		}
+	}
+}
+
+void vm_vmpage_age(page_r page)
+{
+	SPIN_AUTOLOCK(&vmpages_lock) {
+		vmpage_t * vmpage = map_getip(vmpages, page);
+		if (vmpage)  {
+			if (vmpage->age) {
+				/* Already referenced before, add age */
+				vmpage->age >>= 1;
+				if (vmpage->flags & VMPAGE_ACCESSED) {
+					vmpage->age |= 0x100;
+				}
+			} else {
+				/* First use */
+				vmpage->age = (vmpage->flags & VMPAGE_ACCESSED) ? 4 : 0;
 			}
 		}
 	}
