@@ -456,7 +456,7 @@ void vm_vmpage_trapaccess(page_t page)
 	}
 }
 
-void vm_vmpage_age(page_r page)
+void vm_vmpage_age(page_t page)
 {
 	SPIN_AUTOLOCK(&vmpages_lock) {
 		vmpage_t * vmpage = map_getip(vmpages, page);
