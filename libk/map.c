@@ -119,7 +119,7 @@ void map_walkpp_range( map_t * map, walkpp_func func, void * p, void * from, voi
 		{ func },
 		p
 	};
-	map->ops->walk_range(map, walk_walkpp_func, &wrapper, from, to);
+	map->ops->walk_range(map, walk_walkpp_func, &wrapper, (map_key)from, (map_key)to);
 }
 
 void map_walkpi_range( map_t * map, walkpi_func func, void * p, void * from, void * to )
@@ -128,7 +128,7 @@ void map_walkpi_range( map_t * map, walkpi_func func, void * p, void * from, voi
 		{ func },
 		p
 	};
-	map->ops->walk_range(map, walk_walkpi_func, &wrapper, from, to);
+	map->ops->walk_range(map, walk_walkpi_func, &wrapper, (map_key)from, (map_key)to);
 }
 
 void map_walk_range( map_t * map, walk_func func, void * p, map_key from, map_key to )
