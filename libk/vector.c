@@ -79,7 +79,7 @@ static map_data vector_put(map_t * m, map_key i, map_data d)
 	return old;
 }
 
-static map_data vector_get(map_t * m, map_key i)
+static map_data vector_get(map_t * m, map_key i, map_eq_test cond)
 {
 	vector_t * v = (vector_t*)m;
 	intptr_t * entry = vector_entry_get(v->table, i, 0);
@@ -125,7 +125,6 @@ map_t * vector_new()
                 walk: vector_walk,
                 put: vector_put,
                 get: vector_get,
-                get_le: 0,
                 optimize: 0,
                 remove: 0 /* vector_remove */,
                 iterator: 0 /* vector_iterator */
