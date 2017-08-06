@@ -4,7 +4,7 @@
 
 #include <stdint.h>
 
-typedef intptr_t map_key;
+typedef uintptr_t map_key;
 typedef intptr_t map_data;
 
 typedef void (*walk_func)(void * p, map_key key, map_data data);
