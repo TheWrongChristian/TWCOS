@@ -47,7 +47,6 @@ run: all
 	qemu-system-i386 -m 16 -kernel $(KERNEL) &
 
 includes::
-	echo rm -f $(SRCS_C:.c=.h)
 	$(MAKEHEADERS) $(SRCS_C)
 
 cflow:
