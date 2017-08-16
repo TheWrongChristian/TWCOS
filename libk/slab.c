@@ -396,6 +396,8 @@ void *realloc(void *p, size_t size)
 		/* FIXME: We should do something here to warn of misuse */
 		kernel_panic("realloc: Invalid heap pointer: %p\n", p);
 	}
+
+	return 0;
 }
 
 void slab_test()
