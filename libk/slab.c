@@ -19,6 +19,7 @@ typedef struct slab_type {
 #endif
 
 exception_def OutOfMemoryException = { "OutOfMemoryException", &Exception };
+exception_def AllocationTooBigException = { "AllocationTooBigException", &Exception };
 
 typedef struct slab {
 	uint32_t magic;
@@ -357,6 +358,9 @@ void * malloc(size_t size)
 		}
 	}
 
+	KTHROWF(AllocationTooBigException, "Allocation too big for malloc: %d", size);
+
+	/* Never reached */
 	return 0;
 }
 
