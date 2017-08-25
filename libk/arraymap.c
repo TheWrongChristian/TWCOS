@@ -26,7 +26,7 @@ static int arraymap_get_index(arraymap_t * amap, map_key key, map_eq_test cond )
 	int low = 0;
 	int high = amap->count;
 	
-	do {
+	while(1) {
 		int i = (low + high) / 2;
 		intptr_t diff = (amap->comp) ? amap->comp(key, amap->data[i].key) : key - amap->data[i].key;
 
@@ -64,7 +64,7 @@ static int arraymap_get_index(arraymap_t * amap, map_key key, map_eq_test cond )
 				return i;
 			}
 		}
-	} while(low<high-1);
+	}
 
 	return -1;
 }
@@ -80,6 +80,13 @@ static void arraymap_walk(map_t * map, walk_func func, void * p )
 
 static void arraymap_walk_range(map_t * map, walk_func func, void * p, map_key from, map_key to )
 {
+	arraymap_t * amap = (arraymap_t*)map;
+	int indexfrom = arraymap_get_index(amap, from, MAP_GE);
+	int indexto = arraymap_get_index(amap, to, MAP_LT);
+
+	for(int i=indexfrom; i<=indexto; i++) {
+		func(p, amap->data[i].key, amap->data[i].data);
+	}
 }
 
 static map_data arraymap_put( map_t * map, map_key key, map_data data )
@@ -190,5 +197,6 @@ map_t * arraymap_new(int (*comp)(map_key k1, map_key k2), int capacity)
 void arraymap_test()
 {
 	map_t * map = arraymap_new(map_strcmp, 20);
-	map_test(map, 0);
+	map_t * akmap = arraymap_new(map_arraycmp, 20);
+	map_test(map, akmap);
 }
