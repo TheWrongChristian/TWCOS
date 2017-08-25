@@ -721,93 +721,19 @@ static void tree_walk_dump(void * p, void * key, void * data)
 	if (p) {
 		map_t * akmap = (map_t*)p;
 		/* Add the data to the ak map */
-		map_key * ak = tree_arraykey2((intptr_t)akmap, *((char*)data));
+		map_key * ak = map_arraykey2((intptr_t)akmap, *((char*)data));
 		map_putpp(akmap, ak, data);
 	}
-}
-
-int tree_strcmp(map_key k1, map_key k2)
-{
-	return strcmp((char*)k1, (char*)k2);
-}
-
-int tree_arraycmp(map_key k1, map_key k2)
-{
-	map_key * a1 = (map_key*)k1;
-	map_key * a2 = (map_key*)k2;
-
-	while(*a1 && *a2 && *a1 == *a2) {
-		a1++;
-		a2++;
-	}
-
-	return *a1 - *a2;
-}
-
-map_key tree_arraykey1( map_key k )
-{
-	map_key * key = malloc(sizeof(*key)*2);
-	key[0] = k;
-	key[1] = 0;
-
-	return (map_key)key;
-}
-
-map_key tree_arraykey2( map_key k1, map_key k2 )
-{
-	map_key * key = malloc(sizeof(*key)*3);
-	key[0] = k1;
-	key[1] = k2;
-	key[2] = 0;
-
-	return (map_key)key;
-}
-
-map_key tree_arraykey3( map_key k1, map_key k2, map_key k3 )
-{
-	map_key * key = malloc(sizeof(*key)*4);
-	key[0] = k1;
-	key[1] = k2;
-	key[2] = k3;
-	key[3] = 0;
-
-	return (map_key)key;
 }
 
 void tree_test()
 {
 	tree_init();
-	map_t * map = tree_new(tree_strcmp, TREE_TREAP);
-	map_t * akmap = tree_new(tree_arraycmp, TREE_TREAP);
-	char * data[] = {
-		"Jonas",
-		"Christmas",
-		"This is a test string",
-		"Another test string",
-		"Mary had a little lamb",
-		"Supercalblahblahblah",
-		"Zanadu",
-		"Granny",
-		"Roger",
-		"Steve",
-		"Rolo",
-		"MythTV",
-		"Daisy",
-		"Thorntons",
-		"Humbug",
-	};
-
-	for( int i=0; i<(sizeof(data)/sizeof(data[0])); i++) {
-		map_putpp(map, data[i], data[i]);
-	}
+	map_t * map = tree_new(map_strcmp, TREE_TREAP);
+	map_t * akmap = tree_new(map_arraycmp, TREE_TREAP);
+	map_test(map, akmap);
 
 	tree_graph_node(((tree_t*)map)->root, 0);
 	map_optimize(map);
 	tree_graph_node(((tree_t*)map)->root, 0);
-	map_walkpp(map, tree_walk_dump, akmap);
-	map_walkpp_range(map, tree_walk_dump, 0, "Christ", "Steven");
-	map_walkip_range(akmap, tree_walk_dump, 0, tree_arraykey1((map_key)akmap), tree_arraykey1((map_key)akmap+1));
-
-	kernel_printk("%s LE Christ\n", map_getpp_cond(map, "Christ", MAP_LE));
-	kernel_printk("%s EQ Christmas\n", map_getpp(map, "Christmas"));
 }
