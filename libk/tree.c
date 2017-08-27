@@ -1,7 +1,7 @@
 #include "tree.h"
 
 #if INTERFACE
-enum treemode { TREE_SPLAY=0, TREE_TREAP, TREE_COUNT };
+enum treemode { TREE_SPLAY=1, TREE_TREAP, TREE_COUNT };
 
 #endif
 
@@ -451,7 +451,7 @@ static map_data tree_put( map_t * map, map_key key, map_data data )
         *plast = node = tree_node_new(parent, key, data);
 
         /*
-         * Splay new node to root
+         * Do any "balancing"
          */
         switch(tree->mode) {
         case TREE_SPLAY:
@@ -701,12 +701,16 @@ map_t * tree_new(int (*comp)(map_key k1, map_key k2), treemode mode)
 
 static void tree_graph_node(node_t * node, int level)
 {
+	if (0==node) {
+		return;
+	}
+
 	if (node->left) {
 		tree_graph_node(node->left, level+1);
 	}
 	kernel_printk("%d\t", level);
 	for(int i=0; i<level; i++) {
-		kernel_printk(" ");
+		kernel_printk("  ");
 	}
 	kernel_printk("%s\n", node->data);
 	if (node->right) {
@@ -730,10 +734,10 @@ void tree_test()
 {
 	tree_init();
 	map_t * map = tree_new(map_strcmp, TREE_TREAP);
-	map_t * akmap = tree_new(map_arraycmp, TREE_TREAP);
+	map_t * akmap = tree_new(map_arraycmp, 0);
 	map_test(map, akmap);
 
-	tree_graph_node(((tree_t*)map)->root, 0);
-	map_optimize(map);
-	tree_graph_node(((tree_t*)map)->root, 0);
+	tree_graph_node(((tree_t*)akmap)->root, 0);
+	map_optimize(akmap);
+	tree_graph_node(((tree_t*)akmap)->root, 0);
 }

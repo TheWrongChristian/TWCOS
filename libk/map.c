@@ -318,4 +318,8 @@ void map_test(map_t * map, map_t * akmap)
 
 	kernel_printk("%s LE Christ\n", map_getpp_cond(map, "Christ", MAP_LE));
 	kernel_printk("%s EQ Christmas\n", map_getpp(map, "Christmas"));
+
+	for( int i=0; i<(sizeof(data)/sizeof(data[0])); i++) {
+		map_removepp(map, data[i]);
+	}
 }
