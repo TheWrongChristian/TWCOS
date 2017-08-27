@@ -165,6 +165,23 @@ static map_data arraymap_get( map_t * map, map_key key, map_eq_test cond )
 
 static map_data arraymap_remove( map_t * map, map_key key )
 {
+	arraymap_t * amap = (arraymap_t*)map;
+	int i = arraymap_get_index(amap, key, MAP_EQ);
+
+	if (i>=0) {
+		map_data old = amap->data[i].data;
+		amap->count--;
+		for(; i<amap->count; i++) {
+			amap->data[i].key = amap->data[i+1].key;
+			amap->data[i].data = amap->data[i+1].data;
+		}
+
+		/* Remove stale references for GC */
+		amap->data[i].key = amap->data[i].data = 0;
+
+		return old;
+	}
+
 	return 0;
 }
 
