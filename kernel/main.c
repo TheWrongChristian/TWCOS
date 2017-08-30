@@ -33,6 +33,7 @@ void kernel_main() {
 		exception_test();
 		thread_test();
 		tree_test();
+		arraymap_test();
 		slab_test();
 		vector_test();
 		arena_test();
