@@ -1,7 +1,7 @@
 #include "tree.h"
 
 #if INTERFACE
-enum treemode { TREE_SPLAY=0, TREE_TREAP, TREE_COUNT };
+enum treemode { TREE_SPLAY=1, TREE_TREAP, TREE_COUNT };
 
 #endif
 
@@ -359,7 +359,7 @@ void tree_walk_range( map_t * map, walk_func func, void * p, map_key from, map_k
 {
         tree_t * tree = (tree_t*)map;
 	node_t * start = tree_get_node(tree, from, MAP_GE);
-	node_t * end = tree_get_node(tree, to, MAP_LE);
+	node_t * end = tree_get_node(tree, to, MAP_LT);
 
         tree_walk_nodes(start, end, func, p);
 }
@@ -451,7 +451,7 @@ static map_data tree_put( map_t * map, map_key key, map_data data )
         *plast = node = tree_node_new(parent, key, data);
 
         /*
-         * Splay new node to root
+         * Do any "balancing"
          */
         switch(tree->mode) {
         case TREE_SPLAY:
@@ -701,12 +701,16 @@ map_t * tree_new(int (*comp)(map_key k1, map_key k2), treemode mode)
 
 static void tree_graph_node(node_t * node, int level)
 {
+	if (0==node) {
+		return;
+	}
+
 	if (node->left) {
 		tree_graph_node(node->left, level+1);
 	}
 	kernel_printk("%d\t", level);
 	for(int i=0; i<level; i++) {
-		kernel_printk(" ");
+		kernel_printk("  ");
 	}
 	kernel_printk("%s\n", node->data);
 	if (node->right) {
@@ -717,45 +721,23 @@ static void tree_graph_node(node_t * node, int level)
 static void tree_walk_dump(void * p, void * key, void * data)
 {
 	kernel_printk("%s\n", data);
-}
 
-int tree_strcmp(map_key k1, map_key k2)
-{
-	return strcmp((char*)k1, (char*)k2);
+	if (p) {
+		map_t * akmap = (map_t*)p;
+		/* Add the data to the ak map */
+		map_key * ak = map_arraykey2((intptr_t)akmap, *((char*)data));
+		map_putpp(akmap, ak, data);
+	}
 }
 
 void tree_test()
 {
 	tree_init();
-	map_t * map = tree_new(tree_strcmp, TREE_TREAP);
-	char * data[] = {
-		"Jonas",
-		"Christmas",
-		"This is a test string",
-		"Another test string",
-		"Mary had a little lamb",
-		"Supercalblahblahblah",
-		"Zanadu",
-		"Granny",
-		"Roger",
-		"Steve",
-		"Rolo",
-		"MythTV",
-		"Daisy",
-		"Thorntons",
-		"Humbug",
-	};
+	map_t * map = tree_new(map_strcmp, TREE_TREAP);
+	map_t * akmap = tree_new(map_arraycmp, 0);
+	map_test(map, akmap);
 
-	for( int i=0; i<(sizeof(data)/sizeof(data[0])); i++) {
-		map_putpp(map, data[i], data[i]);
-	}
-
-	tree_graph_node(((tree_t*)map)->root, 0);
-	map_optimize(map);
-	tree_graph_node(((tree_t*)map)->root, 0);
-	map_walkpp(map, tree_walk_dump, 0);
-	map_walkpp_range(map, tree_walk_dump, 0, "Christ", "Steven");
-
-	kernel_printk("%s LE Christ\n", map_getpp_cond(map, "Christ", MAP_LE));
-	kernel_printk("%s EQ Christmas\n", map_getpp(map, "Christmas"));
+	tree_graph_node(((tree_t*)akmap)->root, 0);
+	map_optimize(akmap);
+	tree_graph_node(((tree_t*)akmap)->root, 0);
 }
