@@ -4,7 +4,7 @@
 
 #include <stdint.h>
 
-typedef intptr_t map_key;
+typedef uintptr_t map_key;
 typedef intptr_t map_data;
 
 typedef void (*walk_func)(void * p, map_key key, map_data data);
@@ -224,4 +224,102 @@ void map_optimize(map_t * map)
 iterator_t * map_iterator( map_t * map)
 {
         return map->ops->iterator(map);
+}
+
+static void map_walk_dump(void * p, void * key, void * data)
+{
+        kernel_printk("%s\n", data);
+
+        if (p) {
+                map_t * akmap = (map_t*)p;
+                /* Add the data to the ak map */
+                map_key * ak = map_arraykey2((intptr_t)akmap, *((char*)data));
+                map_putpp(akmap, ak, data);
+        }
+}
+
+int map_strcmp(map_key k1, map_key k2)
+{
+	return strcmp((char*)k1, (char*)k2);
+}
+
+int map_arraycmp(map_key k1, map_key k2)
+{
+	map_key * a1 = (map_key*)k1;
+	map_key * a2 = (map_key*)k2;
+
+	while(*a1 && *a2 && *a1 == *a2) {
+		a1++;
+		a2++;
+	}
+
+	return *a1 - *a2;
+}
+
+map_key map_arraykey1( map_key k )
+{
+	map_key * key = malloc(sizeof(*key)*2);
+	key[0] = k;
+	key[1] = 0;
+
+	return (map_key)key;
+}
+
+map_key map_arraykey2( map_key k1, map_key k2 )
+{
+	map_key * key = malloc(sizeof(*key)*3);
+	key[0] = k1;
+	key[1] = k2;
+	key[2] = 0;
+
+	return (map_key)key;
+}
+
+map_key map_arraykey3( map_key k1, map_key k2, map_key k3 )
+{
+	map_key * key = malloc(sizeof(*key)*4);
+	key[0] = k1;
+	key[1] = k2;
+	key[2] = k3;
+	key[3] = 0;
+
+	return (map_key)key;
+}
+
+void map_test(map_t * map, map_t * akmap)
+{
+	static char * data[] = {
+		"Jonas",
+		"Christmas",
+		"This is a test string",
+		"Another test string",
+		"Mary had a little lamb",
+		"Supercalblahblahblah",
+		"Zanadu",
+		"Granny",
+		"Roger",
+		"Steve",
+		"Rolo",
+		"MythTV",
+		"Daisy",
+		"Thorntons",
+		"Humbug",
+	};
+
+	for( int i=0; i<(sizeof(data)/sizeof(data[0])); i++) {
+		map_putpp(map, data[i], data[i]);
+	}
+
+	map_walkpp(map, map_walk_dump, akmap);
+	map_walkpp_range(map, map_walk_dump, 0, "Christ", "Steven");
+	if (akmap) {
+		map_walkip_range(akmap, map_walk_dump, 0, map_arraykey1((map_key)akmap), map_arraykey1((map_key)akmap+1));
+	}
+
+	kernel_printk("%s LE Christ\n", map_getpp_cond(map, "Christ", MAP_LE));
+	kernel_printk("%s EQ Christmas\n", map_getpp(map, "Christmas"));
+
+	for( int i=0; i<(sizeof(data)/sizeof(data[0])); i++) {
+		map_removepp(map, data[i]);
+	}
 }
