@@ -29,6 +29,7 @@ void kernel_main() {
 	KTRY {
 		thread_init();
 		slab_init();
+		page_cache_init();
 
 		exception_test();
 		thread_test();
@@ -44,6 +45,10 @@ void kernel_main() {
 		
 		vm_vmpage_trapwrites(vmap_get_page(0, p));
 		*p = 0;
+
+		char ** strs = ssplit("/a/path/file/name", '/');
+		strs = ssplit("", '/');
+		strs = ssplit("/", '/');
 
 		idle();
 	} KCATCH(Throwable) {

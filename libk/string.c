@@ -39,6 +39,84 @@ int strcmp( const char * s1, const char * s2 )
 	return *s1 - *s2;
 }
 
+int strncmp( const char * s1, const char * s2, size_t n )
+{
+	for(int i=0; i<n && *s1 && *s2 && *s1 == *s2; i++) {
+		s1++;
+		s2++;
+	}
+
+	return *s1 - *s2;
+}
+
+#if 0
+char * strdup( const char * s)
+{
+	int len = strlen(s);
+	char * ret = malloc(len + 1);
+
+	ret[len] = 0;
+	return memcpy(ret, s, len);
+}
+#endif
+
+char * strndup( const char * s, int len)
+{
+	char * ret = malloc(len + 1);
+
+	ret[len] = 0;
+	return memcpy(ret, s, len);
+}
+
+char ** ssplit( const char * str, int sep )
+{
+	int i = 0;
+	int max = 8;
+	char ** strs = tmalloc(max * sizeof(*strs));
+	const char * s = str;
+	strs[0] = 0;
+
+	while(1) {
+		const char * start = s;
+		while(*s && *s != sep) {
+			s++;
+		}
+
+		/* Copy the (copied) string to it's destination */
+		int len = s - start;
+		if (len > 0) {
+			strs[i] = strndup(start, len);
+		} else {
+			strs[i] = "";
+		}
+
+		/* Expand the array if necessary */
+		if (++i == max) {
+			/* Expand strs */
+			char ** oldstrs = strs;
+			max += 8;
+			strs = tmalloc(max * sizeof(*strs));
+			for(int n = 0; n<i; n++) {
+				strs[n] = oldstrs[n];
+			}
+		}
+
+		if (!*s) {
+			/* End of input */
+			char ** ret = malloc(sizeof(*ret) * i+1);
+			ret[i] = 0;
+			for(int n = 0; n<i; n++) {
+				ret[n] = strs[n];
+			}
+			return ret;
+		} else {
+			s++;
+		}
+	}
+	/* Not reached */
+	return 0;
+}
+
 struct stream_string {
         struct stream stream;
 	char * buf;
