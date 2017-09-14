@@ -48,8 +48,8 @@
 enum object_type_e { OBJECT_DIRECT, OBJECT_ANON, OBJECT_FILE };
 
 typedef struct vmobject_ops_s {
-	page_t (*get_page)(struct vmobject_s * object, int offset);
-	void (*put_page)(struct vmobject_s * object, int offset, page_t page);
+	page_t (*get_page)(struct vmobject_s * object, off_t offset);
+	void (*put_page)(struct vmobject_s * object, off_t offset, page_t page);
 } vmobject_ops_t;
 
 typedef struct vmobject_s {
@@ -65,6 +65,7 @@ typedef struct vmobject_s {
 			map_t * pages;
 		} anon;
 		struct {
+			vnode_t * vnode;
 		} file;
 	};
 } vmobject_t;
@@ -83,7 +84,6 @@ typedef struct vm_page_s {
 	int flags;
 } vm_page_t;
 
-typedef void (*segment_faulter)(struct segment_s * seg, void * p, int write, int user, int present);
 typedef struct segment_s {
 	void * base;
 	size_t size;

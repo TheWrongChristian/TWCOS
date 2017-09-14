@@ -29,7 +29,7 @@ struct map_ops {
 	iterator_t * (*iterator)( map_t * map );
 };
 
-typedef struct map {
+typedef struct map_s {
 	struct map_ops * ops;
 } map_t;
 
