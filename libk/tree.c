@@ -696,7 +696,7 @@ map_t * tree_new(int (*comp)(map_key k1, map_key k2), treemode mode)
 	tree->mode = mode;
 	tree->comp = comp;
 
-	return (map*)tree;
+	return (map_t*)tree;
 }
 
 static void tree_graph_node(node_t * node, int level)
