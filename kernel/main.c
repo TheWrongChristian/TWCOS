@@ -38,6 +38,7 @@ void kernel_main() {
 		slab_test();
 		vector_test();
 		arena_test();
+		tarfs_test();
 
 		char * p = arch_heap_page();
 		char c = *p;
