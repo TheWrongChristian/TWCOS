@@ -1,5 +1,7 @@
+#include <stddef.h>
+
 #include "tarfs.h"
-#if 0
+
 typedef struct tarfs_s {
 	fs_ops_t * ops;
 
@@ -10,8 +12,8 @@ typedef struct tarfs_s {
 
 
 typedef struct tarfs_header_s {
-	char filename[100];
-	char filemode[8];
+	char name[100];
+	char mode[8];
 	char uid[8];
 	char gid[8];
 	char size[12];
@@ -97,23 +99,67 @@ static void tarfs_readblock( tarfs_t * fs, off_t offset, void * buf )
 	dev_op_wait(&op);
 }
 
+static char * tarfs_fullname(tarfs_header_t * h)
+{
+	if (h->prefix[0]) {
+		char * fullname = malloc(256);
+		snprintf(fullname, 255, "%s/%s", h->prefix, h->name);
+		return fullname;
+	} else {
+		return strndup(h->name, sizeof(h->name));
+	}
+}
+
 static void tarfs_regularfile( tarfs_t * fs, tarfs_header_t * h, off_t offset )
 {
 	size_t size = tarfs_otoi(h->size, sizeof(h->size));
-	char * fullname = tarfs_fullname(tarfs_header_t * h);
-	vnode_t * file = vfs_vnode_regular(fs, h, offset
+	char * fullname = tarfs_fullname(h);
+#if 0
+	vnode_t * file = vfs_vnode_regular(fs, h);
+#endif
+	kernel_printk("Regular  : %s\n", fullname);
+}
+
+static void tarfs_directory( tarfs_t * fs, tarfs_header_t * h )
+{
+	size_t size = tarfs_otoi(h->size, sizeof(h->size));
+	char * fullname = tarfs_fullname(h);
+	kernel_printk("Directory: %s\n", fullname);
+}
+
+static void tarfs_symlink( tarfs_t * fs, tarfs_header_t * h )
+{
+	size_t size = tarfs_otoi(h->size, sizeof(h->size));
+	char * fullname = tarfs_fullname(h);
+	kernel_printk("Symlink  : %s\n", fullname);
+}
+
+static off_t tarfs_nextheader( tarfs_header_t * h, off_t offset )
+{
+	offset += TAR_BLOCKSIZE;
+
+	if( REGTYPE == h->type[0] || AREGTYPE == h->type[0]) {
+		/* Regular file */
+		size_t size = tarfs_otoi(h->size, sizeof(h->size));
+
+		size += TAR_BLOCKSIZE;
+		size &= ~(TAR_BLOCKSIZE-1);
+		offset += size;
+	}
+
+	return offset;
 }
 
 static void tarfs_scan( tarfs_t * fs )
 {
-	fs->vnodes = tree_new(tree_strcmp, TREE_TREAP);
+	fs->vnodes = tree_new(map_strcmp, TREE_TREAP);
 	off_t offset = 0;
 	arena_t * arena = arena_get();
 	void * buf = arena_alloc(arena, TAR_BLOCKSIZE);
 	arena_state state = arena_getstate(arena);
 
 	KTRY {
-		while(true) {
+		while(1) {
 			tarfs_header_t * h = buf;
 			vnode_t * file = 0;
 			arena_setstate(arena, state);
@@ -163,10 +209,18 @@ static void tarfs_scan( tarfs_t * fs )
 
 static page_t tar_get_page(vnode_t * vnode, off_t offset)
 {
+	return 0;
 }
 
 static void tar_put_page(vnode_t * vnode, off_t offset, page_t page)
 {
 	KTHROW(ReadOnlyFileException, "tarfs is read-only");
 }
-#endif
+
+
+void tarfs_test()
+{
+	tarfs_t * tarfs = malloc(sizeof(*tarfs));
+	tarfs->dev = dev_static(fs_tarfs_tarfs_tar, fs_tarfs_tarfs_tar_len);
+	tarfs_scan(tarfs);
+}
