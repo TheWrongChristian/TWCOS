@@ -75,11 +75,62 @@ static uint32_t tarfs_otoi( char * cp, int size )
 	return v;
 }
 
-static int tarfs_validate( const char * header, const char * value, int size )
+static int tarfs_validate_field( const char * header, const char * value, int size )
 {
 	for(int i=0; i<size; i++) {
 		if (header[i] != value[i]) {
 			return 0;
+		}
+	}
+
+	return 1;
+}
+
+static int tarfs_validate( tarfs_header_t * h )
+{
+	int usum = 0;
+	int ssum = 0;
+	int sum = 0;
+
+	/* Extract the checksum */
+	for(int i=0; i<sizeof(h->chksum); i++) {
+		unsigned char digit = h->chksum[i] - '0';
+
+		if (digit < 8) {
+			sum <<=3;
+			sum += digit;
+		}
+	}
+
+	/* Compute both signed and unsigned checksums */
+	unsigned char * ucp = h;
+	signed char * scp = h;
+	for(int i=0; i<sizeof(*h); i++) {
+		if (ucp+i>=h->chksum && ucp+i<h->type) {
+			/* In checksum, just use spaces */
+			usum += ' ';
+			ssum += ' ';
+		} else {
+			usum += ucp[i];
+			ssum += scp[i];
+		}
+	}
+
+	if (usum != sum && ssum != sum ) {
+		/* Checksum failed */
+		return 0;
+	}
+
+	/* Check header format */
+	if (tarfs_validate_field(h->ustar, "ustar", sizeof(h->ustar))) {
+		if (tarfs_validate_field(h->ustar_version, "00", sizeof(h->ustar_version))) {
+			/* POSIX.1 ustar format */
+			return 1;
+		}
+	} else if (tarfs_validate_field(h->ustar, "ustar ", sizeof(h->ustar))) {
+		if (tarfs_validate_field(h->ustar_version, " ", sizeof(h->ustar_version))) {
+			/* pdtar format */
+			return 1;
 		}
 	}
 
@@ -167,15 +218,10 @@ static void tarfs_scan( tarfs_t * fs )
 			/* Read the next header */
 			tarfs_readblock(fs, offset, buf);
 
-			/* Check it is a "ustar" header */
-			if (!tarfs_validate(h->ustar, "ustar", sizeof(h->ustar))) {
+			/* Validate header */
+			if (!tarfs_validate(h)) {
 				break;
 			}
-			if (!tarfs_validate(h->ustar_version, "00", sizeof(h->ustar_version))) {
-				break;
-			}
-
-			/* FIXME: Check checksum */
 
 			/* Check header type */
 			switch(h->type[0]) {
