@@ -19,6 +19,7 @@ typedef struct slab_type {
 #endif
 
 exception_def OutOfMemoryException = { "OutOfMemoryException", &Exception };
+exception_def AllocationTooBigException = { "AllocationTooBigException", &Exception };
 
 typedef struct slab {
 	uint32_t magic;
@@ -306,6 +307,7 @@ void slab_free(void * p)
 	slab_t * slab = slab_get(p);
 
 	if (slab) {
+		slab_lock();
 		char * cp = p;
 		int i = (cp - slab->data) / slab->type->esize;
 		slab->available[i/32] |= (0x80000000 >> i%32);
@@ -313,6 +315,7 @@ void slab_free(void * p)
 			slab->type->finalize(p);
 		}
 		p = 0;
+		slab_unlock();
 	}
 }
 
@@ -355,6 +358,9 @@ void * malloc(size_t size)
 		}
 	}
 
+	KTHROWF(AllocationTooBigException, "Allocation too big for malloc: %d", size);
+
+	/* Never reached */
 	return 0;
 }
 
@@ -394,6 +400,8 @@ void *realloc(void *p, size_t size)
 		/* FIXME: We should do something here to warn of misuse */
 		kernel_panic("realloc: Invalid heap pointer: %p\n", p);
 	}
+
+	return 0;
 }
 
 void slab_test()
