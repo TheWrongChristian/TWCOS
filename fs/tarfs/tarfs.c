@@ -68,8 +68,11 @@ static uint32_t tarfs_otoi( char * cp, int size )
 	uint32_t v = 0;
 
 	for(int i=0; i<size && cp[i]; i++) {
-		v *= 8;
-		v += (cp[i] - '0');
+		unsigned digit = cp[i] - '0';
+		if (digit<8) {
+			v <<= 3;
+			v += (cp[i] - '0');
+		}
 	}
 
 	return v;
@@ -93,14 +96,7 @@ static int tarfs_validate( tarfs_header_t * h )
 	int sum = 0;
 
 	/* Extract the checksum */
-	for(int i=0; i<sizeof(h->chksum); i++) {
-		unsigned char digit = h->chksum[i] - '0';
-
-		if (digit < 8) {
-			sum <<=3;
-			sum += digit;
-		}
-	}
+	sum = tarfs_otoi(h->chksum, sizeof(h->chksum));
 
 	/* Compute both signed and unsigned checksums */
 	unsigned char * ucp = h;
@@ -165,22 +161,17 @@ static void tarfs_regularfile( tarfs_t * fs, tarfs_header_t * h, off_t offset )
 {
 	size_t size = tarfs_otoi(h->size, sizeof(h->size));
 	char * fullname = tarfs_fullname(h);
-#if 0
-	vnode_t * file = vfs_vnode_regular(fs, h);
-#endif
 	kernel_printk("Regular  : %s\n", fullname);
 }
 
 static void tarfs_directory( tarfs_t * fs, tarfs_header_t * h )
 {
-	size_t size = tarfs_otoi(h->size, sizeof(h->size));
 	char * fullname = tarfs_fullname(h);
 	kernel_printk("Directory: %s\n", fullname);
 }
 
 static void tarfs_symlink( tarfs_t * fs, tarfs_header_t * h )
 {
-	size_t size = tarfs_otoi(h->size, sizeof(h->size));
 	char * fullname = tarfs_fullname(h);
 	kernel_printk("Symlink  : %s\n", fullname);
 }
