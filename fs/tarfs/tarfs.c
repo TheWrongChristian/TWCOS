@@ -157,10 +157,29 @@ static char * tarfs_fullname(tarfs_header_t * h)
 	}
 }
 
+static vnode_t * tarfs_add_node( tarfs_t * fs, const char * fullname, vnode_t * vnode )
+{
+	vnode_t * dir;
+
+	/* Skip over any leading / */
+	if ('/' == *fullname) {
+		fullname++;
+	}
+
+	char ** paths = ssplit(fullname);
+	for( int i=0; paths[i]; i++ ) {
+		char * name = paths[i];
+
+		if (*paths[i]) {
+		}
+	}
+}
+
 static void tarfs_regularfile( tarfs_t * fs, tarfs_header_t * h, off_t offset )
 {
 	size_t size = tarfs_otoi(h->size, sizeof(h->size));
 	char * fullname = tarfs_fullname(h);
+
 	kernel_printk("Regular  : %s\n", fullname);
 }
 
