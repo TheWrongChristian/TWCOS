@@ -166,7 +166,7 @@ static vnode_t * tarfs_add_node( tarfs_t * fs, const char * fullname, vnode_t * 
 		fullname++;
 	}
 
-	char ** paths = ssplit(fullname);
+	char ** paths = ssplit(fullname, '/');
 	for( int i=0; paths[i]; i++ ) {
 		char * name = paths[i];
 
