@@ -741,7 +741,7 @@ void tree_test()
 	map_t * akmap = tree_new(map_arraycmp, 0);
 	map_test(map, akmap);
 
-	tree_graph_node(((tree_t*)akmap)->root, 0);
+	tree_graph_node(container_of(akmap, tree_t, map)->root, 0);
 	map_optimize(akmap);
-	tree_graph_node(((tree_t*)akmap)->root, 0);
+	tree_graph_node(container_of(akmap, tree_t, map)->root, 0);
 }
