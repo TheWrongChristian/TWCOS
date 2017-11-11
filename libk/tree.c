@@ -24,9 +24,6 @@ typedef struct node {
 } node_t;
 
 typedef struct {
-#if 0
-        struct map_ops * ops;
-#endif
 	map_t map;
 
 	node_t * root;
@@ -297,11 +294,6 @@ static void tree_walk_node( node_t * node, walk_func func, void * p )
                 return;
         }
 
-#if 0
-        tree_walk_node(node->left, func, p);
-        func(p, node->key, node->data);
-        tree_walk_node(node->right, func, p);
-#endif
 	/* Find left most node */
 	while(node->left) {
 		node = node->left;
