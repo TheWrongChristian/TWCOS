@@ -117,29 +117,30 @@ char ** ssplit( const char * str, int sep )
 	return 0;
 }
 
+typedef struct stream_string stream_string_t;
 struct stream_string {
-        struct stream stream;
+        stream_t stream;
 	char * buf;
 	int size;
         long chars;
 };
 
-static void string_putc(struct stream * stream, char c)
+static void string_putc(stream_t * stream, char c)
 {
-        struct stream_string * sstring = (struct stream_string *)stream;
+        stream_string_t * sstring = container_of(stream, stream_string_t, stream);
 	if (sstring->chars < sstring->size) {
 		sstring->buf[sstring->chars] = c;
 	}
 	sstring->chars++;
 }
 
-static long string_tell(struct stream * stream)
+static long string_tell(stream_t * stream)
 {
-        struct stream_string * sstring = (struct stream_string *)stream;
+        stream_string_t * sstring = container_of(stream, stream_string_t, stream);
 	return sstring->chars;
 }
 
-static struct stream_ops string_ops = {
+static stream_ops_t string_ops = {
         putc: string_putc,
         tell: string_tell
 };
@@ -157,11 +158,11 @@ int snprintf(char * buf, int size, char * fmt, ...)
 
 int vsnprintf(char * buf, int size, char * fmt, va_list ap)
 {
-	struct stream_string sstring[1] = {
+	stream_string_t sstring[1] = {
 		{ buf : buf, size: size, chars: 0 }
 	};
 	sstring->stream.ops = &string_ops;
-	if (stream_vprintf((struct stream *)sstring, fmt, ap)<size) {
+	if (stream_vprintf(&sstring->stream, fmt, ap)<size) {
 		sstring->buf[sstring->chars] = 0x0;
 	}
 
