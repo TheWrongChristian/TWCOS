@@ -29,7 +29,7 @@ struct map_ops {
 	iterator_t * (*iterator)( map_t * map );
 };
 
-typedef struct map {
+typedef struct map_s {
 	struct map_ops * ops;
 } map_t;
 
@@ -40,7 +40,6 @@ enum map_eq_test { MAP_LT, MAP_LE, MAP_EQ, MAP_GE, MAP_GT };
 void map_destroy( map_t * map )
 {
 	map->ops->destroy(map);
-	slab_free(map);
 }
 
 struct walk_wrapper
@@ -233,7 +232,7 @@ static void map_walk_dump(void * p, void * key, void * data)
         if (p) {
                 map_t * akmap = (map_t*)p;
                 /* Add the data to the ak map */
-                map_key * ak = map_arraykey2((intptr_t)akmap, *((char*)data));
+                map_key * ak = (map_key*)map_arraykey2((intptr_t)akmap, *((char*)data));
                 map_putpp(akmap, ak, data);
         }
 }
