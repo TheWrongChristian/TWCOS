@@ -24,7 +24,7 @@ typedef struct node {
 } node_t;
 
 typedef struct {
-        struct map_ops * ops;
+	map_t map;
 
 	node_t * root;
 
@@ -294,11 +294,6 @@ static void tree_walk_node( node_t * node, walk_func func, void * p )
                 return;
         }
 
-#if 0
-        tree_walk_node(node->left, func, p);
-        func(p, node->key, node->data);
-        tree_walk_node(node->right, func, p);
-#endif
 	/* Find left most node */
 	while(node->left) {
 		node = node->left;
@@ -348,7 +343,7 @@ static void tree_walk_nodes( node_t * start, node_t * end, walk_func func, void 
 
 void tree_walk( map_t * map, walk_func func, void * p )
 {
-        tree_t * tree = (tree_t*)map;
+        tree_t * tree = container_of(map, tree_t, map);
 	node_t * start = tree_node_first(tree);
 	node_t * end = tree_node_last(tree);
         tree_walk_nodes(start, end, func, p);
@@ -357,7 +352,7 @@ void tree_walk( map_t * map, walk_func func, void * p )
 static node_t * tree_get_node( tree_t * tree, map_key key, map_eq_test cond );
 void tree_walk_range( map_t * map, walk_func func, void * p, map_key from, map_key to )
 {
-        tree_t * tree = (tree_t*)map;
+        tree_t * tree = container_of(map, tree_t, map);
 	node_t * start = tree_get_node(tree, from, MAP_GE);
 	node_t * end = tree_get_node(tree, to, MAP_LT);
 
@@ -418,7 +413,7 @@ static void tree_verify( tree_t * tree, node_t * node )
 
 static map_data tree_put( map_t * map, map_key key, map_data data )
 {
-        tree_t * tree = (tree_t*)map;
+        tree_t * tree = container_of(map, tree_t, map);
         node_t * node = tree->root;
         node_t * parent = NULL;
         node_t * * plast = &tree->root;
@@ -547,12 +542,13 @@ static map_data tree_get_data( tree_t * tree, map_key key, map_eq_test cond )
 
 static map_data tree_get(map_t * map, map_key key, map_eq_test cond )
 {
-	return tree_get_data((tree_t*)map, key, cond);
+        tree_t * tree = container_of(map, tree_t, map);
+	return tree_get_data(tree, key, cond);
 }
 
 static map_data tree_remove( map_t * map, map_key key )
 {
-	tree_t * tree = (tree_t*)map;
+        tree_t * tree = container_of(map, tree_t, map);
         node_t * node = tree->root;
 
         tree_verify(tree, NULL);
@@ -666,7 +662,7 @@ static node_t * node_optimize(node_t * root)
 
 static void tree_optimize(map_t * map)
 {
-	tree_t * tree = (tree_t*)map;
+        tree_t * tree = container_of(map, tree_t, map);
 	tree->root = node_optimize(tree->root);
 }
 
@@ -691,12 +687,12 @@ map_t * tree_new(int (*comp)(map_key k1, map_key k2), treemode mode)
 		iterator: tree_iterator
 	};
 
-	tree->ops = &tree_ops;
+	tree->map.ops = &tree_ops;
 	tree->root = 0;
 	tree->mode = mode;
 	tree->comp = comp;
 
-	return (map*)tree;
+	return &tree->map;
 }
 
 static void tree_graph_node(node_t * node, int level)
@@ -725,7 +721,7 @@ static void tree_walk_dump(void * p, void * key, void * data)
 	if (p) {
 		map_t * akmap = (map_t*)p;
 		/* Add the data to the ak map */
-		map_key * ak = map_arraykey2((intptr_t)akmap, *((char*)data));
+		map_key * ak = (map_key*)map_arraykey2((intptr_t)akmap, *((char*)data));
 		map_putpp(akmap, ak, data);
 	}
 }
@@ -737,7 +733,7 @@ void tree_test()
 	map_t * akmap = tree_new(map_arraycmp, 0);
 	map_test(map, akmap);
 
-	tree_graph_node(((tree_t*)akmap)->root, 0);
+	tree_graph_node(container_of(akmap, tree_t, map)->root, 0);
 	map_optimize(akmap);
-	tree_graph_node(((tree_t*)akmap)->root, 0);
+	tree_graph_node(container_of(akmap, tree_t, map)->root, 0);
 }

@@ -14,6 +14,8 @@ subdir := libk
 include $(subdir)/subdir.mk
 subdir := kernel
 include $(subdir)/subdir.mk
+subdir := fs
+include $(subdir)/subdir.mk
 subdir := build
 include $(subdir)/tools.mk
 subdir := arch/$(ARCH)
@@ -47,7 +49,6 @@ run: all
 	qemu-system-i386 -m 16 -kernel $(KERNEL) &
 
 includes::
-	echo rm -f $(SRCS_C:.c=.h)
 	$(MAKEHEADERS) $(SRCS_C)
 
 cflow:
