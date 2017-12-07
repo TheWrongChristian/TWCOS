@@ -2,45 +2,44 @@
 
 #if INTERFACE
 
+#include <stdint.h>
 #include <stddef.h>
 
-typedef struct vnode_ops_s {
-	page_t (*get_page)( vnode_s * vnode, off_t offset);
-	void (*put_page)( vnode_s * vnode, off_t offset, page_t page );
-	void (*close)( vnode_s * vnode );
-} vnode_ops_t;
-
-typedef struct fs_ops_s {
-	void (*close)(fs_t * fs);
-	vnode_t * (*get_vnode)(vnode_t * dir, const char * name);
-	vnode_t * (*get_root_vnode)();
-} fs_ops_t;
+typedef int64_t inode_t;
 
 enum vnode_type { VNODE_REGULAR, VNODE_DIRECTORY, VNODE_DEV, VNODE_FIFO, VNODE_SOCKET };
+#if 0
+typedef struct vnode_ops_s vnode_ops_t;
+typedef struct vnode_s vnode_t;
+typedef struct fs_ops_s fs_ops_t;
+typedef struct fs_s fs_t;
+#endif
 
-typedef struct vnode_s {
-	struct fs_s * fs;
+struct vnode_ops_t {
+	fs_t * (*get_fs)(vnode_t * vnode);
+	page_t (*get_page)( vnode_t * vnode, off_t offset);
+	void (*put_page)( vnode_t * vnode, off_t offset, page_t page );
+	inode_t (*namei)(vnode_t * dir, const char * name);
+	void (*close)( vnode_t * vnode );
+};
+
+struct fs_ops_t {
+	void (*close)(fs_t * fs);
+	vnode_t * (*get_vnode)(vnode_t * dir, const char * name);
+	void (*put_vnode)(vnode_t * vnode);
+	vnode_t * (*open)(vnode_t * dev);
+};
+
+struct vnode_t {
+	vnode_ops_t * vnops;
+	fs_t * fs;
 	int ref;
+};
 
-	vnode_type type;
-	union {
-		struct {
-			size_t size;
-
-			void * fsnode;
-		} regular;
-		struct {
-			struct vnode_s * parent;
-			void * fsnode;
-		} dir;
-	} u;
-} vnode_t;
-
-typedef struct fs_s {
-	vnode_ops_s * vnops;
-	fs_ops_s * fsops;
-} fs_t;
-
+typedef struct fs_t {
+	fs_ops_t * fsops;
+};
+ 
 #endif
 
 exception_def FileException = { "FileException", &Exception };
@@ -93,7 +92,7 @@ page_t vfs_get_page( vnode_t * vnode, off_t offset )
 		page_cache_key_t * newkey = malloc(sizeof(*newkey));
 		newkey->vnode = vnode;
 		newkey->offset = offset;
-		page = vnode->fs->vnops->get_page(vnode, offset);
+		page = vnode->vnops->get_page(vnode, offset);
 		map_putpi(page_cache, newkey, page);
 	}
 
@@ -102,7 +101,7 @@ page_t vfs_get_page( vnode_t * vnode, off_t offset )
 
 void vfs_put_page( vnode_t * vnode, off_t offset, page_t page )
 {
-	vnode->fs->vnops->put_page(vnode, offset, page);
+	vnode->vnops->put_page(vnode, offset, page);
 }
 
 vnode_t * vfs_get_vnode( vnode_t * dir, const char * name )
@@ -112,43 +111,10 @@ vnode_t * vfs_get_vnode( vnode_t * dir, const char * name )
 
 void vfs_vnode_close(vnode_t * vnode)
 {
-	vnode->fs->vnops->close(vnode);
+	vnode->vnops->close(vnode);
 }
 
 void vfs_fs_close(vnode_t * root)
 {
 	root->fs->fsops->close(root->fs);
-}
-
-static void vnode_mark(void * p)
-{
-	vnode_t * vnode = p;
-	slab_gc_mark(vnode->fs);
-}
-
-static void vnode_finalize(void * p)
-{
-}
-
-static slab_type_t vnodes[1] = {SLAB_TYPE(sizeof(vnodes), vnode_mark, vnode_finalize)};
-
-static vnode_t * vfs_vnode_alloc(fs_t * fs, vnode_type type)
-{
-	vnode_t * vnode = slab_alloc(vnodes);
-
-	vnode->type = type;
-	/* vnode->ops = (fs) ? fs->vnops : 0; */
-	vnode->fs = fs;
-
-	return vnode;
-}
-
-vnode_t * vfs_vnode_directory(fs_t * fs, void * fsnode)
-{
-	return vfs_vnode_alloc(fs, VNODE_DIRECTORY);
-}
-
-vnode_t * vfs_vnode_regular(fs_t * fs, void * fsnode)
-{
-	return vfs_vnode_alloc(fs, VNODE_REGULAR);
 }
