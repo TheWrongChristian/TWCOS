@@ -2,12 +2,20 @@
 
 #if INTERFACE
 
+#include <stdint.h>
 #include <stddef.h>
 
 typedef int64_t inode_t;
 
-typedef struct vnode_ops_s vnode)_ops_t;
-struct vnode_ops_s {
+enum vnode_type { VNODE_REGULAR, VNODE_DIRECTORY, VNODE_DEV, VNODE_FIFO, VNODE_SOCKET };
+#if 0
+typedef struct vnode_ops_s vnode_ops_t;
+typedef struct vnode_s vnode_t;
+typedef struct fs_ops_s fs_ops_t;
+typedef struct fs_s fs_t;
+#endif
+
+struct vnode_ops_t {
 	fs_t * (*get_fs)(vnode_t * vnode);
 	page_t (*get_page)( vnode_t * vnode, off_t offset);
 	void (*put_page)( vnode_t * vnode, off_t offset, page_t page );
@@ -15,26 +23,21 @@ struct vnode_ops_s {
 	void (*close)( vnode_t * vnode );
 };
 
-typedef struct fs_ops_s fs_ops_t;
-struct fs_ops_s {
+struct fs_ops_t {
 	void (*close)(fs_t * fs);
-	vnode_t * (*get_vnode)(fs_t * fs, inode_t inode);
+	vnode_t * (*get_vnode)(vnode_t * dir, const char * name);
 	void (*put_vnode)(vnode_t * vnode);
 	vnode_t * (*open)(vnode_t * dev);
 };
 
-enum vnode_type { VNODE_REGULAR, VNODE_DIRECTORY, VNODE_DEV, VNODE_FIFO, VNODE_SOCKET };
-
-typedef struct vnode_s vnode_t;
-struct vnode_s {
+struct vnode_t {
 	vnode_ops_t * vnops;
 	fs_t * fs;
 	int ref;
 };
 
-typedef struct fs_s fs_t;
-typedef struct fs_s {
-	fs_ops_s * fsops;
+typedef struct fs_t {
+	fs_ops_t * fsops;
 };
  
 #endif
@@ -89,7 +92,7 @@ page_t vfs_get_page( vnode_t * vnode, off_t offset )
 		page_cache_key_t * newkey = malloc(sizeof(*newkey));
 		newkey->vnode = vnode;
 		newkey->offset = offset;
-		page = vnode->fs->vnops->get_page(vnode, offset);
+		page = vnode->vnops->get_page(vnode, offset);
 		map_putpi(page_cache, newkey, page);
 	}
 
@@ -98,7 +101,7 @@ page_t vfs_get_page( vnode_t * vnode, off_t offset )
 
 void vfs_put_page( vnode_t * vnode, off_t offset, page_t page )
 {
-	vnode->fs->vnops->put_page(vnode, offset, page);
+	vnode->vnops->put_page(vnode, offset, page);
 }
 
 vnode_t * vfs_get_vnode( vnode_t * dir, const char * name )
@@ -108,7 +111,7 @@ vnode_t * vfs_get_vnode( vnode_t * dir, const char * name )
 
 void vfs_vnode_close(vnode_t * vnode)
 {
-	vnode->fs->vnops->close(vnode);
+	vnode->vnops->close(vnode);
 }
 
 void vfs_fs_close(vnode_t * root)
