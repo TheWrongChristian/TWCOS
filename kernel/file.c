@@ -2,6 +2,7 @@
 
 
 #if INTERFACE
+#include <stddef.h>
 
 typedef int mode_t;
 
@@ -12,6 +13,10 @@ struct file_t {
 	off_t fp;
 	vnode_t * vnode;
 };
+
+typedef long ssize_t;
+
+#define PROC_MAX_FILE 1024
 
 #endif
 
@@ -46,7 +51,7 @@ static void file_set(int fd, file_t * file)
 int file_open(const char * name, int flags, mode_t mode)
 {
 	KTRY {
-	} KCATCH() {
+	} KCATCH(Exception) {
 	} KFINALLY {
 	}
 
@@ -58,8 +63,8 @@ ssize_t file_read(int fd, void * buf, size_t count)
 {
 	KTRY {
 		file_t * file = file_get(fd);
-		thread_lock(file)
-	} KCATCH() {
+		thread_lock(file);
+	} KCATCH(Exception) {
 	}
 	return 0;
 }
@@ -68,8 +73,8 @@ ssize_t file_write(int fd, void * buf, size_t count)
 {
 	KTRY {
 		file_t * file = file_get(fd);
-		thread_lock(file)
-	} KCATCH() {
+		thread_lock(file);
+	} KCATCH(Exception) {
 	}
 	return 0;
 }
@@ -78,6 +83,6 @@ void file_close(int fd)
 {
 	KTRY {
 		file_t * file_get(fd);
-	} KCATCH() {
+	} KCATCH(Exception) {
 	}
 }
