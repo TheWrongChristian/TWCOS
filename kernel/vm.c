@@ -118,6 +118,8 @@ void vm_init()
 	tree_init();
 	kas = tree_new(0, TREE_TREAP);
 	vmpages = vector_new();
+	thread_gc_root(kas);
+	thread_gc_root(vmpages);
 }
 
 static void vm_invalid_pointer(void * p, int write, int user, int present)

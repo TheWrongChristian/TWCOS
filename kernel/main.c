@@ -30,6 +30,7 @@ void kernel_main() {
 		thread_init();
 		slab_init();
 		page_cache_init();
+		container_init();
 
 		exception_test();
 		thread_test();
