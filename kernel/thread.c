@@ -493,7 +493,6 @@ void thread_gc()
 	thread_cleanlocks();
 	slab_gc_begin();
 	slab_gc_mark(arch_get_thread());
-	slab_gc_mark(kas);
 	for(int i=0; i<sizeof(queue)/sizeof(queue[0]); i++) {
 		slab_gc_mark(queue[i]);
 	}
