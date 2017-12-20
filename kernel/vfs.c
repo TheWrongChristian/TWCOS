@@ -4,10 +4,10 @@
 
 #include <stdint.h>
 #include <stddef.h>
+#include <stdint.h>
 
 typedef int64_t inode_t;
 
-enum vnode_type { VNODE_REGULAR, VNODE_DIRECTORY, VNODE_DEV, VNODE_FIFO, VNODE_SOCKET };
 #if 0
 typedef struct vnode_ops_s vnode_ops_t;
 typedef struct vnode_s vnode_t;
@@ -29,6 +29,8 @@ struct fs_ops_t {
 	void (*put_vnode)(vnode_t * vnode);
 	vnode_t * (*open)(vnode_t * dev);
 };
+
+enum vnode_type { VNODE_REGULAR, VNODE_DIRECTORY, VNODE_DEV, VNODE_FIFO, VNODE_SOCKET };
 
 struct vnode_t {
 	vnode_ops_t * vnops;
