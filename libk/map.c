@@ -322,3 +322,15 @@ void map_test(map_t * map, map_t * akmap)
 		map_removepp(map, data[i]);
 	}
 }
+
+static void map_put_all_walk(void *p,map_key key,map_data data)
+{
+	map_t * to = (map_t *)p;
+
+	map_put(to, key, data);
+}
+
+void map_put_all( map_t * to, map_t * from )
+{
+	map_walk(from, map_put_all_walk, to);
+}
