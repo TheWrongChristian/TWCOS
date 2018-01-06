@@ -49,6 +49,18 @@ static map_t * process_duplicate_as(process_t * from)
 	return as;
 }
 
+static void process_nextpid( process_t * process )
+{
+	static int lock[] = {0};
+	container_t * container = process->container;
+
+	spin_lock(lock);
+	do {
+		 process->pid = container->nextpid++;
+	} while(map_getip(container->pids, process->pid));
+	spin_unlock(lock);
+}
+
 
 slab_type_t processes[] = {SLAB_TYPE(sizeof(process_t), 0, 0)};
 
@@ -67,6 +79,9 @@ pid_t process_fork()
 	new->files = vector_new();
 	map_put_all(new->files, current->files);
 	new->parent = current;
+
+	/* Find an unused pid */
+	process_nextpid(new);
 
 	return 0;
 }
