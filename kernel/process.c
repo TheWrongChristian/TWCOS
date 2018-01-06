@@ -42,7 +42,7 @@ static void process_duplicate_as_copy_seg(void * p, void * key, void * data)
 
 static map_t * process_duplicate_as(process_t * from)
 {
-	map_t * as = arraymap_new(0, 512);
+	map_t * as = arraymap_new(0, 200);
 
 	map_walk(from->as, process_duplicate_as_copy_seg, as);
 
@@ -61,8 +61,23 @@ static void process_nextpid( process_t * process )
 	spin_unlock(lock);
 }
 
-
 slab_type_t processes[] = {SLAB_TYPE(sizeof(process_t), 0, 0)};
+
+void process_init()
+{
+	INIT_ONCE();
+
+	container_init();
+
+	/* Sculpt initial process */
+	process_t * process = slab_alloc(processes);
+	arch_get_thread()->process = process;
+	process->as = arraymap_new(0, 200);
+	process->parent = 0;
+	process->container = container_get(0);
+	process->files = vector_new();
+	process_nextpid(process);
+}
 
 pid_t process_fork()
 {
@@ -83,5 +98,12 @@ pid_t process_fork()
 	/* Find an unused pid */
 	process_nextpid(new);
 
-	return 0;
+	/* Finally, new thread */
+	if (0 == thread_fork()) {
+		/* Child thread */
+		arch_get_thread()->process = new;
+		return 0;
+	}
+
+	return new->pid;
 }
