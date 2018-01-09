@@ -68,13 +68,15 @@ int file_open(const char * name, int flags, mode_t mode)
 
 ssize_t file_read(int fd, void * buf, size_t count)
 {
+	check_int_bounds(fd, 0, PROC_MAX_FILE, "Invalid fd");
+	ssize_t retcode = 0;
 	KTRY {
 		file_t * file = file_get(fd);
 		thread_lock(file);
 		thread_unlock(file);
 	} KCATCH(Exception) {
 	}
-	return 0;
+	return retcode;
 }
 
 ssize_t file_write(int fd, void * buf, size_t count)
