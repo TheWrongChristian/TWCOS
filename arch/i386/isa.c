@@ -164,6 +164,7 @@ void arch_idle()
 		thread_lock(arch_idle);
 		thread_gc();
 		thread_unlock(arch_idle);
+		thread_yield();
 	}
 	kernel_panic("idle finished");
 }

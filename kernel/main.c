@@ -21,6 +21,13 @@
 static void idle() {
 	arch_idle();
 }
+
+static void run_init() {
+	kernel_printk("In process %d\n", arch_get_thread()->process->pid);
+	while(1) {
+		thread_yield();
+	}
+}
  
 void kernel_main() {
 	/* Initialize console interface */
@@ -30,6 +37,11 @@ void kernel_main() {
 		thread_init();
 		slab_init();
 		page_cache_init();
+		process_init();
+		/* Create process 1 - init */
+		if (0 == process_fork()) {
+			run_init();
+		}
 
 		exception_test();
 		thread_test();
