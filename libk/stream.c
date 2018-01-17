@@ -3,12 +3,12 @@
 
 #include "stream.h"
 
-static void stream_putc(struct stream * stream, char c)
+static void stream_putc(stream_t * stream, char c)
 {
 	stream->ops->putc(stream, c);
 }
 
-static int stream_tell(struct stream * stream)
+static int stream_tell(stream_t * stream)
 {
 	return stream->ops->tell(stream);
 }
@@ -18,7 +18,7 @@ static int stream_tell(struct stream * stream)
 #endif
 
 static char * digits = "0123456789abcdef";
-static void stream_putuint(struct stream * stream, int base, uint32_t i)
+static void stream_putuint(stream_t * stream, int base, uint32_t i)
 {
 	if (abs(i)<base) {
 		stream_putc(stream, digits[i]);
@@ -28,7 +28,7 @@ static void stream_putuint(struct stream * stream, int base, uint32_t i)
 	}
 }
 
-static void stream_putulong(struct stream * stream, int base, uint64_t i)
+static void stream_putulong(stream_t * stream, int base, uint64_t i)
 {
 	if (i<base) {
 		stream_putc(stream, digits[i]);
@@ -38,7 +38,7 @@ static void stream_putulong(struct stream * stream, int base, uint64_t i)
 	}
 }
 
-static void stream_putint(struct stream * stream, int base, int i)
+static void stream_putint(stream_t * stream, int base, int i)
 {
 	if (i<base) {
 		if (i<0) {
@@ -51,7 +51,7 @@ static void stream_putint(struct stream * stream, int base, int i)
 	}
 }
 
-static void stream_putstr(struct stream * stream, const char * s)
+static void stream_putstr(stream_t * stream, const char * s)
 {
 	char c;
 	while((c = *s++)) {
@@ -59,7 +59,7 @@ static void stream_putstr(struct stream * stream, const char * s)
 	}
 }
 
-static void stream_putptr(struct stream * stream, const void * p)
+static void stream_putptr(stream_t * stream, const void * p)
 {
 	stream_putstr(stream, "0x");
 	stream_putulong(stream, 16, (unsigned int)p);
@@ -93,7 +93,7 @@ static void parse_fmt_opts( struct fmt_opts * opts, const char * s )
 }
 #endif
 
-int stream_vprintf(struct stream * stream, const char * fmt, va_list ap)
+int stream_vprintf(stream_t * stream, const char * fmt, va_list ap)
 {
 	long start = stream_tell(stream);
 	char c;
@@ -139,7 +139,7 @@ int stream_vprintf(struct stream * stream, const char * fmt, va_list ap)
 
 	return stream_tell(stream) - start;
 }
-int stream_printf(struct stream * stream, const char * fmt, ...)
+int stream_printf(stream_t * stream, const char * fmt, ...)
 {
 	int len = 0;
 	va_list ap;
@@ -155,47 +155,52 @@ int stream_printf(struct stream * stream, const char * fmt, ...)
 /*
  * null stream - Discard any characters
  */
+typedef struct stream_null stream_null_t;
 struct stream_null {
-	struct stream stream;
+	stream_t stream;
 	long chars;
 } snull;
 
-static void null_putc(struct stream * stream, char c)
+static void null_putc(stream_t * stream, char c)
 {
-	struct stream_null * snull = (struct stream_null *)stream;
+	stream_null_t * snull = container_of(stream, stream_null_t, stream);
 
 	snull->chars++;
 }
 
-static long null_tell(struct stream * stream)
+static long null_tell(stream_t * stream)
 {
-	struct stream_null * snull = (struct stream_null *)stream;
+	stream_null_t * snull = container_of(stream, stream_null_t, stream);
 	return snull->chars;
 }
 
-static struct stream_ops null_ops = {
+static stream_ops_t null_ops = {
 	putc: null_putc,
 	tell: null_tell
 };
 
-struct stream * null_stream()
+stream_t * null_stream()
 {
 	snull.stream.ops = &null_ops;
 	snull.chars = 0;
 
-	return (struct stream *)&snull;
+	return &snull.stream;
 }
 
 #if INTERFACE
 #include <stdarg.h>
 
-struct stream {
-	struct stream_ops * ops;
+typedef struct stream_t stream_t;
+typedef struct stream_ops_t stream_ops_t;
+
+struct stream_t {
+	stream_ops_t * ops;
 };
 
-struct stream_ops {
-	void (*putc)(struct stream * stream, char c);
-	long (*tell)(struct stream * stream);
+struct stream_ops_t {
+	void (*putc)(stream_t * stream, char c);
+	long (*tell)(stream_t * stream);
 };
+
 #endif
 

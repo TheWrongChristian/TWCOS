@@ -48,8 +48,8 @@
 enum object_type_e { OBJECT_DIRECT, OBJECT_ANON, OBJECT_FILE };
 
 typedef struct vmobject_ops_s {
-	page_t (*get_page)(struct vmobject_s * object, int offset);
-	void (*put_page)(struct vmobject_s * object, int offset, page_t page);
+	page_t (*get_page)(struct vmobject_s * object, off_t offset);
+	void (*put_page)(struct vmobject_s * object, off_t offset, page_t page);
 } vmobject_ops_t;
 
 typedef struct vmobject_s {
@@ -65,6 +65,7 @@ typedef struct vmobject_s {
 			map_t * pages;
 		} anon;
 		struct {
+			vnode_t * vnode;
 		} file;
 	};
 } vmobject_t;
@@ -83,7 +84,6 @@ typedef struct vm_page_s {
 	int flags;
 } vm_page_t;
 
-typedef void (*segment_faulter)(struct segment_s * seg, void * p, int write, int user, int present);
 typedef struct segment_s {
 	void * base;
 	size_t size;
@@ -96,12 +96,18 @@ typedef struct segment_s {
 	off_t read_offset;
 	vmobject_t * clean;
 } segment_t;
+
+#define VMPAGE_PINNED 0x1
+#define VMPAGE_ACCESSED 0x2
+#define VMPAGE_DIRTY 0x4
+
 #endif
 
 typedef struct segment_anonymous_s {
 	segment_t segment;
 }segment_anonymous_t;
 
+static map_t * vmpages;
 map_t * kas;
 static slab_type_t segments[1] = {SLAB_TYPE(sizeof(segment_t), 0, 0)};
 static slab_type_t objects[1] = {SLAB_TYPE(sizeof(vmobject_t), 0, 0)};
@@ -111,11 +117,27 @@ void vm_init()
 
 	tree_init();
 	kas = tree_new(0, TREE_TREAP);
+	vmpages = vector_new();
+	thread_gc_root(kas);
+	thread_gc_root(vmpages);
 }
 
 static void vm_invalid_pointer(void * p, int write, int user, int present)
 {
 	kernel_panic("Invalid pointer: %p\n", p);
+}
+
+static segment_t * vm_get_segment(map_t * as, void * p)
+{
+	/* Check for kernel address space */
+	if (0 == as) {
+		as = kas;
+	}
+	thread_lock(as);
+	segment_t * seg = map_getpp_cond(as, p, MAP_LE);
+	thread_unlock(as);
+
+	return seg;
 }
 
 void vm_page_fault(void * p, int write, int user, int present)
@@ -132,16 +154,21 @@ void vm_page_fault(void * p, int write, int user, int present)
 	}
 
 	if (seg) {
-
 		long offset = (char*)p - (char*)seg->base;
 
 		if (offset < seg->size) {
+			/* Adjust p to page boundary */
+			p = ARCH_PAGE_ALIGN(p);
 			if (!present) {
 				page_t page = seg->dirty->ops->get_page(seg->dirty, offset);
-				vmap_map(as, p, page, SEGMENT_W & seg->perms, SEGMENT_U & seg->perms);
+				vmap_map(as, p, page, write && SEGMENT_W & seg->perms, SEGMENT_U & seg->perms);
+				vm_vmpage_map(page, as, p);
+				vm_vmpage_setflags(page, VMPAGE_ACCESSED | (write) ? VMPAGE_DIRTY : 0);
 			} else if (write && SEGMENT_W & seg->perms) {
 				page_t page = vmap_get_page(as, p);
-				vmap_map(as, p, page, SEGMENT_W & seg->perms, SEGMENT_U & seg->perms);
+				vmap_map(as, p, page, write && SEGMENT_W & seg->perms, SEGMENT_U & seg->perms);
+				vm_vmpage_map(page, as, p);
+				vm_vmpage_setflags(page, VMPAGE_ACCESSED | VMPAGE_DIRTY);
 			} else {
 				vm_invalid_pointer(p, write, user, present);
 			}
@@ -163,6 +190,7 @@ static page_t vm_anon_get_page(vmobject_t * anon, int offset)
 
 	if (!page) {
 		page = page_alloc();
+		map_put(anon->anon.pages, offset >> ARCH_PAGE_SIZE_LOG2, page);
 	}
 
 	return page;
@@ -311,4 +339,140 @@ void * vm_kas_get_aligned( size_t size, size_t align )
 void * vm_kas_get( size_t size )
 {
 	return vm_kas_get_aligned(size, sizeof(intptr_t));
+}
+
+static int vmpages_lock;
+
+typedef struct vmpage_s {
+	int count;
+	int flags;
+	int age;
+	struct {
+		asid as;
+		void * p;
+	} maps[];
+} vmpage_t;
+
+void vm_vmpage_map( page_t page, asid as, void * p )
+{
+	SPIN_AUTOLOCK(&vmpages_lock) {
+		vmpage_t * vmpage = map_getip(vmpages, page);
+		int count = 1;
+
+		if (vmpage) {
+			/* Check if we already have this mapping */
+			for(int i=0; i<vmpage->count; i++) {
+				if (vmpage->maps[i].as == as && vmpage->maps[i].p == p) {
+					spin_unlock(&vmpages_lock);
+					return;
+				}
+			}
+
+			count = vmpage->count + 1;
+		}
+
+		vmpage = realloc(vmpage, sizeof(*vmpage) + count*sizeof(vmpage->maps[0]));
+		vmpage->count = count;
+		vmpage->maps[count-1].as = as;
+		vmpage->maps[count-1].p = p;
+
+		/* vmpage might have changed in realloc, update it */
+		map_putip(vmpages, page, vmpage);
+	}
+}
+
+void vm_vmpage_unmap( page_t page, asid as, void * p )
+{
+	SPIN_AUTOLOCK(&vmpages_lock) {
+		vmpage_t * vmpage = map_getip(vmpages, page);
+
+		if (vmpage)  {
+			for(int i=0; i<vmpage->count; i++) {
+				if (vmpage->maps[i].as == as && vmpage->maps[i].p == p) {
+					vmpage->maps[i].as = vmpage->maps[vmpage->count-1].as;
+					vmpage->maps[i].p = vmpage->maps[vmpage->count-1].p;
+					i = vmpage->count--;
+				}
+			}
+		}
+	}
+}
+
+void vm_vmpage_setflags(page_t page, int flags)
+{
+	SPIN_AUTOLOCK(&vmpages_lock) {
+		vmpage_t * vmpage = map_getip(vmpages, page);
+
+		if (vmpage)  {
+			vmpage->flags |= flags;
+		}
+	}
+}
+
+void vm_vmpage_resetflags(page_t page, int flags)
+{
+	SPIN_AUTOLOCK(&vmpages_lock) {
+		vmpage_t * vmpage = map_getip(vmpages, page);
+
+		if (vmpage)  {
+			vmpage->flags &= ~flags;
+		}
+	}
+}
+
+void vm_vmpage_trapwrites(page_t page)
+{
+	SPIN_AUTOLOCK(&vmpages_lock) {
+		vmpage_t * vmpage = map_getip(vmpages, page);
+		if (vmpage)  {
+			for(int i=0; i<vmpage->count; i++) {
+				asid as = vmpage->maps[i].as;
+				void * p = vmpage->maps[i].p;
+
+				/* Mark each mapping as read only */
+				if (vmap_ismapped(as, p)) {
+					//int user = vmap_isuser(as, p);
+					//vmap_map(as, p, page, 0, user);
+					vmap_unmap(as, p);
+				}
+			}
+		}
+	}
+}
+
+void vm_vmpage_trapaccess(page_t page)
+{
+	SPIN_AUTOLOCK(&vmpages_lock) {
+		vmpage_t * vmpage = map_getip(vmpages, page);
+		if (vmpage)  {
+			for(int i=0; i<vmpage->count; i++) {
+				asid as = vmpage->maps[i].as;
+				void * p = vmpage->maps[i].p;
+
+				/* Remove each mapping */
+				if (vmap_ismapped(as, p)) {
+					vmap_unmap(as, p);
+				}
+			}
+		}
+	}
+}
+
+void vm_vmpage_age(page_t page)
+{
+	SPIN_AUTOLOCK(&vmpages_lock) {
+		vmpage_t * vmpage = map_getip(vmpages, page);
+		if (vmpage)  {
+			if (vmpage->age) {
+				/* Already referenced before, add age */
+				vmpage->age >>= 1;
+				if (vmpage->flags & VMPAGE_ACCESSED) {
+					vmpage->age |= 0x100;
+				}
+			} else {
+				/* First use */
+				vmpage->age = (vmpage->flags & VMPAGE_ACCESSED) ? 4 : 0;
+			}
+		}
+	}
 }

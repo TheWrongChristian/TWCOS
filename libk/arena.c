@@ -88,9 +88,47 @@ void arena_free(arena_t * arena)
 	thread_unlock(&free_arenas);
 }
 
+static int arena_key = 0;
+arena_t * arena_thread_get()
+{
+	/* Check we have a valid TLS key, init if not */
+	if (0 == arena_key) {
+		thread_lock(arena_thread_get);
+			if (0 == arena_key) {
+				arena_key = tls_get_key();
+			}
+		thread_unlock(arena_thread_get);
+	}
+
+	/* Get the TLS arena, and get a new one if there is none */
+	arena_t * arena = tls_get(arena_key);
+	if (0 == arena) {
+		arena = arena_get();
+		tls_set(arena_key, arena);
+	}
+
+	return arena;
+}
+
+void arena_thread_free()
+{
+	arena_t * arena = arena_thread_get();
+	if (arena) {
+		tls_set(arena_key, 0);
+		arena_free(arena);
+	}
+}
+
+void * tmalloc(size_t size)
+{
+	arena_t * arena = arena_thread_get();
+
+	return arena_alloc(arena, size);
+}
+
 void arena_test()
 {
-	arena_t * arena = arena_get();
+	arena_t * arena = arena_thread_get();
 	arena_state state = arena_getstate(arena);
 	int * p1 = arena_alloc(arena, sizeof(int));
 	int * p2 = arena_alloc(arena, sizeof(int));
