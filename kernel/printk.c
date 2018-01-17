@@ -3,7 +3,7 @@
 #include "printk.h"
 
 
-struct stream * console = 0;
+stream_t * console = 0;
 
 int kernel_printk(const char * fmt, ...)
 {

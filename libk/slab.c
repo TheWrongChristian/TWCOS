@@ -401,6 +401,7 @@ void *realloc(void *p, size_t size)
 		kernel_panic("realloc: Invalid heap pointer: %p\n", p);
 	}
 
+	kernel_panic("realloc: we shouldn't get here!");
 	return 0;
 }
 

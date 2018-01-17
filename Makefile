@@ -14,6 +14,8 @@ subdir := libk
 include $(subdir)/subdir.mk
 subdir := kernel
 include $(subdir)/subdir.mk
+subdir := fs
+include $(subdir)/subdir.mk
 subdir := build
 include $(subdir)/tools.mk
 subdir := arch/$(ARCH)
@@ -38,6 +40,7 @@ clean::
 .gdbinit:
 	echo target remote localhost:1234 | tee .gdbinit
 	echo symbol-file $(KERNEL) | tee -a .gdbinit
+	echo break kernel_main | tee -a .gdbinit
 
 qemu: all .gdbinit
 	qemu-system-i386 -m 16 -s -S -kernel $(KERNEL) &
@@ -46,7 +49,6 @@ run: all
 	qemu-system-i386 -m 16 -kernel $(KERNEL) &
 
 includes::
-	echo rm -f $(SRCS_C:.c=.h)
 	$(MAKEHEADERS) $(SRCS_C)
 
 cflow:

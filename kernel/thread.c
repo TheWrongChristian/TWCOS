@@ -13,6 +13,7 @@ typedef struct thread_s {
 	void * tls[TLS_MAX];
 	arch_context_t context;
 	map_t * as;
+	process_t * process;
 
 	/* Run state */
 	tstate state;
@@ -38,7 +39,9 @@ enum tpriority { THREAD_INTERRUPT = 0, THREAD_NORMAL, THREAD_IDLE, THREAD_PRIORI
 		inited = 1; \
 	} while(0)
 
-#define SPIN_AUTOLOCK(lock) int s##__LINE__ = 0; while((s##__LINE__=spin_autolock(lock, s##__LINE__)))
+#define SPIN_AUTOLOCK_CONCAT(a, b) a ## b
+#define SPIN_AUTOLOCK_VAR(line) SPIN_AUTOLOCK_CONCAT(s,line)
+#define SPIN_AUTOLOCK(lock) int SPIN_AUTOLOCK_VAR(__LINE__) = 0; while((SPIN_AUTOLOCK_VAR(__LINE__) =spin_autolock(lock, SPIN_AUTOLOCK_VAR(__LINE__) )))
 
 #endif
 
@@ -203,6 +206,7 @@ static struct lock_s * thread_lock_get(void * p)
 		if (spin_trylock(&locktablespin)) {
 			if (0 == locktable) {
 				locktable = tree_new(0, TREE_SPLAY);
+				thread_gc_root(locktable);
 			}
 
 			lock_t * lock = map_getpp(locktable, p);
@@ -476,18 +480,32 @@ void thread_set_priority(thread_t * thread, tpriority priority)
 	thread->priority = priority;
 }
 
+map_t * roots;
+
 static void thread_cleanlocks();
+static thread_gc_walk(void * p, void * key, void * d)
+{
+	slab_gc_mark(key);
+}
+
 void thread_gc()
 {
 	thread_cleanlocks();
 	slab_gc_begin();
 	slab_gc_mark(arch_get_thread());
-	slab_gc_mark(kas);
 	for(int i=0; i<sizeof(queue)/sizeof(queue[0]); i++) {
 		slab_gc_mark(queue[i]);
 	}
-	slab_gc_mark(locktable);
+	map_walkpp(roots, thread_gc_walk, 0);
 	slab_gc_end();
+}
+
+void thread_gc_root(void * p)
+{
+	if (0 == roots) {
+		roots = arraymap_new(0, 128);
+	}
+	map_putpp(roots, p, p);
 }
 
 static void thread_mark(void * p)
