@@ -176,7 +176,9 @@ static void pit_timer_int()
 		} else {
 			ticks = 0;
 			if (pit_expire) {
+				spin_unlock(pit_lock);
 				pit_expire();
+				spin_lock(pit_lock);
 			}
 		}
 	}
