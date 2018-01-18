@@ -240,8 +240,7 @@ void arch_idle()
 			kernel_printk("%d\n", irq);
 			break;
 		}
-		uint8_t scancode = keyq_get();
-		if (scancode) {
+		for(uint8_t scancode = keyq_get(); scancode; scancode = keyq_get()) {
 			kernel_printk("%x\n", scancode);
 			if (0x13 == scancode) {
 				reset();
