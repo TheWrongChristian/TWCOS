@@ -34,10 +34,13 @@ void kernel_main() {
 	arch_init();
 
 	KTRY {
+		/* Initialize subsystems */
 		thread_init();
 		slab_init();
 		page_cache_init();
 		process_init();
+		timer_init(arch_timer_ops());
+
 		/* Create process 1 - init */
 		if (0 == process_fork()) {
 			run_init();
@@ -51,6 +54,7 @@ void kernel_main() {
 		vector_test();
 		arena_test();
 		tarfs_test();
+		timer_test();
 
 		char * p = arch_heap_page();
 		char c = *p;
