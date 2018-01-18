@@ -47,8 +47,10 @@ static void timer_expire()
 			timers->queue = timer->next;
 			timer->next = 0;
 
+			spin_unlock(timers->lock);
 			/* Call the callback */
 			timer->cb(timer->p);
+			spin_lock(timers->lock);
 
 			/* Start next timer */
 			if (timers->queue) {
@@ -128,7 +130,9 @@ void timer_delete(timer_event_t * timer)
 		}
 
 		/* Set the timer */
-		timers->ops->timer_set(timer_expire, timers->queue->usec);
+		if (timers->queue) {
+			timers->ops->timer_set(timer_expire, timers->queue->usec);
+		}
 	}
 }
 
@@ -149,9 +153,29 @@ void timer_sleep(timerspec_t usec)
 	thread_unlock(&timer);
 }
 
+static timer_event_t * test_timer;
+static void timer_test_cb(void * p);
+static void timer_start_timer()
+{
+	test_timer = timer_add(500000, timer_test_cb, 0);
+}
+
+static void timer_test_cb(void * p)
+{
+	kernel_printk(".");
+	timer_start_timer();
+}
+
 void timer_test()
 {
-	kernel_printk("Sleeping for 1 second...");
+	kernel_printk("Sleeping for 1 second");
+	timer_start_timer();
 	timer_sleep(1000000);
 	kernel_printk(" done\n");
+	timer_delete(test_timer);
+	kernel_printk("Sleeping for 5 second");
+	timer_start_timer();
+	timer_sleep(5000000);
+	kernel_printk(" done\n");
+	timer_delete(test_timer);
 }
