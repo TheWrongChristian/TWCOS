@@ -1,2 +1,2 @@
-SRCS_KERNEL_C := $(subdir)/main.c  $(subdir)/core.c  $(subdir)/pci.c  $(subdir)/printk.c  $(subdir)/panic.c $(subdir)/thread.c $(subdir)/check.c $(subdir)/vm.c $(subdir)/vfs.c $(subdir)/file.c $(subdir)/dev.c $(subdir)/process.c $(subdir)/container.c
+SRCS_KERNEL_C := $(subdir)/main.c  $(subdir)/core.c  $(subdir)/pci.c  $(subdir)/printk.c  $(subdir)/panic.c $(subdir)/thread.c $(subdir)/check.c $(subdir)/vm.c $(subdir)/vfs.c $(subdir)/file.c $(subdir)/dev.c $(subdir)/process.c $(subdir)/container.c $(subdir)/timer.c
 SRCS_C += $(SRCS_KERNEL_C)
