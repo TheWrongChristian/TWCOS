@@ -1,6 +1,6 @@
 SRCS_C += $(subdir)/tarfs.c $(subdir)/tarfs.tar.c
 
-TARFS_FILES := $(SRCS_KERNEL_C)
+TARFS_FILES := $(SRCS_KERNEL_C) $(SRCS_LIBK_C)
 TARFS_TAR := $(subdir)/tarfs.tar
 TARFS_TAR_C := $(subdir)/tarfs.tar.c
 
