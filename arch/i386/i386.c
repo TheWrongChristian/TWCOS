@@ -80,14 +80,19 @@ void set_page_dir(page_t pgdir)
 	asm volatile("movl %0, %%cr3" : : "a"(pgdir << ARCH_PAGE_SIZE_LOG2));
 }
 
+static int cli_level = 0;
 void sti()
 {
-	asm volatile("sti");
+	if (0 >= --cli_level) {
+		cli_level = 0;
+		asm volatile("sti");
+	}
 }
 
 void cli()
 {
 	asm volatile("cli");
+	cli_level++;
 }
 
 void hlt()
