@@ -126,6 +126,15 @@ void * tmalloc(size_t size)
 	return arena_alloc(arena, size);
 }
 
+char * tstrdup(char * s)
+{
+	int len = strlen(s);
+	char * ret = tmalloc(len+1);
+
+	ret[len] = 0;
+        return memcpy(ret, s, len);
+}
+
 void arena_test()
 {
 	arena_t * arena = arena_thread_get();

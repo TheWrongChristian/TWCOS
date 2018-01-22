@@ -49,6 +49,16 @@ int strncmp( const char * s1, const char * s2, size_t n )
 	return *s1 - *s2;
 }
 
+int strlen(const char * s)
+{
+	int l = 0;
+	while(s[l]) {
+		l++;
+	}
+
+	return l;
+}
+
 #if 0
 char * strdup( const char * s)
 {
@@ -115,6 +125,112 @@ char ** ssplit( const char * str, int sep )
 	}
 	/* Not reached */
 	return 0;
+}
+
+const char * strchr(const char * s, int c)
+{
+	for(int i=0; s[i]; i++) {
+		if (c == s[i]) {
+			return s+i;
+		}
+	}
+
+	return 0;
+}
+
+const char * strrchr(const char * s, int c)
+{
+	const char * last = 0;
+
+	/* FIXME: UTF-8 */
+	for(int i=0; s[i]; i++) {
+		if (c == s[i]) {
+			last = s+i;
+		}
+	}
+
+	return last;
+}
+
+int starts_with(const char * s, const char * head)
+{
+	int slen = strlen(s);
+	int hlen = strlen(head);
+
+	if (hlen > slen) {
+		return 0;
+	}
+
+	return (0 == strncmp(s, head, hlen));
+}
+
+int ends_with(const char * s, const char * tail)
+{
+	int slen = strlen(s);
+	int tlen = strlen(tail);
+
+	if (tlen > slen) {
+		return 0;
+	}
+
+	return (0 == strcmp(s+slen-tlen, tail));
+}
+
+/*
+ * Common constants for dirname and basename
+ */
+static char dot[] = ".";
+static char slash[] = "/";
+
+static char * basedirname(char * path, int dirname)
+{
+	/*
+	 * We follow POSIX behaviour, which may change path
+	 * and return a pointer within path.
+	 */
+	int plen = strlen(path);
+
+	while(plen && '/' == path[plen-1]) {
+		/* Strip trailing / */
+		path[plen-1] = 0;
+		plen--;
+	}
+
+	char * lastslash = (char*)strrchr(path, '/');
+
+	if (0 == lastslash) {
+		/* No slash */
+		if (dirname) {
+			/* dirname is . */
+			return dot;
+		} else {
+			/* basename is path */
+			return path;
+		}
+	} else if (lastslash == path) {
+		/* Only slash is root */
+		if (dirname) {
+			return slash;
+		} else {
+			return path+1;
+		}
+	} else {
+		*lastslash = 0;
+		if (dirname) {
+			return path;
+		} else {
+			return lastslash+1;
+		}
+	}
+}
+
+char * dirname(char * path)
+{
+	return basedirname(path, 1);
+}
+char * basename(char * path)
+{
+	return basedirname(path, 0);
 }
 
 typedef struct stream_string stream_string_t;

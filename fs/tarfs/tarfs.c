@@ -2,16 +2,26 @@
 
 #include "tarfs.h"
 
-typedef struct tarfs_s {
+typedef struct tarfs_t tarfs_t;
+typedef struct tarfs_header_t tarfs_header_t;
+typedef struct tarfsnode_t tarfsnode_t;
+typedef struct tarfs_dirent_t tarfs_dirent_t;
+
+struct tarfs_t {
 	fs_ops_t * ops;
 
 	map_t * vnodes;
+	map_t * tree;
 
 	dev_t * dev;
-} tarfs_t;
+
+	inode_t inext;
+
+	fs_t fs;
+};
 
 
-typedef struct tarfs_header_s {
+struct tarfs_header_t {
 	char name[100];
 	char mode[8];
 	char uid[8];
@@ -28,12 +38,18 @@ typedef struct tarfs_header_s {
 	char major[8];
 	char minor[8];
 	char prefix[155];
-} tarfs_header_t;
+};
 
-typedef struct tarfsnode_s {
-	tarfs_t * fs;
+struct tarfsnode_t {
 	off_t offset;
-} tarfsnode_t;
+
+	vnode_t vnode;
+};
+
+struct tarfs_dirent_t {
+	inode_t dir;
+	char * name;
+};
 
 #define TAR_BLOCKSIZE 512
 
@@ -157,21 +173,48 @@ static char * tarfs_fullname(tarfs_header_t * h)
 	}
 }
 
-static vnode_t * tarfs_add_node( tarfs_t * fs, const char * fullname, vnode_t * vnode )
+static void tarfs_add_node( tarfs_t * fs, const char * fullname, tarfsnode_t * vnode )
 {
-	vnode_t * dir;
-
 	/* Skip over any leading / */
 	if ('/' == *fullname) {
 		fullname++;
 	}
 
-	char ** paths = ssplit(fullname, '/');
-	for( int i=0; paths[i]; i++ ) {
-		char * name = paths[i];
-
-		if (*paths[i]) {
+	/* Start scanning from root */
+	inode_t dnode = 1;
+	char ** dirs = ssplit(dirname(tstrdup(fullname)), '/');
+	for( int i=0; dirs[i]; i++ ) {
+		if (*dirs[i]) {
+			tarfs_dirent_t dirent = { dnode, dirs[i] };
+			inode_t inode = map_getpi(fs->tree, &dirent);
+			if (0 == inode) {
+				/* Fake a directory */
+				inode = fs->inext++;
+				tarfs_dirent_t * newdirent = malloc(sizeof(*newdirent));
+				newdirent->dir = dnode;
+				newdirent->name = dirs[i];
+				map_putpi(fs->tree, newdirent, inode);
+			}
+			dnode = inode;
 		}
+	}
+
+	/* dnode is the directory, file is the new file name */
+	char * file = basename(tstrdup(fullname));
+	tarfs_dirent_t dirent = { dnode, file };
+	inode_t inode = map_getpi(fs->tree, &dirent);
+	if (inode) {
+		/* File already exists, discard old one */
+		map_putip(fs->vnodes, inode, vnode);
+	} else {
+		/* New file, get new inode */
+		tarfs_dirent_t * newdirent = malloc(sizeof(*newdirent));
+		newdirent->dir = dnode;
+		newdirent->name = file;
+		inode = fs->inext++;
+
+		map_putip(fs->vnodes, inode, vnode);
+		map_putpi(fs->tree, newdirent, inode);
 	}
 }
 
@@ -181,6 +224,11 @@ static void tarfs_regularfile( tarfs_t * fs, tarfs_header_t * h, off_t offset )
 	char * fullname = tarfs_fullname(h);
 
 	kernel_printk("Regular  : %s\n", fullname);
+
+	tarfsnode_t * node = malloc(sizeof(*node));
+	vfs_vnode_init(&node->vnode, VNODE_REGULAR, &fs->fs);
+	node->offset = offset;
+	tarfs_add_node(fs, fullname, node);
 }
 
 static void tarfs_directory( tarfs_t * fs, tarfs_header_t * h )
@@ -203,7 +251,7 @@ static off_t tarfs_nextheader( tarfs_header_t * h, off_t offset )
 		/* Regular file */
 		size_t size = tarfs_otoi(h->size, sizeof(h->size));
 
-		size += TAR_BLOCKSIZE;
+		size += TAR_BLOCKSIZE-1;
 		size &= ~(TAR_BLOCKSIZE-1);
 		offset += size;
 	}
@@ -211,9 +259,34 @@ static off_t tarfs_nextheader( tarfs_header_t * h, off_t offset )
 	return offset;
 }
 
+static int tarfs_dirent_cmp(void * p1, void * p2)
+{
+	tarfs_dirent_t * d1 = p1;
+	tarfs_dirent_t * d2 = p2;
+
+	int dir_diff = d1->dir-d2->dir;
+	if (0 == dir_diff) {
+		return strcmp(d1->name, d2->name);
+	}
+
+	return dir_diff;
+}
+
+static tarfs_dirent_t * tarfs_dirent_new(inode_t dir, char * name)
+{
+	tarfs_dirent_t * dirent = malloc(sizeof(*dirent));
+
+	dirent->dir = dir;
+	dirent->name = name;
+
+	return dirent;
+}
+
 static void tarfs_scan( tarfs_t * fs )
 {
-	fs->vnodes = tree_new(map_strcmp, TREE_TREAP);
+	fs->vnodes = vector_new();
+	fs->tree = tree_new(tarfs_dirent_cmp, TREE_TREAP);
+	fs->inext = 2; /* 1 is the root inode */
 	off_t offset = 0;
 	arena_t * arena = arena_get();
 	void * buf = arena_alloc(arena, TAR_BLOCKSIZE);
