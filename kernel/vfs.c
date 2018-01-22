@@ -33,9 +33,10 @@ struct fs_ops_t {
 enum vnode_type { VNODE_REGULAR, VNODE_DIRECTORY, VNODE_DEV, VNODE_FIFO, VNODE_SOCKET };
 
 struct vnode_t {
-	vnode_ops_t * vnops;
-	fs_t * fs;
 	int ref;
+	int type;
+	fs_t * fs;
+	vnode_ops_t * vnops;
 };
 
 typedef struct fs_t {
@@ -119,4 +120,11 @@ void vfs_vnode_close(vnode_t * vnode)
 void vfs_fs_close(vnode_t * root)
 {
 	root->fs->fsops->close(root->fs);
+}
+
+void vfs_vnode_init(vnode_t * vnode, vnode_type type, fs_t * fs)
+{
+	vnode->type = type;
+	vnode->fs = fs;
+	vnode->ref = 1;
 }
