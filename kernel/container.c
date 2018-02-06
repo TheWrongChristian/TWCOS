@@ -20,7 +20,7 @@ void container_init()
 	INIT_ONCE();
 
 	/* Create the root container */
-	container_t * container = malloc(sizeof(container));
+	container_t * container = malloc(sizeof(*container));
 	container->nextpid = 0;
 	container->pids = tree_new(0, TREE_TREAP);
 
