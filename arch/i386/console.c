@@ -38,8 +38,8 @@ static uint16_t make_vgaentry(char c, uint8_t color) {
 static const size_t VGA_WIDTH = 80;
 static const size_t VGA_HEIGHT = 25;
  
-static size_t console_row;
-static size_t console_column;
+static int console_row;
+static int console_column;
 static uint8_t console_color;
 static uint16_t* console_buffer;
 
