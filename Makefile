@@ -60,6 +60,12 @@ cxref:
 ctags:
 	ctags $(SRCS_C)
 
+cppcheck:
+	cppcheck $(SRCS_C)
+
+cppcheck-gui:
+	cppcheck-gui $(SRCS_C)
+
 -include $(OBJS:.o=.d)
 
 clean::
