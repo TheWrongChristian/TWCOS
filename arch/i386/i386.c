@@ -293,7 +293,7 @@ static void i386_sx(uint32_t num, uint32_t * state)
 #include <stdint.h>
 #include <setjmp.h>
 typedef void (*irq_func)();
-#define ARCH_PAGE_ALIGN(p) ((void*)((uint32_t)p & (0xffffffff << ARCH_PAGE_SIZE_LOG2)))
+#define ARCH_PAGE_ALIGN(p) ((void*)((uint32_t)(p) & (0xffffffff << ARCH_PAGE_SIZE_LOG2)))
 
 typedef struct {
 	void * stack;
