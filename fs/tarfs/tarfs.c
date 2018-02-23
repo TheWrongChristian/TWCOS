@@ -8,8 +8,6 @@ typedef struct tarfsnode_t tarfsnode_t;
 typedef struct tarfs_dirent_t tarfs_dirent_t;
 
 struct tarfs_t {
-	fs_ops_t * ops;
-
 	map_t * vnodes;
 	map_t * tree;
 
@@ -41,7 +39,11 @@ struct tarfs_header_t {
 };
 
 struct tarfsnode_t {
+	/* Offset in tar file */
 	off_t offset;
+
+	size_t size;
+	inode_t inode;
 
 	vnode_t vnode;
 };
@@ -205,7 +207,7 @@ static void tarfs_add_node( tarfs_t * fs, const char * fullname, tarfsnode_t * v
 	inode_t inode = map_getpi(fs->tree, &dirent);
 	if (inode) {
 		/* File already exists, discard old one */
-		map_putip(fs->vnodes, inode, vnode);
+		map_putip(fs->vnodes, inode, &vnode->vnode);
 	} else {
 		/* New file, get new inode */
 		tarfs_dirent_t * newdirent = malloc(sizeof(*newdirent));
@@ -213,21 +215,21 @@ static void tarfs_add_node( tarfs_t * fs, const char * fullname, tarfsnode_t * v
 		newdirent->name = file;
 		inode = fs->inext++;
 
-		map_putip(fs->vnodes, inode, vnode);
+		map_putip(fs->vnodes, inode, &vnode->vnode);
 		map_putpi(fs->tree, newdirent, inode);
 	}
 }
 
 static void tarfs_regularfile( tarfs_t * fs, tarfs_header_t * h, off_t offset )
 {
-	size_t size = tarfs_otoi(h->size, sizeof(h->size));
 	char * fullname = tarfs_fullname(h);
 
 	kernel_printk("Regular  : %s\n", fullname);
 
 	tarfsnode_t * node = malloc(sizeof(*node));
-	vfs_vnode_init(&node->vnode, VNODE_REGULAR, &fs->fs);
+	vnode_init(&node->vnode, VNODE_REGULAR, &fs->fs);
 	node->offset = offset;
+	node->size = tarfs_otoi(h->size, sizeof(h->size));
 	tarfs_add_node(fs, fullname, node);
 }
 
@@ -286,6 +288,13 @@ static void tarfs_scan( tarfs_t * fs )
 {
 	fs->vnodes = vector_new();
 	fs->tree = tree_new(tarfs_dirent_cmp, TREE_TREAP);
+
+	/* Root directory vnode (inode 1) */
+	tarfsnode_t * root = malloc(sizeof(*root));
+	vnode_init(&root->vnode, VNODE_DIRECTORY, &fs->fs);
+	root->inode = 1;
+	map_putip(fs->vnodes, 1, &root->vnode);
+
 	fs->inext = 2; /* 1 is the root inode */
 	off_t offset = 0;
 	arena_t * arena = arena_get();
@@ -336,20 +345,52 @@ static void tarfs_scan( tarfs_t * fs )
 	arena_free(arena);
 }
 
-static page_t tar_get_page(vnode_t * vnode, off_t offset)
+static page_t tarfs_get_page(vnode_t * vnode, off_t offset)
 {
-	return 0;
+	tarfsnode_t * tnode = container_of(vnode, tarfsnode_t, vnode);
+	tarfs_t * tfs = container_of(vnode->fs, tarfs_t, fs);
+
+
+	/* Get a temporary page mapping */
+	arena_t * arena = arena_thread_get();
+	arena_state state = arena_getstate(arena);
+	void * p = arena_palloc(arena, 1);
+	char * buf = p;
+
+	/* Copy the data into the page */
+	offset += TAR_BLOCKSIZE;
+	offset += tnode->offset;
+	for(int i=0; i<ARCH_PAGE_SIZE/TAR_BLOCKSIZE; i++, buf+=TAR_BLOCKSIZE) {
+		tarfs_readblock(tfs, offset, buf);
+	}
+
+	/* Steal the page, and return the page */
+	page_t page = vm_page_steal(p);
+	arena_setstate(arena, state);
+	return page;
 }
 
-static void tar_put_page(vnode_t * vnode, off_t offset, page_t page)
+static void tarfs_put_page(vnode_t * vnode, off_t offset, page_t page)
 {
 	KTHROW(ReadOnlyFileException, "tarfs is read-only");
 }
 
-
-void tarfs_test()
+vnode_t * tarfs_open(dev_t * dev)
 {
+	static vfs_ops_t ops = {
+		get_page: tarfs_get_page
+	};
+
 	tarfs_t * tarfs = malloc(sizeof(*tarfs));
-	tarfs->dev = dev_static(fs_tarfs_tarfs_tar, fs_tarfs_tarfs_tar_len);
+	tarfs->dev = dev;
+	tarfs->fs.fsops = &ops;
 	tarfs_scan(tarfs);
+
+	return map_getip(tarfs->vnodes, 1);
+}
+
+vnode_t * tarfs_test()
+{
+	vnode_t * root = tarfs_open(dev_static(fs_tarfs_tarfs_tar, fs_tarfs_tarfs_tar_len));
+	return root;
 }
