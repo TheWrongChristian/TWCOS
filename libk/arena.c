@@ -48,6 +48,24 @@ void * arena_alloc(arena_t * arena, size_t size)
 	return p;
 }
 
+void * arena_palloc(arena_t * arena, int pages)
+{
+#if 0
+	uintptr_t state = (uintptr_t)arena->state;
+	state += ARCH_PAGE_SIZE-1;
+	state &= ~(ARCH_PAGE_SIZE-1);
+	arena->state = (void*)state;
+#endif
+
+	/* Round up to next page boundary */
+	void * p = arena->state = ARCH_PAGE_ALIGN(arena->state+ARCH_PAGE_SIZE-1);
+
+	/* Advance past the pages we want */
+	arena->state += pages * ARCH_PAGE_SIZE;
+
+	return p;
+}
+
 arena_state arena_getstate(arena_t * arena)
 {
 	return (arena_state)arena->state;
