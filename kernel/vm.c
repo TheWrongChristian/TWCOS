@@ -45,7 +45,7 @@
 #define SEGMENT_U 0x8
 #define SEGMENT_P 0x10
 
-enum object_type_e { OBJECT_DIRECT, OBJECT_ANON, OBJECT_FILE };
+enum object_type_e { OBJECT_DIRECT, OBJECT_ANON, OBJECT_VNODE };
 
 typedef struct vmobject_ops_s {
 	page_t (*get_page)(struct vmobject_s * object, off_t offset);
@@ -66,7 +66,7 @@ typedef struct vmobject_s {
 		} anon;
 		struct {
 			vnode_t * vnode;
-		} file;
+		} vnode;
 	};
 } vmobject_t;
 
@@ -221,10 +221,6 @@ static page_t vm_anon_get_page(vmobject_t * anon, off_t offset)
 	return page;
 }
 
-static vmobject_ops_t anon_ops = {
-	get_page: vm_anon_get_page,
-};
-
 static void vm_object_anon_copy_pages(void * arg, int i, void * p)
 {
 	vm_page_t * vmp = p;
@@ -242,25 +238,26 @@ static void vm_object_anon_copy_walk(void * p, map_key key, map_data data)
 	map_put(anon->anon.pages, key, data);
 }
 
-static vmobject_t * vm_object_anon_copy(vmobject_t * from)
+static vmobject_t * vm_object_anon()
 {
-	check_int_is(from->type, OBJECT_ANON, "Clone object is not anonymous");
+	static vmobject_ops_t anon_ops = {
+		get_page: vm_anon_get_page,
+	};
+
 	vmobject_t * anon = slab_alloc(objects);
 	anon->ops = &anon_ops;
 	anon->type = OBJECT_ANON;
 	anon->anon.pages = vector_new();
-	map_walk(from->anon.pages, vm_object_anon_copy_walk, anon);
-	
+
 	return anon;
 }
 
-static vmobject_t * vm_object_anon()
+static vmobject_t * vm_object_anon_copy(vmobject_t * from)
 {
-	vmobject_t * anon = slab_alloc(objects);
-	anon->ops = &anon_ops;
-	anon->type = OBJECT_ANON;
-	anon->anon.pages = vector_new();
-
+	check_int_is(from->type, OBJECT_ANON, "Clone object is not anonymous");
+	vmobject_t * anon = vm_object_anon();
+	map_walk(from->anon.pages, vm_object_anon_copy_walk, anon);
+	
 	return anon;
 }
 
@@ -276,12 +273,12 @@ static page_t vm_direct_get_page(vmobject_t * direct, off_t offset)
 	return 0;
 }
 
-static vmobject_ops_t direct_ops = {
-	get_page: vm_direct_get_page
-};
-
 static vmobject_t * vm_object_direct( page_t base, int size)
 {
+	static vmobject_ops_t direct_ops = {
+		get_page: vm_direct_get_page
+	};
+
 	vmobject_t * direct = slab_alloc(objects);
 	direct->ops = &direct_ops;
 	direct->type = OBJECT_ANON;
@@ -290,7 +287,25 @@ static vmobject_t * vm_object_direct( page_t base, int size)
 	return direct;
 }
 
-segment_t * vm_segment_base( void * p, size_t size, int perms, vmobject_t * clean, int offset)
+static page_t vm_vnode_get_page(vmobject_t * o, off_t offset)
+{
+	return vnode_get_page(o->vnode.vnode, offset);
+}
+
+static vmobject_t * vm_object_vnode(vnode_t * vnode)
+{
+	static vmobject_ops_t vnode_ops = {
+		get_page: vm_vnode_get_page
+	};
+
+	vmobject_t * ovnode = slab_alloc(objects);
+        ovnode->ops = &vnode_ops;
+        ovnode->type = OBJECT_VNODE;
+        ovnode->vnode.vnode = vnode;
+        return ovnode;
+}
+
+segment_t * vm_segment_base( void * p, size_t size, int perms, vmobject_t * clean, off_t offset)
 {
 	vm_init();
 	segment_t * seg = slab_alloc(segments);
@@ -301,6 +316,17 @@ segment_t * vm_segment_base( void * p, size_t size, int perms, vmobject_t * clea
 	seg->clean = clean;
 	seg->read_offset = offset;
 	seg->dirty = clean;
+
+	return seg;
+}
+
+segment_t * vm_segment_vnode(void * p, size_t size, int perms, vnode_t * vnode, off_t offset)
+{
+	vmobject_t * vobject = vm_object_vnode(vnode);
+	segment_t * seg = vm_segment_base(p, size, perms | SEGMENT_P, vobject, offset);
+	if (perms & SEGMENT_P) {
+		seg->dirty = vm_object_anon();
+	}
 
 	return seg;
 }
