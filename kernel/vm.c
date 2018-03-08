@@ -150,7 +150,7 @@ static int vm_resolve_address(void * p, address_info_t * info)
 	if (0 == seg) {
 		as = arch_get_thread()->as;
 		if (as) {
-			seg = vm_get_segment(kas, p);
+			seg = vm_get_segment(as, p);
 		}
 	}
 
