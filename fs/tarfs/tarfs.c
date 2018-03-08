@@ -191,11 +191,14 @@ static void tarfs_add_node( tarfs_t * fs, const char * fullname, tarfsnode_t * v
 			inode_t inode = map_getpi(fs->tree, &dirent);
 			if (0 == inode) {
 				/* Fake a directory */
-				inode = fs->inext++;
+				tarfsnode_t * dir = malloc(sizeof(*dir));
+				vnode_init(&dir->vnode, VNODE_DIRECTORY, &fs->fs);
+				dir->inode = fs->inext++;
 				tarfs_dirent_t * newdirent = malloc(sizeof(*newdirent));
 				newdirent->dir = dnode;
 				newdirent->name = dirs[i];
-				map_putpi(fs->tree, newdirent, inode);
+				map_putpi(fs->tree, newdirent, dir->inode);
+				map_putip(fs->vnodes, dir->inode, &dir->vnode);
 			}
 			dnode = inode;
 		}
@@ -375,10 +378,29 @@ static void tarfs_put_page(vnode_t * vnode, off_t offset, page_t page)
 	KTHROW(ReadOnlyFileException, "tarfs is read-only");
 }
 
+static vnode_t * tarfs_get_vnode(vnode_t * dir, const char * name)
+{
+	tarfsnode_t * tnode = container_of(dir, tarfsnode_t, vnode);
+	tarfs_t * fs = container_of(dir->fs, tarfs_t, fs);
+	tarfs_dirent_t dirent = { tnode->inode, (char*)name };
+	inode_t inode = map_getpi(fs->tree, &dirent);
+
+	return map_getip(fs->vnodes, inode);
+}
+
+static size_t tarfs_get_size(vnode_t * vnode)
+{
+	tarfsnode_t * tnode = container_of(vnode, tarfsnode_t, vnode);
+
+	return tnode->size;
+}
+
 vnode_t * tarfs_open(dev_t * dev)
 {
 	static vfs_ops_t ops = {
-		get_page: tarfs_get_page
+		get_page: tarfs_get_page,
+		get_vnode: tarfs_get_vnode,
+		get_size: tarfs_get_size
 	};
 
 	tarfs_t * tarfs = malloc(sizeof(*tarfs));

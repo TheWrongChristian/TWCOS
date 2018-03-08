@@ -53,7 +53,8 @@ void kernel_main() {
 		slab_test();
 		vector_test();
 		arena_test();
-		tarfs_test();
+		vnode_t * root = tarfs_test();
+		vfs_test(root);
 		timer_test();
 
 		char * p = arch_heap_page();
