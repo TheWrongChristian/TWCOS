@@ -242,6 +242,11 @@ int map_strcmp(map_key k1, map_key k2)
 	return strcmp((char*)k1, (char*)k2);
 }
 
+int map_keycmp(map_key k1, map_key k2)
+{
+	return (k1>k2) ? 1 : (k2>k1) ? -1: 0;
+}
+
 int map_arraycmp(map_key k1, map_key k2)
 {
 	map_key * a1 = (map_key*)k1;
@@ -252,7 +257,7 @@ int map_arraycmp(map_key k1, map_key k2)
 		a2++;
 	}
 
-	return *a1 - *a2;
+	return map_keycmp(*a1, *a2);
 }
 
 map_key map_arraykey1( map_key k )
