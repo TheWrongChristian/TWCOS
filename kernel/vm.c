@@ -47,12 +47,12 @@
 
 enum object_type_e { OBJECT_DIRECT, OBJECT_ANON, OBJECT_VNODE };
 
-typedef struct vmobject_ops_s {
-	page_t (*get_page)(struct vmobject_s * object, off_t offset);
-	void (*put_page)(struct vmobject_s * object, off_t offset, page_t page);
-} vmobject_ops_t;
+struct vmobject_ops_t {
+	page_t (*get_page)(vmobject_t * object, off_t offset);
+	void (*put_page)(vmobject_t * object, off_t offset, page_t page);
+};
 
-typedef struct vmobject_s {
+struct vmobject_t {
 	vmobject_ops_t * ops;
 	/* Per object type data */
 	int type;
@@ -63,28 +63,29 @@ typedef struct vmobject_s {
 		} direct;
 		struct {
 			map_t * pages;
+			vmobject_t * clean;
 		} anon;
 		struct {
 			vnode_t * vnode;
 		} vnode;
 	};
-} vmobject_t;
+};
 
-typedef struct anon_page_s {
+struct anon_page_t {
 	int ref;
 	page_t page;
-} anon_page_t;
+};
 
 typedef uint64_t off_t;
-typedef struct vm_page_s {
+struct vm_page_t {
 	int ref;
 	vmobject_t * object;
 	off_t offset;
 
 	int flags;
-} vm_page_t;
+};
 
-typedef struct segment_s {
+struct segment_t {
 	void * base;
 	size_t size;
 	int perms;
@@ -95,13 +96,13 @@ typedef struct segment_s {
 	/* Reads come from clean object, if they're not in dirty object */
 	off_t read_offset;
 	vmobject_t * clean;
-} segment_t;
+};
 
-typedef struct address_info_t {
+struct address_info_t {
 	map_t * as;
 	segment_t * seg;
 	off_t offset;
-} address_info_t;
+};
 
 #define VMPAGE_PINNED 0x1
 #define VMPAGE_ACCESSED 0x2
@@ -109,9 +110,10 @@ typedef struct address_info_t {
 
 #endif
 
-typedef struct segment_anonymous_s {
+typedef struct segment_anonymous_s segment_anonymous_t;
+struct segment_anonymous_s {
 	segment_t segment;
-}segment_anonymous_t;
+};
 
 static map_t * vmpages;
 map_t * kas;
@@ -213,12 +215,21 @@ static page_t vm_anon_get_page(vmobject_t * anon, off_t offset)
 {
 	page_t page = map_get(anon->anon.pages, offset >> ARCH_PAGE_SIZE_LOG2);
 
+	if (!page && anon->anon.clean) {
+		page = anon->anon.clean->ops->get_page(anon->anon.clean, offset);
+	}
+
 	if (!page) {
 		page = page_alloc();
 		map_put(anon->anon.pages, offset >> ARCH_PAGE_SIZE_LOG2, page);
 	}
 
 	return page;
+}
+
+static page_t vm_anon_put_page(vmobject_t * anon, off_t offset, page_t page)
+{
+	map_put(anon->anon.pages, offset >> ARCH_PAGE_SIZE_LOG2, page);
 }
 
 static void vm_object_anon_copy_pages(void * arg, int i, void * p)
@@ -238,16 +249,18 @@ static void vm_object_anon_copy_walk(void * p, map_key key, map_data data)
 	map_put(anon->anon.pages, key, data);
 }
 
-static vmobject_t * vm_object_anon()
+static vmobject_t * vm_object_anon(vmobject_t * clean)
 {
 	static vmobject_ops_t anon_ops = {
 		get_page: vm_anon_get_page,
+		put_page: vm_anon_put_page
 	};
 
 	vmobject_t * anon = slab_alloc(objects);
 	anon->ops = &anon_ops;
 	anon->type = OBJECT_ANON;
 	anon->anon.pages = vector_new();
+	anon->anon.clean = clean;
 
 	return anon;
 }
@@ -255,7 +268,7 @@ static vmobject_t * vm_object_anon()
 static vmobject_t * vm_object_anon_copy(vmobject_t * from)
 {
 	check_int_is(from->type, OBJECT_ANON, "Clone object is not anonymous");
-	vmobject_t * anon = vm_object_anon();
+	vmobject_t * anon = vm_object_anon(from->anon.clean);
 	map_walk(from->anon.pages, vm_object_anon_copy_walk, anon);
 	
 	return anon;
@@ -325,7 +338,7 @@ segment_t * vm_segment_vnode(void * p, size_t size, int perms, vnode_t * vnode, 
 	vmobject_t * vobject = vm_object_vnode(vnode);
 	segment_t * seg = vm_segment_base(p, size, perms | SEGMENT_P, vobject, offset);
 	if (perms & SEGMENT_P) {
-		seg->dirty = vm_object_anon();
+		seg->dirty = vm_object_anon(vobject);
 	}
 
 	return seg;
@@ -334,7 +347,7 @@ segment_t * vm_segment_vnode(void * p, size_t size, int perms, vnode_t * vnode, 
 segment_t * vm_segment_anonymous(void * p, size_t size, int perms)
 {
 	segment_t * seg = vm_segment_base(p, size, perms | SEGMENT_P, 0, 0);
-	seg->dirty = vm_object_anon();
+	seg->dirty = vm_object_anon(0);
 
 	return seg;
 }
@@ -359,7 +372,7 @@ segment_t * vm_segment_copy(segment_t * from, int private)
 			seg->dirty = vm_object_anon_copy(from->dirty);
 		} else {
 			/* Empty dirty object */
-			seg->dirty = vm_object_anon();
+			seg->dirty = vm_object_anon(from->clean);
 		}
 	}
 
@@ -380,7 +393,7 @@ page_t vm_page_steal(void * p)
 			return 0;
 		}
 		
-		page_t page = seg->dirty->ops->get_page(seg->dirty, offset >> ARCH_PAGE_SIZE_LOG2);
+		page_t page = seg->dirty->ops->get_page(seg->dirty, offset);
 		if (page) {
 			seg->dirty->ops->put_page(seg->dirty, offset, 0);
 			vm_vmpage_unmap(page, as, p);
@@ -390,6 +403,8 @@ page_t vm_page_steal(void * p)
 		} else {
 			page = page_alloc();
 		}
+
+		return page;
 	}
 
 	return 0;
