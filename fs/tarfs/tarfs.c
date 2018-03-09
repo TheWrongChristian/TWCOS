@@ -367,7 +367,7 @@ static page_t tarfs_get_page(vnode_t * vnode, off_t offset)
 	offset += TAR_BLOCKSIZE;
 	offset += tnode->offset;
 	for(int i=0; i<readmax; i+=TAR_BLOCKSIZE, buf+=TAR_BLOCKSIZE) {
-		tarfs_readblock(tfs, offset, buf);
+		tarfs_readblock(tfs, offset+i, buf);
 	}
 
 	/* Reset buf to the beginning of the page */
