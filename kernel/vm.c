@@ -38,6 +38,7 @@
 #if INTERFACE
 
 #include <stddef.h>
+#include <stdint.h>
 
 #define SEGMENT_R 0x1
 #define SEGMENT_W 0x2
@@ -150,7 +151,7 @@ static int vm_resolve_address(void * p, address_info_t * info)
 	map_t * as = kas;
 	segment_t * seg = vm_get_segment(as, p);
 	if (0 == seg) {
-		as = arch_get_thread()->as;
+		as = (arch_get_thread()->process) ? arch_get_thread()->process->as : 0;
 		if (as) {
 			seg = vm_get_segment(as, p);
 		}

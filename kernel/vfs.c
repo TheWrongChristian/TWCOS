@@ -142,6 +142,7 @@ void vfs_test(vnode_t * root)
 
 	char * p = 0x00010000;
 	segment_t * seg = vm_segment_vnode(p, vnode_get_size(tree_c), SEGMENT_U | SEGMENT_P, tree_c, 0);
-	map_putpp(arch_get_thread()->as, p, seg);
-	kernel_printk("test.c:\n%s", p);
+	map_putpp(arch_get_thread()->process->as, p, seg);
+	kernel_printk("test.c: %d bytes\n", strlen(p));
+	kernel_printk("%s\n", p);
 }

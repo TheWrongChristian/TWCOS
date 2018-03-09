@@ -58,6 +58,7 @@ static void process_nextpid( process_t * process )
 	do {
 		 process->pid = container->nextpid++;
 	} while(map_getip(container->pids, process->pid));
+	map_putip(container->pids, process->pid, process);
 	spin_unlock(lock);
 }
 
