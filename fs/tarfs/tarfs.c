@@ -352,10 +352,9 @@ static page_t tarfs_get_page(vnode_t * vnode, off_t offset)
 {
 	tarfsnode_t * tnode = container_of(vnode, tarfsnode_t, vnode);
 	tarfs_t * tfs = container_of(vnode->fs, tarfs_t, fs);
-	const int maxblocks = ARCH_PAGE_SIZE/TAR_BLOCKSIZE;
-	int readblocks = (tnode->size+TAR_BLOCKSIZE-offset-1)/TAR_BLOCKSIZE;
-	if (readblocks>=maxblocks) {
-		readblocks = maxblocks;
+	int readmax = tnode->size - offset;
+	if (readmax > ARCH_PAGE_SIZE) {
+		readmax = ARCH_PAGE_SIZE;
 	}
 
 	/* Get a temporary page mapping */
@@ -367,11 +366,15 @@ static page_t tarfs_get_page(vnode_t * vnode, off_t offset)
 	/* Copy the data into the page */
 	offset += TAR_BLOCKSIZE;
 	offset += tnode->offset;
-	for(int i=0; i<readblocks; i++, buf+=TAR_BLOCKSIZE) {
+	for(int i=0; i<readmax; i+=TAR_BLOCKSIZE, buf+=TAR_BLOCKSIZE) {
 		tarfs_readblock(tfs, offset, buf);
 	}
-	for(int i=readblocks; i<maxblocks; i++, buf+=TAR_BLOCKSIZE) {
-		memset(buf, 0, TAR_BLOCKSIZE);
+
+	/* Reset buf to the beginning of the page */
+	buf = p;
+	if (readmax<ARCH_PAGE_SIZE) {
+		buf += readmax;
+		memset(buf, 0, ARCH_PAGE_SIZE-readmax);
 	}
 
 	/* Steal the page, and return the page */

@@ -398,7 +398,9 @@ void arch_thread_init(thread_t * thread)
 	if (arch_thread_fork(thread)) {
 		arch_thread_switch(thread);
 	}
+#if 0
 	arch_get_thread()->as = tree_new(0, TREE_TREAP);
+#endif
 }
 
 void arch_panic(const char * fmt, va_list ap)
