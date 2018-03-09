@@ -78,6 +78,7 @@ void page_cache_init()
 	INIT_ONCE();
 
 	page_cache = tree_new(page_cache_key_comp, TREE_TREAP);
+	thread_gc_root(page_cache);
 }
 
 
