@@ -83,8 +83,7 @@ void set_page_dir(page_t pgdir)
 static int cli_level = 0;
 void sti()
 {
-	if (0 >= --cli_level) {
-		cli_level = 0;
+	if (0 == --cli_level) {
 		asm volatile("sti");
 	}
 }
@@ -388,6 +387,7 @@ void i386_init()
 
 	PIC_remap(PIC_IRQ_BASE, PIC_IRQ_BASE+16);
 
+	cli();
 	sti();
 }
 
