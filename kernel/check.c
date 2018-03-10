@@ -35,7 +35,7 @@ void check_int_is(int i, int value, const char * error)
 	}
 }
 
-static void check_user_ptr(void * p, size_t len, int write, const char * error)
+void check_user_ptr(void * p, size_t len, int write, const char * error)
 {
 	/*
 	 * All pages between vpstart and vpend must be amenable to

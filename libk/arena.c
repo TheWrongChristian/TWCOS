@@ -144,7 +144,7 @@ void * tmalloc(size_t size)
 	return arena_alloc(arena, size);
 }
 
-char * tstrdup(char * s)
+char * tstrdup(const char * s)
 {
 	int len = strlen(s);
 	char * ret = tmalloc(len+1);

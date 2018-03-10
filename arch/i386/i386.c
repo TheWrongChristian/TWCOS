@@ -513,10 +513,10 @@ void ** arch_thread_backtrace(int levels)
 	thread_t * thread = arch_get_thread();
 	setjmp(thread->context.state);
 	void * stacktop = (void**)((char*)thread->context.stack + ARCH_PAGE_SIZE);
-	void ** bp = thread->context.state[2];
+	void ** bp = (void**)thread->context.state[2];
 	int i;
 
-	for(i=0; i<levels && bp > thread->context.state[1] && bp<stacktop; ) {
+	for(i=0; i<levels && bp > (void**)thread->context.state[1] && (void*)bp<stacktop; ) {
 		void * ret = bp[1];
 		if(arch_is_text(ret)) {
 			backtrace[i++] = ret;

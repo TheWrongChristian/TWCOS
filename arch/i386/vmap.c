@@ -198,7 +198,7 @@ void vmap_init()
 	char * p = code_start;
 	char * end = arch_heap_page();
 	unsigned int offset = _kernel_offset-_kernel_offset_bootstrap;
-	uint32_t pde = ((uint32_t)pgktbl)-offset | 0x3;
+	uint32_t pde = (((uint32_t)pgktbl)-offset) | 0x3;
 	uint32_t pgdirs_p = (uint32_t)((char*)pgdirs-offset);
 	uint32_t pstart = (uint32_t)code_start - offset;
 	uint32_t pend = (uint32_t)end - offset;
