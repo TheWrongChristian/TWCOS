@@ -108,7 +108,7 @@ void vnode_put_page( vnode_t * vnode, off_t offset, page_t page )
 
 size_t vnode_get_size(vnode_t * vnode)
 {
-	vnode->fs->fsops->get_size(vnode);
+	return vnode->fs->fsops->get_size(vnode);
 }
 
 vnode_t * vnode_get_vnode( vnode_t * dir, const char * name )
@@ -140,7 +140,7 @@ void vfs_test(vnode_t * root)
 	vnode_t * libk = vnode_get_vnode(root, "libk");
 	vnode_t * tree_c = vnode_get_vnode(libk, "tree.c");
 
-	char * p = 0x00010000;
+	char * p = (void*)0x00010000;
 	segment_t * seg = vm_segment_vnode(p, vnode_get_size(tree_c), SEGMENT_U | SEGMENT_P, tree_c, 0);
 	map_putpp(arch_get_thread()->process->as, p, seg);
 	kernel_printk("test.c: %d bytes\n", strlen(p));
