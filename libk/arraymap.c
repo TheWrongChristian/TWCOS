@@ -200,7 +200,7 @@ map_t * arraymap_new(int (*comp)(map_key k1, map_key k2), int capacity)
 	arraymap_t * map = 0;
 	int size = sizeof(*map) + capacity * sizeof(map->data[0]);
 
-	map = malloc(size);
+	map = calloc(1, size);
 
 	map->map.ops = &arraymap_ops;
 	map->capacity = capacity;
