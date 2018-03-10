@@ -479,7 +479,7 @@ void thread_set_priority(thread_t * thread, tpriority priority)
 	thread->priority = priority;
 }
 
-map_t * roots;
+static map_t * roots;
 
 static void thread_cleanlocks();
 static void thread_gc_walk(void * p, void * key, void * d)
@@ -495,7 +495,7 @@ void thread_gc()
 	for(int i=0; i<sizeof(queue)/sizeof(queue[0]); i++) {
 		slab_gc_mark(queue[i]);
 	}
-	map_walkpp(roots, thread_gc_walk, 0);
+	slab_gc_mark(roots);
 	slab_gc_end();
 }
 
