@@ -6,8 +6,8 @@
 
 struct dtor_t {
 	dtor_t * next;
-	void (*dtor)(uintptr_t d);
-	uintptr_t d;
+	void (*dtor)(void * p);
+	void * p;
 }
 
 #endif
@@ -23,50 +23,86 @@ static tls_key dtor_get_key()
 	return key;
 }
 
-dtor_t * dtor_push_frame(dtor_t * frame, void (*dtor)(uintptr_t d), uintptr_t d)
-{
-	frame->next = tls_get(dtor_get_key());
-
-	/* Check the frame isn't already in use */
-	if (frame->dtor) {
-		kernel_panic("Destructor frame already in use: 0x%p/0x%p\n", frame->dtor, (void*)frame->d);
-	}
-
-	frame->dtor = dtor;
-	frame->d = d;
-	tls_set(dtor_get_key(), frame);
-
-	return frame->next;
-}
-
 dtor_t * dtor_poll_frame()
 {
 	return tls_get(dtor_get_key());
 }
 
-void dtor_pop_frame(dtor_t * next)
+/* dtor_t frame cache */
+static int frames_lock;
+static dtor_t * frames = 0;
+
+void dtor_pop(dtor_t * until)
 {
 	dtor_t * frame = tls_get(dtor_get_key());
+	dtor_t * first = frame;
+	dtor_t * last = frame;
 
-	while(frame && next != frame) {
+	while(frame && until != frame) {
 		if (frame->dtor) {
-			frame->dtor(frame->d);
+			frame->dtor(frame->p);
 			frame->dtor = 0;
 		}
+		last = frame;
 		frame = frame->next;
 	}
+
+	/*
+	 * By here, frame first will be the head of the
+	 * frames we're freeing, and last is the last frame
+	 * we're freeing.
+	 */
+	SPIN_AUTOLOCK(&frames_lock) {
+		last->next = frames;
+		frames = first;
+	}
+
 	tls_set(dtor_get_key(), frame);
 }
 
-void dtor_remove( void (*dtor)(uintptr_t d), uintptr_t d )
+dtor_t * dtor_push(void (*dtor)(void * p), void * p)
+{
+	dtor_t * frame = 0;
+	SPIN_AUTOLOCK(&frames_lock) {
+		if (frames) {
+			frame = frames;
+			frames = frame->next;
+		} else {
+			frame = calloc(1, sizeof(*frame));
+		}
+	}
+
+	frame->next = tls_get(dtor_get_key());
+	frame->dtor = dtor;
+	frame->p = p;
+
+	tls_set(dtor_get_key(), frame);
+
+	return frame->next;
+}
+
+void dtor_remove( void (*dtor)(void * p), void * p )
 {
 	dtor_t * frame = tls_get(dtor_get_key());
 
 	while(frame) {
-		if (dtor == frame->dtor && d == frame->d) {
+		if (dtor == frame->dtor && p == frame->p) {
 			frame->dtor = 0;
 			return;
 		}
 		frame = frame->next;
 	}
+}
+
+void dtor_test()
+{
+	dtor_t * p1 = dtor_push(kernel_printk, "p1");
+	dtor_push(kernel_printk, "p2");
+	dtor_push(kernel_printk, "p3");
+	dtor_push(kernel_printk, "p4");
+	dtor_t * p5 = dtor_push(kernel_printk, "p5");
+	dtor_push(kernel_printk, "p6");
+	dtor_push(kernel_printk, "p7");
+	dtor_pop(p5);
+	dtor_pop(p1);
 }

@@ -46,6 +46,7 @@ void kernel_main() {
 			run_init();
 		}
 
+		dtor_test();
 		exception_test();
 		thread_test();
 		tree_test();
