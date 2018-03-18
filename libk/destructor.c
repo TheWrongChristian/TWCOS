@@ -30,7 +30,7 @@ dtor_t * dtor_poll_frame()
 
 /* dtor_t frame cache */
 static int frames_lock;
-static dtor_t * frames = 0;
+static dtor_t ** frames = 0;
 
 void dtor_pop(dtor_t * until)
 {
@@ -53,8 +53,8 @@ void dtor_pop(dtor_t * until)
 	 * we're freeing.
 	 */
 	SPIN_AUTOLOCK(&frames_lock) {
-		last->next = frames;
-		frames = first;
+		last->next = frames[0];
+		frames[0] = first;
 	}
 
 	tls_set(dtor_get_key(), frame);
@@ -64,9 +64,13 @@ dtor_t * dtor_push(void (*dtor)(void * p), void * p)
 {
 	dtor_t * frame = 0;
 	SPIN_AUTOLOCK(&frames_lock) {
-		if (frames) {
-			frame = frames;
-			frames = frame->next;
+		if (0 == frames) {
+			frames = calloc(1, sizeof(*frames));
+			thread_gc_root(frames);
+		}
+		if (frames[0]) {
+			frame = frames[0];
+			frames[0] = frame->next;
 		} else {
 			frame = calloc(1, sizeof(*frame));
 		}
