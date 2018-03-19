@@ -173,9 +173,9 @@ void timer_test()
 	timer_sleep(1000000);
 	kernel_printk(" done\n");
 	timer_delete(test_timer);
-	kernel_printk("Sleeping for 5 second");
+	kernel_printk("Sleeping for 2 second");
 	timer_start_timer();
-	timer_sleep(5000000);
+	timer_sleep(2000000);
 	kernel_printk(" done\n");
 	timer_delete(test_timer);
 }
