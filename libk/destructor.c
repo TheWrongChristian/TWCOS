@@ -38,6 +38,11 @@ void dtor_pop(dtor_t * until)
 	dtor_t * first = frame;
 	dtor_t * last = frame;
 
+	if (frame == until) {
+		/* Nothing to do */
+		return;
+	}
+
 	while(frame && until != frame) {
 		if (frame->dtor) {
 			frame->dtor(frame->p);
