@@ -80,14 +80,18 @@ void set_page_dir(page_t pgdir)
 	asm volatile("movl %0, %%cr3" : : "a"(pgdir << ARCH_PAGE_SIZE_LOG2));
 }
 
+static int cli_level = 0;
 void sti()
 {
-	asm volatile("sti");
+	if (0 == --cli_level) {
+		asm volatile("sti");
+	}
 }
 
 void cli()
 {
 	asm volatile("cli");
+	cli_level++;
 }
 
 void hlt()
@@ -288,7 +292,7 @@ static void i386_sx(uint32_t num, uint32_t * state)
 #include <stdint.h>
 #include <setjmp.h>
 typedef void (*irq_func)();
-#define ARCH_PAGE_ALIGN(p) ((void*)((uint32_t)p & (0xffffffff << ARCH_PAGE_SIZE_LOG2)))
+#define ARCH_PAGE_ALIGN(p) ((void*)((uint32_t)(p) & (0xffffffff << ARCH_PAGE_SIZE_LOG2)))
 
 typedef struct {
 	void * stack;
@@ -383,6 +387,7 @@ void i386_init()
 
 	PIC_remap(PIC_IRQ_BASE, PIC_IRQ_BASE+16);
 
+	cli();
 	sti();
 }
 
@@ -393,7 +398,9 @@ void arch_thread_init(thread_t * thread)
 	if (arch_thread_fork(thread)) {
 		arch_thread_switch(thread);
 	}
+#if 0
 	arch_get_thread()->as = tree_new(0, TREE_TREAP);
+#endif
 }
 
 void arch_panic(const char * fmt, va_list ap)
@@ -506,10 +513,10 @@ void ** arch_thread_backtrace(int levels)
 	thread_t * thread = arch_get_thread();
 	setjmp(thread->context.state);
 	void * stacktop = (void**)((char*)thread->context.stack + ARCH_PAGE_SIZE);
-	void ** bp = thread->context.state[2];
+	void ** bp = (void**)thread->context.state[2];
 	int i;
 
-	for(i=0; i<levels && bp > thread->context.state[1] && bp<stacktop; ) {
+	for(i=0; i<levels && bp > (void**)thread->context.state[1] && (void*)bp<stacktop; ) {
 		void * ret = bp[1];
 		if(arch_is_text(ret)) {
 			backtrace[i++] = ret;

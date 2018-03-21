@@ -33,6 +33,7 @@ struct exception_frame {
 
 	/* State */
 	jmp_buf env;
+	dtor_t * dtor_frame;
 
 	/* Exception chain */
 	struct exception_frame * next;
@@ -87,6 +88,7 @@ exception_frame * exception_push(exception_frame * frame)
 	frame->cause = 0;
 	frame->state = EXCEPTION_NEW;
 	frame->caught = 0;
+	frame->dtor_frame = dtor_poll_frame();
 
 	return frame;
 }
@@ -141,6 +143,7 @@ int exception_finished(char * file, int line)
 		frame->state = EXCEPTION_FINISHING;
 		return 0;
 	case EXCEPTION_FINISHING:
+		dtor_pop(frame->dtor_frame);
 		tls_set(exception_key, frame->next);
 		if (frame->cause && 0 == frame->caught) {
 			exception_throw_cause(frame->cause);

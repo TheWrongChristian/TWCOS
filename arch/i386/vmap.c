@@ -22,9 +22,6 @@ static __attribute__((section(".aligned"))) pte_t pgktbl[1024];
  */
 static pte_t * pgtbls = (void *)(0xffffffff << (2 + ARCH_PAGE_TABLE_SIZE_LOG2 + ASID_COUNT_LOG2));
 
-#if 0
-static asid asids[1 << ASID_COUNT_LOG2];
-#endif
 static struct {
 	asid vid;
 	int seq;
@@ -92,6 +89,18 @@ page_t vmap_get_page(asid vid, void * vaddress)
 	return 0;
 }
 
+static pte_t vmap_get_pte(asid vid, void * vaddress)
+{
+	page_t vpage = (uint32_t)vaddress >> ARCH_PAGE_SIZE_LOG2;
+	pte_t * pgtbl = vmap_get_pgtable(vid);
+
+	if (0 == vmap_get_page(vid, pgtbls+vpage)) {
+		return 0;
+	}
+
+	return pgtbl[vpage];
+}
+
 static void vmap_set_pte(asid vid, void * vaddress, pte_t pte)
 {
 	page_t vpage = (uint32_t)vaddress >> ARCH_PAGE_SIZE_LOG2;
@@ -106,6 +115,7 @@ static void vmap_set_pte(asid vid, void * vaddress, pte_t pte)
 		}
 	}
 	pgtbl[vpage] = pte;
+	/* FIXME: Only need this if vid is current or kernel as */
 	invlpg(vaddress);
 }
 
@@ -130,6 +140,27 @@ void vmap_mapn(asid vid, int n, void * vaddress, page_t page, int rw, int user)
 	for(i=0; i<n; i++, vp += ARCH_PAGE_SIZE) {
 		vmap_map(vid, vp, page+i, rw, user);
 	}
+}
+
+int vmap_ismapped(asid vid, void * vaddress)
+{
+	pte_t pte = vmap_get_pte(vid, vaddress);
+
+	return pte & 0x1;
+}
+
+int vmap_iswriteable(asid vid, void * vaddress)
+{
+	pte_t pte = vmap_get_pte(vid, vaddress);
+
+	return pte & 0x2;
+}
+
+int vmap_isuser(asid vid, void * vaddress)
+{
+	pte_t pte = vmap_get_pte(vid, vaddress);
+
+	return pte & 0x4;
 }
 
 void vmap_unmap(asid vid, void * vaddress)
@@ -167,7 +198,7 @@ void vmap_init()
 	char * p = code_start;
 	char * end = arch_heap_page();
 	unsigned int offset = _kernel_offset-_kernel_offset_bootstrap;
-	uint32_t pde = ((uint32_t)pgktbl)-offset | 0x3;
+	uint32_t pde = (((uint32_t)pgktbl)-offset) | 0x3;
 	uint32_t pgdirs_p = (uint32_t)((char*)pgdirs-offset);
 	uint32_t pstart = (uint32_t)code_start - offset;
 	uint32_t pend = (uint32_t)end - offset;

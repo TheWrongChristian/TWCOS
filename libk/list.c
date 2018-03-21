@@ -46,4 +46,28 @@
 		p = (list != p->next) ? p->next : 0; \
 	} while(0)
 
+#define LIST_INSERT_BEFORE(list, before, p) \
+	do { \
+		if (before) { \
+			p->prev = before->prev; \
+			p->next = before; \
+			before->prev->next = p; \
+			before->prev = p; \
+		} else { \
+			LIST_PREPEND(list, p); \
+		} \
+	} while(0)
+
+#define LIST_INSERT_AFTER(list, after, p) \
+	do { \
+		if (after) { \
+			p->prev = after; \
+			p->next = after->next; \
+			after->next->prev = p; \
+			after->next = p; \
+		} else { \
+			LIST_PREPEND(list, p); \
+		} \
+	} while(0)
+
 #endif

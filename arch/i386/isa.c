@@ -138,6 +138,92 @@ static int wait_irq()
 	return 0;
 }
 
+typedef timerspec_t tickspec_t;
+static void (*pit_expire)();
+static tickspec_t ticks;
+static int pit_lock[] = {0};
+
+static void pit_set()
+{
+	if (ticks>65535) {
+		outb(0x43, 0x30);
+		outb(0x40, 0xff);
+		outb(0x40, 0xff);
+	} else {
+		outb(0x43, 0x30);
+		outb(0x40, ticks & 0xff);
+		outb(0x40, ticks >> 8);
+	}
+}
+
+static int pit_get()
+{
+	int count;
+
+	outb(0x43, 0);
+	count = inb(0x40);
+	count += (inb(0x40)<<8);
+
+	return count;
+}
+
+static void pit_timer_int()
+{
+	SPIN_AUTOLOCK(pit_lock) {
+		if (ticks>65535) {
+			ticks -= 65535;
+			pit_set();
+		} else {
+			ticks = 0;
+			if (pit_expire) {
+				spin_unlock(pit_lock);
+				pit_expire();
+				spin_lock(pit_lock);
+			}
+		}
+	}
+}
+
+static void pit_timer_set(void (*expire)(), timerspec_t usec)
+{
+	SPIN_AUTOLOCK(pit_lock) {
+		pit_expire = expire;
+		ticks = 1193180 * usec / 1000000;
+
+		pit_set();
+	}
+}
+
+static timerspec_t pit_timer_clear()
+{
+	tickspec_t remaining;
+
+	SPIN_AUTOLOCK(pit_lock) {
+		if (ticks>65535) {
+			remaining = ticks - 65535 + pit_get();
+		} else {
+			remaining = pit_get();
+		}
+
+		ticks = 0;
+		pit_expire = 0;
+	}
+
+	return remaining * 1000000 / 1193180;
+}
+
+timer_ops_t * arch_timer_ops()
+{
+	static timer_ops_t ops = {
+		timer_set: pit_timer_set,
+		timer_clear: pit_timer_clear
+	};
+
+	add_irq(0, pit_timer_int);
+
+	return &ops;
+}
+
 void arch_idle()
 {
 	int i = 0;
@@ -154,8 +240,7 @@ void arch_idle()
 			kernel_printk("%d\n", irq);
 			break;
 		}
-		uint8_t scancode = keyq_get();
-		if (scancode) {
+		for(uint8_t scancode = keyq_get(); scancode; scancode = keyq_get()) {
 			kernel_printk("%x\n", scancode);
 			if (0x13 == scancode) {
 				reset();
@@ -164,6 +249,7 @@ void arch_idle()
 		thread_lock(arch_idle);
 		thread_gc();
 		thread_unlock(arch_idle);
+		thread_yield();
 	}
 	kernel_panic("idle finished");
 }

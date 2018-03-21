@@ -38,8 +38,8 @@ static uint16_t make_vgaentry(char c, uint8_t color) {
 static const size_t VGA_WIDTH = 80;
 static const size_t VGA_HEIGHT = 25;
  
-static size_t console_row;
-static size_t console_column;
+static int console_row;
+static int console_column;
 static uint8_t console_color;
 static uint16_t* console_buffer;
 
@@ -203,36 +203,37 @@ void console_writestring(const char* data) {
 /*
  * Console stream - Output characters to console
  */
+typedef struct stream_console stream_console_t;
 struct stream_console {
-        struct stream stream;
+        stream_t stream;
         long chars;
 } sconsole;
 
-static void console_putc(struct stream * stream, char c)
+static void console_putc(stream_t * stream, char c)
 {
-        struct stream_console * sconsole = (struct stream_console *)stream;
+        stream_console_t * sconsole = container_of(stream, stream_console_t, stream);
 
         console_putchar(c);
         sconsole->chars++;
 }
 
-static long console_tell(struct stream * stream)
+static long console_tell(stream_t * stream)
 {
-        struct stream_console * sconsole = (struct stream_console *)stream;
+        stream_console_t * sconsole = container_of(stream, stream_console_t, stream);
         return sconsole->chars;
 }
 
-static struct stream_ops console_ops = {
+static stream_ops_t console_ops = {
         putc: console_putc,
         tell: console_tell
 };
 
-struct stream * console_stream()
+stream_t * console_stream()
 {
 	console_initialize();
 
         sconsole.stream.ops = &console_ops;
         sconsole.chars = 0;
 
-        return (struct stream *)&sconsole;
+        return &sconsole.stream;
 }
