@@ -28,7 +28,7 @@ static int arraymap_get_index(arraymap_t * amap, map_key key, map_eq_test cond )
 	
 	while(1) {
 		int i = (low + high) / 2;
-		intptr_t diff = (amap->comp) ? amap->comp(key, amap->data[i].key) : key - amap->data[i].key;
+		intptr_t diff = amap->comp(key, amap->data[i].key);
 
 		if (diff<0) {
 			high = i;
@@ -94,12 +94,12 @@ static map_data arraymap_put( map_t * map, map_key key, map_data data )
 	arraymap_t * amap = container_of(map, arraymap_t, map);
 	int low = 0;
 	int high = amap->count;
-	intptr_t diff;
+	int diff;
 
 	if (amap->count) {
 		do {
 			int i = (low + high) / 2;
-			diff = (amap->comp) ? amap->comp(key, amap->data[i].key) : key - amap->data[i].key;
+			diff = amap->comp(key, amap->data[i].key);
 
 			if (diff<0) {
 				high = i;
@@ -121,7 +121,7 @@ static map_data arraymap_put( map_t * map, map_key key, map_data data )
 		amap->count++;
 
 		int insert = low;
-		diff = (amap->comp) ? amap->comp(key, amap->data[low].key) : key - amap->data[low].key;
+		diff = amap->comp(key, amap->data[low].key);
 		if (diff>0) {
 			/* Insert after low index */
 			insert = low+1;
@@ -200,11 +200,11 @@ map_t * arraymap_new(int (*comp)(map_key k1, map_key k2), int capacity)
 	arraymap_t * map = 0;
 	int size = sizeof(*map) + capacity * sizeof(map->data[0]);
 
-	map = malloc(size);
+	map = calloc(1, size);
 
 	map->map.ops = &arraymap_ops;
 	map->capacity = capacity;
-	map->comp = comp;
+	map->comp = (comp) ? comp : map_keycmp;
 	map->count = 0;
 
 	return &map->map;

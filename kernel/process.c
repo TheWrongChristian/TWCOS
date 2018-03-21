@@ -42,7 +42,7 @@ static void process_duplicate_as_copy_seg(void * p, void * key, void * data)
 
 static map_t * process_duplicate_as(process_t * from)
 {
-	map_t * as = arraymap_new(0, 200);
+	map_t * as = tree_new(0, TREE_TREAP);
 
 	map_walk(from->as, process_duplicate_as_copy_seg, as);
 
@@ -58,6 +58,7 @@ static void process_nextpid( process_t * process )
 	do {
 		 process->pid = container->nextpid++;
 	} while(map_getip(container->pids, process->pid));
+	map_putip(container->pids, process->pid, process);
 	spin_unlock(lock);
 }
 
@@ -72,7 +73,7 @@ void process_init()
 	/* Sculpt initial process */
 	process_t * process = slab_alloc(processes);
 	arch_get_thread()->process = process;
-	process->as = arraymap_new(0, 200);
+	process->as = tree_new(0, TREE_TREAP);
 	process->parent = 0;
 	process->container = container_get(0);
 	process->files = vector_new();
