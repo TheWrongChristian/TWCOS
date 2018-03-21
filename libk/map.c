@@ -29,7 +29,7 @@ struct map_ops {
 	iterator_t * (*iterator)( map_t * map );
 };
 
-typedef struct map {
+typedef struct map_s {
 	struct map_ops * ops;
 } map_t;
 
@@ -40,7 +40,6 @@ enum map_eq_test { MAP_LT, MAP_LE, MAP_EQ, MAP_GE, MAP_GT };
 void map_destroy( map_t * map )
 {
 	map->ops->destroy(map);
-	slab_free(map);
 }
 
 struct walk_wrapper
@@ -233,7 +232,7 @@ static void map_walk_dump(void * p, void * key, void * data)
         if (p) {
                 map_t * akmap = (map_t*)p;
                 /* Add the data to the ak map */
-                map_key * ak = map_arraykey2((intptr_t)akmap, *((char*)data));
+                map_key * ak = (map_key*)map_arraykey2((intptr_t)akmap, *((char*)data));
                 map_putpp(akmap, ak, data);
         }
 }
@@ -241,6 +240,11 @@ static void map_walk_dump(void * p, void * key, void * data)
 int map_strcmp(map_key k1, map_key k2)
 {
 	return strcmp((char*)k1, (char*)k2);
+}
+
+int map_keycmp(map_key k1, map_key k2)
+{
+	return (k1>k2) ? 1 : (k2>k1) ? -1: 0;
 }
 
 int map_arraycmp(map_key k1, map_key k2)
@@ -253,7 +257,7 @@ int map_arraycmp(map_key k1, map_key k2)
 		a2++;
 	}
 
-	return *a1 - *a2;
+	return map_keycmp(*a1, *a2);
 }
 
 map_key map_arraykey1( map_key k )
@@ -322,4 +326,16 @@ void map_test(map_t * map, map_t * akmap)
 	for( int i=0; i<(sizeof(data)/sizeof(data[0])); i++) {
 		map_removepp(map, data[i]);
 	}
+}
+
+static void map_put_all_walk(void *p,map_key key,map_data data)
+{
+	map_t * to = (map_t *)p;
+
+	map_put(to, key, data);
+}
+
+void map_put_all( map_t * to, map_t * from )
+{
+	map_walk(from, map_put_all_walk, to);
 }
