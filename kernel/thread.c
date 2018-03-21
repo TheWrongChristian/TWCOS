@@ -12,7 +12,6 @@ typedef struct thread_s {
 	/* Runtime data */
 	void * tls[TLS_MAX];
 	arch_context_t context;
-	map_t * as;
 	process_t * process;
 
 	/* Run state */
@@ -429,7 +428,7 @@ thread_t * thread_fork()
 	thread_t * thread = slab_alloc(threads);
 
 	thread->priority = this->priority;
-	thread->as = this->as;
+	thread->process = this->process;
 
 	if (0 == arch_thread_fork(thread)) {
 		return 0;
@@ -480,10 +479,10 @@ void thread_set_priority(thread_t * thread, tpriority priority)
 	thread->priority = priority;
 }
 
-map_t * roots;
+static map_t * roots;
 
 static void thread_cleanlocks();
-static thread_gc_walk(void * p, void * key, void * d)
+static void thread_gc_walk(void * p, void * key, void * d)
 {
 	slab_gc_mark(key);
 }
@@ -496,7 +495,7 @@ void thread_gc()
 	for(int i=0; i<sizeof(queue)/sizeof(queue[0]); i++) {
 		slab_gc_mark(queue[i]);
 	}
-	map_walkpp(roots, thread_gc_walk, 0);
+	slab_gc_mark(roots);
 	slab_gc_end();
 }
 

@@ -8,38 +8,37 @@
 
 typedef int64_t inode_t;
 
-#if 0
-typedef struct vnode_ops_s vnode_ops_t;
-typedef struct vnode_s vnode_t;
-typedef struct fs_ops_s fs_ops_t;
-typedef struct fs_s fs_t;
-#endif
+struct vfs_ops_t {
+	/* vnode operations */
+	page_t (*get_page)(vnode_t * vnode, off_t offset);
+	void (*put_page)(vnode_t * vnode, off_t offset, page_t page);
+	void (*close)(vnode_t * vnode);
+	size_t (*get_size)(vnode_t * vnode);
 
-struct vnode_ops_t {
-	fs_t * (*get_fs)(vnode_t * vnode);
-	page_t (*get_page)( vnode_t * vnode, off_t offset);
-	void (*put_page)( vnode_t * vnode, off_t offset, page_t page );
-	inode_t (*namei)(vnode_t * dir, const char * name);
-	void (*close)( vnode_t * vnode );
-};
-
-struct fs_ops_t {
-	void (*close)(fs_t * fs);
+	/* vnode Open/close */
 	vnode_t * (*get_vnode)(vnode_t * dir, const char * name);
 	void (*put_vnode)(vnode_t * vnode);
+
+	/* Directory operations */
+	inode_t (*namei)(vnode_t * dir, const char * name);
+	void (*link)(vnode_t * fromdir, const char * fromname, vnode_t * todir, const char * toname);
+	void (*unlink)(vnode_t * dir, const char * name);
+
+	/* Filesystem mount/umount */
 	vnode_t * (*open)(vnode_t * dev);
+	void (*idle)(fs_t * fs);
 };
 
 enum vnode_type { VNODE_REGULAR, VNODE_DIRECTORY, VNODE_DEV, VNODE_FIFO, VNODE_SOCKET };
 
 struct vnode_t {
-	vnode_ops_t * vnops;
-	fs_t * fs;
 	int ref;
+	vnode_type type;
+	fs_t * fs;
 };
 
 typedef struct fs_t {
-	fs_ops_t * fsops;
+	vfs_ops_t * fsops;
 };
  
 #endif
@@ -49,7 +48,7 @@ exception_def ReadOnlyFileException = { "ReadOnlyFileException", &FileException 
 exception_def UnauthorizedFileException = { "UnauthorizedFileException", &FileException };
 exception_def IOException = { "IOException", &FileException };
 
-typedef struct page_cache_key_s {
+typedef struct page_cache_key_t {
 	vnode_t * vnode;
 	off_t offset;
 } page_cache_key_t;
@@ -79,11 +78,12 @@ void page_cache_init()
 	INIT_ONCE();
 
 	page_cache = tree_new(page_cache_key_comp, TREE_TREAP);
+	thread_gc_root(page_cache);
 }
 
 
 
-page_t vfs_get_page( vnode_t * vnode, off_t offset )
+page_t vnode_get_page( vnode_t * vnode, off_t offset )
 {
 	page_cache_key_t key[] = {{ vnode, offset }};
 
@@ -94,29 +94,55 @@ page_t vfs_get_page( vnode_t * vnode, off_t offset )
 		page_cache_key_t * newkey = malloc(sizeof(*newkey));
 		newkey->vnode = vnode;
 		newkey->offset = offset;
-		page = vnode->vnops->get_page(vnode, offset);
+		page = vnode->fs->fsops->get_page(vnode, offset);
 		map_putpi(page_cache, newkey, page);
 	}
 
 	return page;
 }
 
-void vfs_put_page( vnode_t * vnode, off_t offset, page_t page )
+void vnode_put_page( vnode_t * vnode, off_t offset, page_t page )
 {
-	vnode->vnops->put_page(vnode, offset, page);
+	vnode->fs->fsops->put_page(vnode, offset, page);
 }
 
-vnode_t * vfs_get_vnode( vnode_t * dir, const char * name )
+size_t vnode_get_size(vnode_t * vnode)
+{
+	return vnode->fs->fsops->get_size(vnode);
+}
+
+vnode_t * vnode_get_vnode( vnode_t * dir, const char * name )
 {
 	return dir->fs->fsops->get_vnode(dir, name);
 }
 
-void vfs_vnode_close(vnode_t * vnode)
+void vnode_close(vnode_t * vnode)
 {
-	vnode->vnops->close(vnode);
+	vnode->fs->fsops->close(vnode);
 }
 
-void vfs_fs_close(vnode_t * root)
+void fs_idle(vnode_t * root)
 {
-	root->fs->fsops->close(root->fs);
+	root->fs->fsops->idle(root->fs);
+}
+
+void vnode_init(vnode_t * vnode, vnode_type type, fs_t * fs)
+{
+	vnode->type = type;
+	vnode->fs = fs;
+	vnode->ref = 1;
+}
+
+
+void vfs_test(vnode_t * root)
+{
+	/* Open libk/tree.c */
+	vnode_t * libk = vnode_get_vnode(root, "libk");
+	vnode_t * tree_c = vnode_get_vnode(libk, "tree.c");
+
+	char * p = (void*)0x00010000;
+	segment_t * seg = vm_segment_vnode(p, vnode_get_size(tree_c), SEGMENT_U | SEGMENT_P, tree_c, 0);
+	map_putpp(arch_get_thread()->process->as, p, seg);
+	kernel_printk("test.c: %d bytes\n", strlen(p));
+	kernel_printk("%s\n", p);
 }

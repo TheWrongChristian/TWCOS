@@ -38,6 +38,7 @@
 #if INTERFACE
 
 #include <stddef.h>
+#include <stdint.h>
 
 #define SEGMENT_R 0x1
 #define SEGMENT_W 0x2
@@ -45,14 +46,14 @@
 #define SEGMENT_U 0x8
 #define SEGMENT_P 0x10
 
-enum object_type_e { OBJECT_DIRECT, OBJECT_ANON, OBJECT_FILE };
+enum object_type_e { OBJECT_DIRECT, OBJECT_ANON, OBJECT_VNODE };
 
-typedef struct vmobject_ops_s {
-	page_t (*get_page)(struct vmobject_s * object, off_t offset);
-	void (*put_page)(struct vmobject_s * object, off_t offset, page_t page);
-} vmobject_ops_t;
+struct vmobject_ops_t {
+	page_t (*get_page)(vmobject_t * object, off_t offset);
+	page_t (*put_page)(vmobject_t * object, off_t offset, page_t page);
+};
 
-typedef struct vmobject_s {
+struct vmobject_t {
 	vmobject_ops_t * ops;
 	/* Per object type data */
 	int type;
@@ -63,28 +64,29 @@ typedef struct vmobject_s {
 		} direct;
 		struct {
 			map_t * pages;
+			vmobject_t * clean;
 		} anon;
 		struct {
 			vnode_t * vnode;
-		} file;
+		} vnode;
 	};
-} vmobject_t;
+};
 
-typedef struct anon_page_s {
+struct anon_page_t {
 	int ref;
 	page_t page;
-} anon_page_t;
+};
 
 typedef uint64_t off_t;
-typedef struct vm_page_s {
+struct vm_page_t {
 	int ref;
 	vmobject_t * object;
 	off_t offset;
 
 	int flags;
-} vm_page_t;
+};
 
-typedef struct segment_s {
+struct segment_t {
 	void * base;
 	size_t size;
 	int perms;
@@ -95,7 +97,13 @@ typedef struct segment_s {
 	/* Reads come from clean object, if they're not in dirty object */
 	off_t read_offset;
 	vmobject_t * clean;
-} segment_t;
+};
+
+struct address_info_t {
+	map_t * as;
+	segment_t * seg;
+	off_t offset;
+};
 
 #define VMPAGE_PINNED 0x1
 #define VMPAGE_ACCESSED 0x2
@@ -103,9 +111,10 @@ typedef struct segment_s {
 
 #endif
 
-typedef struct segment_anonymous_s {
+typedef struct segment_anonymous_s segment_anonymous_t;
+struct segment_anonymous_s {
 	segment_t segment;
-}segment_anonymous_t;
+};
 
 static map_t * vmpages;
 map_t * kas;
@@ -130,9 +139,6 @@ static void vm_invalid_pointer(void * p, int write, int user, int present)
 static segment_t * vm_get_segment(map_t * as, void * p)
 {
 	/* Check for kernel address space */
-	if (0 == as) {
-		as = kas;
-	}
 	thread_lock(as);
 	segment_t * seg = map_getpp_cond(as, p, MAP_LE);
 	thread_unlock(as);
@@ -140,28 +146,50 @@ static segment_t * vm_get_segment(map_t * as, void * p)
 	return seg;
 }
 
-void vm_page_fault(void * p, int write, int user, int present)
+static int vm_resolve_address(void * p, address_info_t * info)
 {
-	map_t * as = 0;
-	thread_lock(kas);
-	segment_t * seg = map_getpp_cond(kas, p, MAP_LE);
-	thread_unlock(kas);
+	map_t * as = kas;
+	segment_t * seg = vm_get_segment(as, p);
 	if (0 == seg) {
-		as = arch_get_thread()->as;
-		thread_lock(as);
-		seg = map_getpp_cond(as, p, MAP_LE);
-		thread_unlock(as);
+		as = (arch_get_thread()->process) ? arch_get_thread()->process->as : 0;
+		if (as) {
+			seg = vm_get_segment(as, p);
+		}
 	}
 
 	if (seg) {
-		long offset = (char*)p - (char*)seg->base;
+		info->as = as;
+		info->seg = seg;
+		info->offset = (char*)p - (char*)seg->base;
+
+		return 1;
+	}
+
+	return 0;
+}
+
+void vm_page_fault(void * p, int write, int user, int present)
+{
+	address_info_t info[1];
+
+	if (vm_resolve_address(p, info)) {
+		segment_t * seg = info->seg;
+		off_t offset = info->offset;
+		map_t * as = info->as;
 
 		if (offset < seg->size) {
 			/* Adjust p to page boundary */
 			p = ARCH_PAGE_ALIGN(p);
 			if (!present) {
+				/* FIXME: This all needs review */
 				page_t page = seg->dirty->ops->get_page(seg->dirty, offset);
-				vmap_map(as, p, page, write && SEGMENT_W & seg->perms, SEGMENT_U & seg->perms);
+				if (0 == page) {
+					/* Handle case of page not in dirty pages */
+					page = seg->clean->ops->get_page(seg->clean, offset + seg->read_offset);
+					vmap_map(as, p, page, 0, SEGMENT_U & seg->perms);
+				} else {
+					vmap_map(as, p, page, write && SEGMENT_W & seg->perms, SEGMENT_U & seg->perms);
+				}
 				vm_vmpage_map(page, as, p);
 				vm_vmpage_setflags(page, VMPAGE_ACCESSED | (write) ? VMPAGE_DIRTY : 0);
 			} else if (write && SEGMENT_W & seg->perms) {
@@ -184,9 +212,13 @@ void vm_page_fault(void * p, int write, int user, int present)
 /*
  * Anonymous private memory object
  */
-static page_t vm_anon_get_page(vmobject_t * anon, int offset)
+static page_t vm_anon_get_page(vmobject_t * anon, off_t offset)
 {
 	page_t page = map_get(anon->anon.pages, offset >> ARCH_PAGE_SIZE_LOG2);
+
+	if (!page && anon->anon.clean) {
+		page = anon->anon.clean->ops->get_page(anon->anon.clean, offset);
+	}
 
 	if (!page) {
 		page = page_alloc();
@@ -196,9 +228,10 @@ static page_t vm_anon_get_page(vmobject_t * anon, int offset)
 	return page;
 }
 
-static vmobject_ops_t anon_ops = {
-	get_page: vm_anon_get_page
-};
+static page_t vm_anon_put_page(vmobject_t * anon, off_t offset, page_t page)
+{
+	return map_put(anon->anon.pages, offset >> ARCH_PAGE_SIZE_LOG2, page);
+}
 
 static void vm_object_anon_copy_pages(void * arg, int i, void * p)
 {
@@ -210,39 +243,42 @@ static void vm_object_anon_copy_pages(void * arg, int i, void * p)
 	map_putip(to, i, vmp);
 }
 
-static void vm_object_anon_copy_walk(void * p, map_key key, void * data)
+static void vm_object_anon_copy_walk(void * p, map_key key, map_data data)
 {
 	vmobject_t * anon = (vmobject_t *)p;
 
-	map_putip(anon->anon.pages, key, data);
+	map_put(anon->anon.pages, key, data);
+}
+
+static vmobject_t * vm_object_anon(vmobject_t * clean)
+{
+	static vmobject_ops_t anon_ops = {
+		get_page: vm_anon_get_page,
+		put_page: vm_anon_put_page
+	};
+
+	vmobject_t * anon = slab_alloc(objects);
+	anon->ops = &anon_ops;
+	anon->type = OBJECT_ANON;
+	anon->anon.pages = vector_new();
+	anon->anon.clean = clean;
+
+	return anon;
 }
 
 static vmobject_t * vm_object_anon_copy(vmobject_t * from)
 {
 	check_int_is(from->type, OBJECT_ANON, "Clone object is not anonymous");
-	vmobject_t * anon = slab_alloc(objects);
-	anon->ops = &anon_ops;
-	anon->type = OBJECT_ANON;
-	anon->anon.pages = vector_new();
-	map_walkip(from->anon.pages, vm_object_anon_copy_walk, anon);
+	vmobject_t * anon = vm_object_anon(from->anon.clean);
+	map_walk(from->anon.pages, vm_object_anon_copy_walk, anon);
 	
-	return anon;
-}
-
-static vmobject_t * vm_object_anon()
-{
-	vmobject_t * anon = slab_alloc(objects);
-	anon->ops = &anon_ops;
-	anon->type = OBJECT_ANON;
-	anon->anon.pages = vector_new();
-
 	return anon;
 }
 
 /*
  * Direct mapped (eg - device) memory
  */
-static page_t vm_direct_get_page(vmobject_t * direct, int offset)
+static page_t vm_direct_get_page(vmobject_t * direct, off_t offset)
 {
 	if (offset<direct->direct.size) {
 		return direct->direct.base + (offset >> ARCH_PAGE_SIZE_LOG2);
@@ -251,12 +287,12 @@ static page_t vm_direct_get_page(vmobject_t * direct, int offset)
 	return 0;
 }
 
-static vmobject_ops_t direct_ops = {
-	get_page: vm_direct_get_page
-};
-
 static vmobject_t * vm_object_direct( page_t base, int size)
 {
+	static vmobject_ops_t direct_ops = {
+		get_page: vm_direct_get_page
+	};
+
 	vmobject_t * direct = slab_alloc(objects);
 	direct->ops = &direct_ops;
 	direct->type = OBJECT_ANON;
@@ -265,7 +301,25 @@ static vmobject_t * vm_object_direct( page_t base, int size)
 	return direct;
 }
 
-segment_t * vm_segment_base( void * p, size_t size, int perms, vmobject_t * clean, int offset)
+static page_t vm_vnode_get_page(vmobject_t * o, off_t offset)
+{
+	return vnode_get_page(o->vnode.vnode, offset);
+}
+
+static vmobject_t * vm_object_vnode(vnode_t * vnode)
+{
+	static vmobject_ops_t vnode_ops = {
+		get_page: vm_vnode_get_page
+	};
+
+	vmobject_t * ovnode = slab_alloc(objects);
+        ovnode->ops = &vnode_ops;
+        ovnode->type = OBJECT_VNODE;
+        ovnode->vnode.vnode = vnode;
+        return ovnode;
+}
+
+segment_t * vm_segment_base( void * p, size_t size, int perms, vmobject_t * clean, off_t offset)
 {
 	vm_init();
 	segment_t * seg = slab_alloc(segments);
@@ -280,10 +334,21 @@ segment_t * vm_segment_base( void * p, size_t size, int perms, vmobject_t * clea
 	return seg;
 }
 
+segment_t * vm_segment_vnode(void * p, size_t size, int perms, vnode_t * vnode, off_t offset)
+{
+	vmobject_t * vobject = vm_object_vnode(vnode);
+	segment_t * seg = vm_segment_base(p, size, perms | SEGMENT_P, vobject, offset);
+	if (perms & SEGMENT_P) {
+		seg->dirty = vm_object_anon(vobject);
+	}
+
+	return seg;
+}
+
 segment_t * vm_segment_anonymous(void * p, size_t size, int perms)
 {
 	segment_t * seg = vm_segment_base(p, size, perms | SEGMENT_P, 0, 0);
-	seg->dirty = vm_object_anon();
+	seg->dirty = vm_object_anon(0);
 
 	return seg;
 }
@@ -308,11 +373,42 @@ segment_t * vm_segment_copy(segment_t * from, int private)
 			seg->dirty = vm_object_anon_copy(from->dirty);
 		} else {
 			/* Empty dirty object */
-			seg->dirty = vm_object_anon();
+			seg->dirty = vm_object_anon(from->clean);
 		}
 	}
 
 	return seg;
+}
+
+page_t vm_page_steal(void * p)
+{
+	address_info_t info[1];
+
+	if (vm_resolve_address(p, info)) {
+		segment_t * seg = info->seg;
+		off_t offset = info->offset;
+		map_t * as = info->as;
+
+		if (!(seg->perms & SEGMENT_P)) {
+			/* Can't steal from non-private segments */
+			return 0;
+		}
+		
+		page_t page = seg->dirty->ops->get_page(seg->dirty, offset);
+		if (page) {
+			seg->dirty->ops->put_page(seg->dirty, offset, 0);
+			vm_vmpage_unmap(page, as, p);
+			if (vmap_ismapped(as, p)) {
+				vmap_unmap(as, p);
+			}
+		} else {
+			page = page_alloc();
+		}
+
+		return page;
+	}
+
+	return 0;
 }
 
 static void * kas_next;
@@ -392,6 +488,8 @@ void vm_vmpage_unmap( page_t page, asid as, void * p )
 					vmpage->maps[i].as = vmpage->maps[vmpage->count-1].as;
 					vmpage->maps[i].p = vmpage->maps[vmpage->count-1].p;
 					i = vmpage->count--;
+					spin_unlock(&vmpages_lock);
+					return;
 				}
 			}
 		}

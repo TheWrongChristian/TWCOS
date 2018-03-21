@@ -11,8 +11,8 @@ typedef struct dev_s {
 } dev_t;
 
 typedef struct dev_static_s {
-	dev_ops_t * ops;
-	char * p;
+	dev_t dev;
+	unsigned char * p;
 	size_t size;
 } dev_static_t;
 
@@ -51,7 +51,7 @@ dev_op_status dev_op_wait( buf_op_t * op )
 
 static void dev_static_submit(dev_t * dev, buf_op_t * op )
 {
-	dev_static_t * sdev = (dev_static_t*)dev;
+	dev_static_t * sdev = container_of(dev, dev_static_t, dev);
 
 	if (op->write) {
 		memcpy(sdev->p+op->offset, op->p, op->size);
@@ -61,13 +61,13 @@ static void dev_static_submit(dev_t * dev, buf_op_t * op )
 	op->status = DEV_BUF_OP_COMPLETE;
 }
 
-dev_t * dev_static(char * p, size_t size)
+dev_t * dev_static(void * p, size_t size)
 {
 	static dev_ops_t ops = { submit: dev_static_submit };
 	dev_static_t * sdev = malloc(sizeof(*sdev));
-	sdev->ops = &ops;
+	sdev->dev.ops = &ops;
 	sdev->p = p;
 	sdev->size = size;
 
-	return sdev;
+	return &sdev->dev;
 }

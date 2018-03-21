@@ -71,7 +71,7 @@ void * arch_heap_page()
 
 int arch_is_heap_pointer(void *p)
 {
-	return (char*)p>=&_bootstrap_nextalloc && (char*)p<nextalloc;
+	return ((char*)p)>=&_bootstrap_nextalloc && (char*)p<nextalloc;
 }
 
 void arch_init()

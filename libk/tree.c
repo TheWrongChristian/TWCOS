@@ -420,7 +420,7 @@ static map_data tree_put( map_t * map, map_key key, map_data data )
 
         tree_verify(tree, NULL);
         while(node) {
-		intptr_t diff = (tree->comp) ? tree->comp(key, node->key) : key - node->key;
+		int diff = tree->comp(key, node->key);
 
                 if (diff<0) {
                         parent = node;
@@ -481,7 +481,7 @@ static node_t * tree_get_node( tree_t * tree, map_key key, map_eq_test cond )
 
 	/* FIXME: All this logic needs checking! */
 	while(node) {
-		int diff = (tree->comp) ? tree->comp(key, node->key) : key - node->key;
+		int diff = tree->comp(key, node->key);
 
 		if (diff<0) {
 			if (node->left) {
@@ -553,7 +553,7 @@ static map_data tree_remove( map_t * map, map_key key )
 
         tree_verify(tree, NULL);
         while(node) {
-		int diff = (tree->comp) ? tree->comp(key, node->key) : key - node->key;
+		int diff = tree->comp(key, node->key);
 
                 if (diff<0) {
                         node = node->left;
@@ -690,7 +690,7 @@ map_t * tree_new(int (*comp)(map_key k1, map_key k2), treemode mode)
 	tree->map.ops = &tree_ops;
 	tree->root = 0;
 	tree->mode = mode;
-	tree->comp = comp;
+	tree->comp = (comp) ? comp : map_keycmp;
 
 	return &tree->map;
 }
