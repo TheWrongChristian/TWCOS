@@ -3,6 +3,7 @@
 #if INTERFACE
 
 #include <stdint.h>
+#include <stdarg.h>
 
 typedef uintptr_t map_key;
 typedef intptr_t map_data;
@@ -338,4 +339,83 @@ static void map_put_all_walk(void *p,map_key key,map_data data)
 void map_put_all( map_t * to, map_t * from )
 {
 	map_walk(from, map_put_all_walk, to);
+}
+
+typedef struct map_compound_key_t map_compound_key_t;
+struct map_compound_key_t {
+	size_t buflen;
+	char buf[];
+};
+
+static map_compound_key_add( map_compound_key_t * key, void * p, size_t size)
+{
+}
+
+static map_compound_key_t * map_compound_key_process( map_compound_key_t * key, const char * fmt, va_list ap)
+{
+	const char * f = fmt;
+	int len = 0;
+	char * buf = (key) ? key->buf : 0;
+
+	while(*f) {
+		if ('i' == *f) {
+			f++;
+			switch(*f) {
+				int32_t i32;
+				int64_t i64;
+			case '4':
+				i32 = va_arg(ap, int32_t);
+				if (buf) {
+					int shift = 32;
+					do {
+						shift -= 8;
+						*buf++ = (i32 >> shift) & 0xff;
+					} while(shift);
+				}
+				len += 4;
+				break;
+			case '8':
+				i64 = va_arg(ap, int64_t);
+				if (buf) {
+					int shift = 64;
+					do {
+						shift -= 8;
+						*buf++ = (i64 >> shift) & 0xff;
+					} while(shift);
+				}
+				len += 8;
+				break;
+			default:
+				kernel_panic("Unknown key specifier at position %d: %s\n", f-fmt, fmt);
+				break;
+			}
+		} else if ('s' == *f) {
+			char * s = va_arg(ap, char *);
+			if (buf) {
+				int copylen = key->buflen - len + 1;
+				memcpy(buf, s, copylen);
+
+				return key;
+			}
+			len += strlen(s)+1;
+		} else {
+			kernel_panic("Unknown key specifier at position %d: %s\n", f-fmt, fmt);
+		}
+	}
+
+	return malloc(sizeof(*key) + len);
+}
+
+void * map_compound_key( const char * fmt, ... )
+{
+	va_list ap;
+
+	va_start(ap, fmt);
+	void * key = map_compound_key_process(0, fmt, ap);
+	va_end(ap);
+	va_start(ap, fmt);
+	map_compound_key_process(key, fmt, ap);
+	va_end(ap);
+
+	return key;
 }
