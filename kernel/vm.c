@@ -72,11 +72,6 @@ struct vmobject_t {
 	};
 };
 
-struct anon_page_t {
-	int ref;
-	page_t page;
-};
-
 typedef uint64_t off_t;
 struct vm_page_t {
 	int ref;
@@ -231,16 +226,6 @@ static page_t vm_anon_get_page(vmobject_t * anon, off_t offset)
 static page_t vm_anon_put_page(vmobject_t * anon, off_t offset, page_t page)
 {
 	return map_put(anon->anon.pages, offset >> ARCH_PAGE_SIZE_LOG2, page);
-}
-
-static void vm_object_anon_copy_pages(void * arg, int i, void * p)
-{
-	vm_page_t * vmp = p;
-	map_t * to = arg;
-
-	/* Increment the reference count on the page */
-	arch_atomic_postinc(&vmp->ref);
-	map_putip(to, i, vmp);
 }
 
 static void vm_object_anon_copy_walk(void * p, map_key key, map_data data)
