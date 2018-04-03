@@ -46,7 +46,7 @@ qemu: all .gdbinit
 	qemu-system-i386 -m 16 -s -S -kernel $(KERNEL) &
 
 run: all
-	qemu-system-i386 -m 16 -kernel $(KERNEL) &
+	qemu-system-i386 -m 16 -s -kernel $(KERNEL) &
 
 includes::
 	$(MAKEHEADERS) $(SRCS_C)
