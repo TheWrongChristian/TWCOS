@@ -107,6 +107,7 @@ void arch_init()
 
 	/* 64MB heap by default */
 	heapend = data_start + 0x4000000;
+	vm_kas_start(heapend);
 
 	pstart = ((uint32_t)&_bootstrap_start)>>ARCH_PAGE_SIZE_LOG2;
 	pend = ((uint32_t)(nextalloc-koffset))>>ARCH_PAGE_SIZE_LOG2;
@@ -157,7 +158,6 @@ void arch_init()
 		}
 	}
 #endif
-	vm_kas_start(heapend);
 	kernel_printk("Bootstrap end - %p\n", nextalloc);
 	sti();
 }
