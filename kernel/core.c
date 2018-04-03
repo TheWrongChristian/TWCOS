@@ -99,10 +99,23 @@ page_t page_calloc()
 {
 	page_t page = page_alloc();
 	page_clean(page);
+
+	return page;
 }
 
 void page_clean(page_t page)
 {
+	static void * p = 0;
+	static int lock[] = {0};
+
+	SPIN_AUTOLOCK(lock) {
+		if (0==p) {
+			p = vm_kas_get_aligned(ARCH_PAGE_SIZE, ARCH_PAGE_SIZE);
+		}
+
+		vmap_map(kas, p, page, 1, 0);
+		memset(p, 0, ARCH_PAGE_SIZE);
+	}
 }
 
 segment_t * heap;
@@ -125,7 +138,6 @@ void * page_heap_alloc()
 			}
 		}
 
-		memset(p, 0, ARCH_PAGE_SIZE);
 	}
 
 	return p;
