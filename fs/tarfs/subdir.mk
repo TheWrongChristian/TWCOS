@@ -20,3 +20,6 @@ $(TARFS_TAR_C): $(TARFS_TAR)
 	xxd -i $(TARFS_TAR) > $(TARFS_TAR_C)
 
 includes:: $(TARFS_TAR_C)
+
+clean::
+	rm $(TARFS_TAR_C)
