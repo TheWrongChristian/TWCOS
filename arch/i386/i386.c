@@ -386,9 +386,6 @@ void i386_init()
 	initial.state = THREAD_RUNNING;
 
 	PIC_remap(PIC_IRQ_BASE, PIC_IRQ_BASE+16);
-
-	cli();
-	sti();
 }
 
 void arch_thread_init(thread_t * thread)

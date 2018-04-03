@@ -84,6 +84,7 @@ void arch_init()
 	page_t pend;
 	int pcount = 0;
 
+	cli();
 	for(i=0;;i++) {
 		multiboot_memory_map_t * mmap = multiboot_mmap(i);
 
@@ -158,6 +159,7 @@ void arch_init()
 #endif
 	vm_kas_start(heapend);
 	kernel_printk("Bootstrap end - %p\n", nextalloc);
+	sti();
 }
 
 #if INTERFACE
