@@ -95,6 +95,15 @@ page_t page_alloc()
 	return 0;
 }
 
+page_t page_calloc()
+{
+	page_t page = page_alloc();
+	page_clean(page);
+}
+
+void page_clean(page_t page)
+{
+}
 
 segment_t * heap;
 static int heap_cache_lock;
@@ -108,7 +117,7 @@ void * page_heap_alloc()
 			heap_cache = heap_cache[0];
 		} else {
 			p = arch_heap_page();
-			page_t page = page_alloc();
+			page_t page = page_calloc();
 			vmap_map(0, p, page, 1, 0);
 
 			if (heap) {
