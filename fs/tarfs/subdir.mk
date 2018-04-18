@@ -22,4 +22,4 @@ $(TARFS_TAR_C): $(TARFS_TAR)
 includes:: $(TARFS_TAR_C)
 
 clean::
-	rm $(TARFS_TAR_C)
+	rm -f $(TARFS_TAR_C)
