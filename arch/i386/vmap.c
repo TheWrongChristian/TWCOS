@@ -31,7 +31,7 @@ static pte_t * vmap_get_pgtable(asid vid)
 {
 	int i;
 	int lowseq = INT32_MAX;
-	int lowi;
+	int lowi = 0;
 	static int seq = 0;
 
 	if (0 == vid) {
