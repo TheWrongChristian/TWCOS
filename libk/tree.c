@@ -695,6 +695,16 @@ map_t * tree_new(int (*comp)(map_key k1, map_key k2), treemode mode)
 	return &tree->map;
 }
 
+map_t * splay_new(int (*comp)(map_key k1, map_key k2))
+{
+	return tree_new(comp, TREE_SPLAY);
+}
+
+map_t * treap_new(int (*comp)(map_key k1, map_key k2))
+{
+	return tree_new(comp, TREE_TREAP);
+}
+
 static void tree_graph_node(node_t * node, int level)
 {
 	if (0==node) {
@@ -729,8 +739,8 @@ static void tree_walk_dump(void * p, void * key, void * data)
 void tree_test()
 {
 	tree_init();
-	map_t * map = tree_new(map_strcmp, TREE_TREAP);
-	map_t * akmap = tree_new(map_arraycmp, 0);
+	map_t * map = treap_new(map_strcmp);
+	map_t * akmap = tree_new(map_arraycmp, TREE_COUNT);
 	map_test(map, akmap);
 
 	tree_graph_node(container_of(akmap, tree_t, map)->root, 0);
