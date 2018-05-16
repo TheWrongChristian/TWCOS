@@ -216,6 +216,42 @@ static void node_count_balance( node_t * node )
         }
 }
 
+static void node_simple_balance( node_t * node )
+{
+	node_t * parent = node->parent;
+
+	while(parent) {
+		int i = 0;
+
+		i |= (parent->left != 0);
+		i <<= 1;
+		i |= (parent->right != 0);
+		i <<= 1;
+		i |= (node->left != 0);
+		i <<= 1;
+		i |= (node->right != 0);
+
+		switch(i) {
+		/* 1001 */
+		case 9:
+                        node_rotate_left(node);
+		/* 1010 */
+		case 10:
+                        node_rotate_right(parent);
+			break;
+		/* 0110 */
+		case 6:
+                        node_rotate_right(node);
+		/* 0101 */
+		case 5:
+                        node_rotate_left(parent);
+			break;
+		}
+		node = parent;
+		parent = node->parent;
+	}
+}
+
 static node_t * tree_node_new( node_t * parent, map_key key, map_data data )
 {
         node_t * node = slab_alloc(nodes);
@@ -458,6 +494,9 @@ static map_data tree_put( map_t * map, map_key key, map_data data )
         case TREE_COUNT:
                 node_count_balance(node);
                 break;
+	default:
+		node_simple_balance(node);
+		break;
         }
         if (NULL == node->parent) {
                 tree->root = node;
@@ -695,6 +734,16 @@ map_t * tree_new(int (*comp)(map_key k1, map_key k2), treemode mode)
 	return &tree->map;
 }
 
+map_t * splay_new(int (*comp)(map_key k1, map_key k2))
+{
+	return tree_new(comp, TREE_SPLAY);
+}
+
+map_t * treap_new(int (*comp)(map_key k1, map_key k2))
+{
+	return tree_new(comp, TREE_TREAP);
+}
+
 static void tree_graph_node(node_t * node, int level)
 {
 	if (0==node) {
@@ -729,7 +778,7 @@ static void tree_walk_dump(void * p, void * key, void * data)
 void tree_test()
 {
 	tree_init();
-	map_t * map = tree_new(map_strcmp, TREE_TREAP);
+	map_t * map = treap_new(map_strcmp);
 	map_t * akmap = tree_new(map_arraycmp, 0);
 	map_test(map, akmap);
 
