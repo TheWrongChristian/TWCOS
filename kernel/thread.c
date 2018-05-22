@@ -8,7 +8,7 @@
 typedef int tls_key;
 
 #define TLS_MAX 32
-typedef struct thread_s {
+struct thread_t {
 	/* Runtime data */
 	void * tls[TLS_MAX];
 	arch_context_t context;
@@ -22,9 +22,19 @@ typedef struct thread_s {
 	void * retval;
 
 	/* Queue */
-	struct thread_s *prev;
-	struct thread_s *next;
-} thread_t;
+	thread_t *prev;
+	thread_t *next;
+};
+
+struct lock_t {
+	int spin;
+	void * p;
+	int count;
+	int getting;
+	thread_t * owner;
+	thread_t * waiting;
+	thread_t * condwaiting;
+};
 
 enum tstate { THREAD_NEW, THREAD_RUNNABLE, THREAD_RUNNING, THREAD_SLEEPING, THREAD_TERMINATED };
 enum tpriority { THREAD_INTERRUPT = 0, THREAD_NORMAL, THREAD_IDLE, THREAD_PRIORITIES };
@@ -73,16 +83,6 @@ void * tls_get(int key)
 static void thread_mark(void * p);
 static void thread_finalize(void * p);
 static slab_type_t threads[1] = {SLAB_TYPE(sizeof(thread_t), thread_mark, thread_finalize)};
-
-typedef struct lock_s {
-	int spin;
-	void * p;
-	int count;
-	int getting;
-	thread_t * owner;
-	thread_t * waiting;
-	thread_t * condwaiting;
-} lock_t;
 
 static void lock_mark(void * p)
 {
@@ -150,7 +150,7 @@ static thread_t * thread_queue(thread_t * queue, thread_t * thread, tstate state
 	return queue;
 }
 
-static void thread_lock_signal(struct lock_s * lock)
+static void thread_lock_signal(lock_t * lock)
 {
 	thread_t * resume = lock->waiting;
 
@@ -160,7 +160,7 @@ static void thread_lock_signal(struct lock_s * lock)
 	}
 }
 
-static void thread_cond_signal(struct lock_s * lock)
+static void thread_cond_signal(lock_t * lock)
 {
 	thread_t * resume = lock->condwaiting;
 
@@ -170,7 +170,7 @@ static void thread_cond_signal(struct lock_s * lock)
 	}
 }
 
-static void thread_cond_broadcast(struct lock_s * lock)
+static void thread_cond_broadcast(lock_t * lock)
 {
 	thread_t * resume = lock->condwaiting;
 
@@ -181,7 +181,7 @@ static void thread_cond_broadcast(struct lock_s * lock)
 	}
 }
 
-static void thread_lock_wait(struct lock_s * lock)
+static void thread_lock_wait(lock_t * lock)
 {
 	lock->waiting = thread_queue(lock->waiting, 0, THREAD_SLEEPING);
 	thread_lock_signal(lock);
@@ -189,7 +189,7 @@ static void thread_lock_wait(struct lock_s * lock)
 	thread_schedule();
 }
 
-static void thread_cond_wait(struct lock_s * lock)
+static void thread_cond_wait(lock_t * lock)
 {
 	lock->condwaiting = thread_queue(lock->condwaiting, 0, THREAD_SLEEPING);
 	thread_lock_signal(lock);
@@ -197,7 +197,7 @@ static void thread_cond_wait(struct lock_s * lock)
 	thread_schedule();
 }
 
-static struct lock_s * thread_lock_get(void * p)
+static lock_t * thread_lock_get(void * p)
 {
 	while(1) {
 		if (spin_trylock(&locktablespin)) {
@@ -231,7 +231,7 @@ static struct lock_s * thread_lock_get(void * p)
 	}
 }
 
-static int thread_trylock_internal(struct lock_s * lock, void * p)
+static int thread_trylock_internal(lock_t * lock, void * p)
 {
 	if (0 == lock->count) {
 		/* Not in use, mark it as used and locked */
@@ -251,7 +251,7 @@ static int thread_trylock_internal(struct lock_s * lock, void * p)
 
 int thread_trylock(void * p)
 {
-	struct lock_s * lock = thread_lock_get(p);
+	lock_t * lock = thread_lock_get(p);
 
 	return thread_trylock_internal(lock, p);
 }
@@ -259,7 +259,7 @@ int thread_trylock(void * p)
 void thread_lock(void * p)
 {
 	while(1) {
-		struct lock_s * lock = thread_lock_get(p);
+		lock_t * lock = thread_lock_get(p);
 
 		if (thread_trylock_internal(lock, p)) {
 			return;
@@ -272,7 +272,7 @@ void thread_lock(void * p)
 
 void thread_unlock(void *p)
 {
-	struct lock_s * lock = thread_lock_get(p);
+	lock_t * lock = thread_lock_get(p);
 
 	if (lock->owner == arch_get_thread()) {
 		/* We own the lock, unlock it */
@@ -289,7 +289,7 @@ void thread_unlock(void *p)
 
 void thread_signal(void *p)
 {
-	struct lock_s * lock = thread_lock_get(p);
+	lock_t * lock = thread_lock_get(p);
 	if (lock->owner == arch_get_thread()) {
 		thread_cond_signal(lock);
 	} else {
@@ -300,7 +300,7 @@ void thread_signal(void *p)
 
 void thread_broadcast(void *p)
 {
-	struct lock_s * lock = thread_lock_get(p);
+	lock_t * lock = thread_lock_get(p);
 	if (lock->owner == arch_get_thread()) {
 		thread_cond_broadcast(lock);
 	} else {
@@ -311,7 +311,7 @@ void thread_broadcast(void *p)
 
 void thread_wait(void *p)
 {
-	struct lock_s * lock = thread_lock_get(p);
+	lock_t * lock = thread_lock_get(p);
 
 	if (lock->owner == arch_get_thread()) {
 		int count = lock->count;
@@ -338,7 +338,7 @@ void thread_wait(void *p)
 static void thread_cleanlocks_copy(void * p, void * key, void * data)
 {
 	map_t * newlocktable = (map_t*)p;
-	struct lock_s * lock = (struct lock_s *)data;
+	lock_t * lock = (lock_t *)data;
 
 	SPIN_AUTOLOCK(&lock->spin) {
 		if (lock->owner || lock->waiting || lock->condwaiting || lock->getting) {
