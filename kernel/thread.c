@@ -231,7 +231,7 @@ static lock_t * thread_lock_get(void * p)
 	}
 }
 
-static int thread_trylock_internal(lock_t * lock, void * p)
+static int thread_trylock_internal(lock_t * lock)
 {
 	if (0 == lock->count) {
 		/* Not in use, mark it as used and locked */
@@ -249,11 +249,11 @@ static int thread_trylock_internal(lock_t * lock, void * p)
 	return 0;
 }
 
-int thread_trylock(void * p)
+int thread_tryplock(void * p)
 {
 	lock_t * lock = thread_lock_get(p);
 
-	return thread_trylock_internal(lock, p);
+	return thread_trylock_internal(lock);
 }
 
 void thread_lock(void * p)
@@ -261,7 +261,7 @@ void thread_lock(void * p)
 	while(1) {
 		lock_t * lock = thread_lock_get(p);
 
-		if (thread_trylock_internal(lock, p)) {
+		if (thread_trylock_internal(lock)) {
 			return;
 		} else {
 			/* Owned by someone else */
@@ -321,7 +321,7 @@ void thread_wait(void *p)
 		while(1) {
 			lock = thread_lock_get(p);
 
-			if (thread_trylock_internal(lock, p)) {
+			if (thread_trylock_internal(lock)) {
 				/* We have the lock again, restore count */
 				lock->count = count;
 				return;
