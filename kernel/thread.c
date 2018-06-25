@@ -203,11 +203,6 @@ static struct lock_s * thread_lock_get(void * p)
 {
 	while(1) {
 		if (spin_trylock(&locktablespin)) {
-			if (0 == locktable) {
-				locktable = tree_new(0, TREE_SPLAY);
-				thread_gc_root(locktable);
-			}
-
 			lock_t * lock = map_getpp(locktable, p);
 			if (0 == lock) {
 				lock = slab_calloc(locks);
@@ -537,6 +532,8 @@ void thread_init()
 
 	/* Craft a new bootstrap thread to replace the static defined thread */
 	arch_thread_init(slab_alloc(threads));
+	locktable = tree_new(0, TREE_SPLAY);
+	thread_gc_root(locktable);
 }
 
 static void thread_test2();
