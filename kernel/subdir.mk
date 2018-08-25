@@ -1,1 +1,1 @@
-SRCS_C += $(subdir)/main.c  $(subdir)/core.c  $(subdir)/pci.c  $(subdir)/printk.c  $(subdir)/panic.c $(subdir)/thread.c $(subdir)/check.c $(subdir)/vm.c
+SRCS_C += $(subdir)/main.c  $(subdir)/core.c  $(subdir)/pci.c  $(subdir)/printk.c  $(subdir)/panic.c $(subdir)/thread.c $(subdir)/sync.c $(subdir)/check.c $(subdir)/vm.c
