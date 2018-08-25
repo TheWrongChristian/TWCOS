@@ -3,6 +3,7 @@
 #if INTERFACE
 
 #include <stdint.h>
+#include <stdarg.h>
 
 typedef uintptr_t map_key;
 typedef intptr_t map_data;
@@ -22,6 +23,7 @@ struct map_ops {
 	void (*destroy)( map_t * map );
 	void (*walk)( map_t * map, walk_func func, void *p );
 	void (*walk_range)( map_t * map, walk_func func, void *p, map_key from, map_key to );
+	void (*walk_prefix)( map_t * map, walk_func func, void *p, map_key prefix );
 	map_data (*put)( map_t * map, map_key key, map_data data );
 	map_data (*get)( map_t * map, map_key key, map_eq_test cond );
 	map_data (*remove)( map_t * map, map_key key );
@@ -34,6 +36,19 @@ typedef struct map_s {
 } map_t;
 
 enum map_eq_test { MAP_LT, MAP_LE, MAP_EQ, MAP_GE, MAP_GT };
+
+#if 0
+typedef struct map_compound_key_t map_compound_key_t;
+#endif
+struct map_compound_key_t {
+	size_t buflen;
+	char buf[];
+};
+
+struct map_compound_tempkey_t {
+	size_t buflen;
+	char buf[24];
+};
 
 #endif
 
@@ -133,6 +148,24 @@ void map_walkpi_range( map_t * map, walkpi_func func, void * p, void * from, voi
 void map_walk_range( map_t * map, walk_func func, void * p, map_key from, map_key to )
 {
 	map->ops->walk_range(map, func, p, from, to);
+}
+
+void map_walkpp_prefix( map_t * map, walkpp_func func, void * p, void * prefix)
+{
+	struct walk_wrapper wrapper = {
+		{ func },
+		p
+	};
+	map->ops->walk_prefix(map, walk_walkpp_func, &wrapper, (map_key)prefix);
+}
+
+void map_walkpi_prefix( map_t * map, walkpi_func func, void * p, void * prefix)
+{
+	struct walk_wrapper wrapper = {
+		{ func },
+		p
+	};
+	map->ops->walk_prefix(map, walk_walkpi_func, &wrapper, (map_key)prefix);
 }
 
 map_data map_put( map_t * map, map_key key, map_data data )
@@ -290,6 +323,136 @@ map_key map_arraykey3( map_key k1, map_key k2, map_key k3 )
 	return (map_key)key;
 }
 
+static void map_compound_key_add( map_compound_key_t * key, void * p, size_t size)
+{
+}
+
+static map_compound_key_t * map_compound_key_process( map_compound_key_t * key, const char * fmt, va_list ap)
+{
+	const char * f = fmt;
+	int len = 0;
+	char * buf = (key) ? key->buf : 0;
+
+	/* Initialize temporary buffer */
+	if (key && 0 == key->buflen) {
+		map_compound_tempkey_t * tkey = (map_compound_tempkey_t*)key;
+		tkey->buflen = sizeof(tkey->buf);
+	}
+
+	while(*f) {
+		if ('i' == *f) {
+			f++;
+			switch(*f) {
+				uint32_t i32;
+				uint64_t i64;
+			case '4':
+				i32 = va_arg(ap, uint32_t);
+				if (buf) {
+					i32 = (i32 << 8) | (i32 >> 24); *buf++ = (i32) & 0xff;
+					i32 = (i32 << 8) | (i32 >> 24); *buf++ = (i32) & 0xff;
+					i32 = (i32 << 8) | (i32 >> 24); *buf++ = (i32) & 0xff;
+					i32 = (i32 << 8) | (i32 >> 24); *buf++ = (i32) & 0xff;
+				}
+				len += 4;
+				break;
+			case '8':
+				i64 = va_arg(ap, int64_t);
+				if (buf) {
+#if 0
+					int shift = 64;
+					do {
+						shift -= 8;
+						*buf++ = (i64 >> shift) & 0xff;
+					} while(shift);
+#endif
+					i64 = (i64 << 8) | (i64 >> 56); *buf++ = (i64) & 0xff;
+					i64 = (i64 << 8) | (i64 >> 56); *buf++ = (i64) & 0xff;
+					i64 = (i64 << 8) | (i64 >> 56); *buf++ = (i64) & 0xff;
+					i64 = (i64 << 8) | (i64 >> 56); *buf++ = (i64) & 0xff;
+					i64 = (i64 << 8) | (i64 >> 56); *buf++ = (i64) & 0xff;
+					i64 = (i64 << 8) | (i64 >> 56); *buf++ = (i64) & 0xff;
+					i64 = (i64 << 8) | (i64 >> 56); *buf++ = (i64) & 0xff;
+					i64 = (i64 << 8) | (i64 >> 56); *buf++ = (i64) & 0xff;
+				}
+				len += 8;
+				break;
+			default:
+				kernel_panic("Unknown key specifier at position %d: %s\n", f-fmt, fmt);
+				break;
+			}
+		} else if ('s' == *f) {
+			char * s = va_arg(ap, char *);
+			if (buf) {
+				int copylen = key->buflen - len;
+				memcpy(buf, s, copylen);
+
+				return key;
+			}
+			len += strlen(s)+1;
+		} else {
+			kernel_panic("Unknown key specifier at position %d: %s\n", f-fmt, fmt);
+		}
+		f++;
+	}
+
+	if (key) {
+		key->buflen = len;
+	} else {
+		key = malloc(sizeof(*key) + len);
+		key->buflen = len;
+	}
+
+	return key;
+}
+
+map_compound_key_t * map_compound_key( const char * fmt, ... )
+{
+	va_list ap;
+
+	va_start(ap, fmt);
+	map_compound_key_t * key = map_compound_key_process(0, fmt, ap);
+	va_end(ap);
+	va_start(ap, fmt);
+	map_compound_key_process(key, fmt, ap);
+	va_end(ap);
+
+	return key;
+}
+
+map_compound_key_t * map_compound_tempkey( map_compound_tempkey_t * key, const char * fmt, ... )
+{
+	va_list ap;
+	va_start(ap, fmt);
+	map_compound_key_process(key, fmt, ap);
+	va_end(ap);
+
+	return (map_compound_key_t*)key;
+}
+
+int map_compound_key_comp(map_compound_key_t * key1, map_compound_key_t * key2)
+{
+	if (key1->buflen < key2->buflen) {
+		int d = memcmp(key1->buf, key2->buf, key1->buflen);
+
+		return (d) ? d : -1;
+	} else if (key1->buflen > key2->buflen) {
+		int d = memcmp(key1->buf, key2->buf, key2->buflen);
+
+		return (d) ? d : 1;
+	} else {
+		return memcmp(key1->buf, key2->buf, key1->buflen);
+	}
+}
+
+int map_compound_key_prefix(map_compound_key_t * prefix, map_compound_key_t * key)
+{
+	if (prefix->buflen > key->buflen) {
+		return 0;
+	}
+
+	return (0 == memcmp(prefix->buf, key->buf, prefix->buflen));
+}
+
 void map_test(map_t * map, map_t * akmap)
 {
 	static char * data[] = {
@@ -326,6 +489,12 @@ void map_test(map_t * map, map_t * akmap)
 	for( int i=0; i<(sizeof(data)/sizeof(data[0])); i++) {
 		map_removepp(map, data[i]);
 	}
+
+	map_compound_key_t * key1 = map_compound_key("i4i8s", (int32_t)10, (int64_t)32, "blah");
+	map_compound_tempkey_t prefix = {0};
+	map_compound_key_t * key2 = map_compound_tempkey(&prefix, "i4i8", (int32_t)10, (int64_t)32);
+	int comp = map_compound_key_comp(key1, key2);
+	int isprefix = map_compound_key_prefix(key2, key1);
 }
 
 static void map_put_all_walk(void *p,map_key key,map_data data)
