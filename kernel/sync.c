@@ -28,7 +28,10 @@ struct monitor_t {
 		inited = 1; \
 	} while(0)
 
-#define SPIN_AUTOLOCK(lock) int s##__LINE__ = 0; while((s##__LINE__=spin_autolock(lock, s##__LINE__)))
+#define AUTOLOCK_CONCAT(a, b) a ## b
+#define AUTOLOCK_VAR(line) AUTOLOCK_CONCAT(s,line)
+#define SPIN_AUTOLOCK(lock) int AUTOLOCK_VAR(__LINE__) = 0; while((AUTOLOCK_VAR(__LINE__) =spin_autolock(lock, AUTOLOCK_VAR(__LINE__) )))
+#define MUTEX_AUTOLOCK(lock) int AUTOLOCK_VAR(__LINE__) = 0; while((AUTOLOCK_VAR(__LINE__) =mutex_autolock(lock, AUTOLOCK_VAR(__LINE__) )))
 
 #endif
 
@@ -71,6 +74,19 @@ void spin_lock(int * l)
 {
 	arch_spin_lock(l);
 }
+
+int mutex_autolock(mutex_t * lock, int state)
+{
+        if (state) {
+                mutex_unlock(lock);
+                state = 0;
+        } else {
+                mutex_lock(lock);
+                state = 1;
+        }
+
+        return state;
+} 
 
 int spin_autolock(int * lock, int state)
 {
