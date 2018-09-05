@@ -505,7 +505,7 @@ void * vm_kas_get( size_t size )
 	return vm_kas_get_aligned(size, sizeof(intptr_t));
 }
 
-static int vmpages_lock;
+static mutex_t vmpages_lock;
 
 typedef struct vmpage_s {
 	int count;
@@ -519,7 +519,7 @@ typedef struct vmpage_s {
 
 void vm_vmpage_map( page_t page, asid as, void * p )
 {
-	SPIN_AUTOLOCK(&vmpages_lock) {
+	MUTEX_AUTOLOCK(&vmpages_lock) {
 		vmpage_t * vmpage = map_getip(vmpages, page);
 		int count = 1;
 
@@ -527,14 +527,13 @@ void vm_vmpage_map( page_t page, asid as, void * p )
 			/* Check if we already have this mapping */
 			for(int i=0; i<vmpage->count; i++) {
 				if (vmpage->maps[i].as == as && vmpage->maps[i].p == p) {
-					spin_unlock(&vmpages_lock);
+					mutex_unlock(&vmpages_lock);
 					return;
 				}
 			}
 
 			count = vmpage->count + 1;
 		}
-
 		vmpage = realloc(vmpage, sizeof(*vmpage) + count*sizeof(vmpage->maps[0]));
 		vmpage->count = count;
 		vmpage->maps[count-1].as = as;
@@ -547,7 +546,7 @@ void vm_vmpage_map( page_t page, asid as, void * p )
 
 void vm_vmpage_unmap( page_t page, asid as, void * p )
 {
-	SPIN_AUTOLOCK(&vmpages_lock) {
+	MUTEX_AUTOLOCK(&vmpages_lock) {
 		vmpage_t * vmpage = map_getip(vmpages, page);
 
 		if (vmpage)  {
@@ -556,7 +555,7 @@ void vm_vmpage_unmap( page_t page, asid as, void * p )
 					vmpage->maps[i].as = vmpage->maps[vmpage->count-1].as;
 					vmpage->maps[i].p = vmpage->maps[vmpage->count-1].p;
 					i = vmpage->count--;
-					spin_unlock(&vmpages_lock);
+					mutex_unlock(&vmpages_lock);
 					return;
 				}
 			}
@@ -566,7 +565,7 @@ void vm_vmpage_unmap( page_t page, asid as, void * p )
 
 void vm_vmpage_setflags(page_t page, int flags)
 {
-	SPIN_AUTOLOCK(&vmpages_lock) {
+	MUTEX_AUTOLOCK(&vmpages_lock) {
 		vmpage_t * vmpage = map_getip(vmpages, page);
 
 		if (vmpage)  {
@@ -577,7 +576,7 @@ void vm_vmpage_setflags(page_t page, int flags)
 
 void vm_vmpage_resetflags(page_t page, int flags)
 {
-	SPIN_AUTOLOCK(&vmpages_lock) {
+	MUTEX_AUTOLOCK(&vmpages_lock) {
 		vmpage_t * vmpage = map_getip(vmpages, page);
 
 		if (vmpage)  {
@@ -588,7 +587,7 @@ void vm_vmpage_resetflags(page_t page, int flags)
 
 void vm_vmpage_trapwrites(page_t page)
 {
-	SPIN_AUTOLOCK(&vmpages_lock) {
+	MUTEX_AUTOLOCK(&vmpages_lock) {
 		vmpage_t * vmpage = map_getip(vmpages, page);
 		if (vmpage)  {
 			for(int i=0; i<vmpage->count; i++) {
@@ -608,7 +607,7 @@ void vm_vmpage_trapwrites(page_t page)
 
 void vm_vmpage_trapaccess(page_t page)
 {
-	SPIN_AUTOLOCK(&vmpages_lock) {
+	MUTEX_AUTOLOCK(&vmpages_lock) {
 		vmpage_t * vmpage = map_getip(vmpages, page);
 		if (vmpage)  {
 			for(int i=0; i<vmpage->count; i++) {
@@ -626,7 +625,7 @@ void vm_vmpage_trapaccess(page_t page)
 
 void vm_vmpage_age(page_t page)
 {
-	SPIN_AUTOLOCK(&vmpages_lock) {
+	MUTEX_AUTOLOCK(&vmpages_lock) {
 		vmpage_t * vmpage = map_getip(vmpages, page);
 		if (vmpage)  {
 			if (vmpage->age) {
