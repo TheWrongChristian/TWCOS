@@ -56,6 +56,7 @@ SECTIONS
 	/* Read-write page aligned data (uninitialized) */
 	.aligned ALIGN(4K) : AT(ADDR(.aligned) - kernel_offset)
 	{
+		zero_start = .;
 		*(.aligned)
 	}
 
@@ -64,6 +65,7 @@ SECTIONS
 	{
 		*(COMMON)
 		*(.bss)
+		zero_end = .;
 	}
 
 	/* The compiler may produce other sections, by default it will put them in
