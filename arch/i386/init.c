@@ -43,6 +43,8 @@ extern char _bootstrap_end[];
 extern char _bootstrap_nextalloc[];
 static char * nextalloc = _bootstrap_nextalloc;
 static char * heapend;
+extern char zero_start[];
+extern char zero_end[];
 
 #define ALIGNMENT 16
 
@@ -84,6 +86,7 @@ void arch_init()
 	page_t pend;
 	int pcount = 0;
 
+	memset(zero_start, 0, zero_end-zero_start);
 	cli();
 	for(i=0;;i++) {
 		multiboot_memory_map_t * mmap = multiboot_mmap(i);
