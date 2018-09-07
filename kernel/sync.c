@@ -297,3 +297,10 @@ void thread_cleanlocks()
 	}
 #endif
 }
+
+void sync_init()
+{
+	INIT_ONCE();
+	locktable = tree_new(0, TREE_SPLAY);
+	thread_gc_root(locktable);
+}

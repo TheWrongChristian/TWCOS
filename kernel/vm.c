@@ -136,21 +136,25 @@ static void vm_invalid_pointer(void * p, int write, int user, int present)
 static segment_t * vm_get_segment(map_t * as, void * p)
 {
 	/* Check for kernel address space */
-	thread_lock(as);
 	segment_t * seg = map_getpp_cond(as, p, MAP_LE);
-	thread_unlock(as);
 
 	return seg;
 }
 
+static mutex_t kaslock = {0};
+
 static int vm_resolve_address(void * p, address_info_t * info)
 {
+	segment_t * seg = 0;
 	map_t * as = kas;
-	segment_t * seg = vm_get_segment(as, p);
-	if (0 == seg) {
-		as = (arch_get_thread()->process) ? arch_get_thread()->process->as : 0;
-		if (as) {
-			seg = vm_get_segment(as, p);
+
+	MUTEX_AUTOLOCK(&kaslock) {
+		seg = vm_get_segment(as, p);
+		if (0 == seg) {
+			as = (arch_get_thread()->process) ? arch_get_thread()->process->as : 0;
+			if (as) {
+				seg = vm_get_segment(as, p);
+			}
 		}
 	}
 
@@ -490,12 +494,12 @@ void * vm_kas_get_aligned( size_t size, size_t align )
 {
 	static int lock[1];
 
-	arch_spin_lock(lock);
+	spin_lock(lock);
 	uintptr_t p = (uintptr_t)kas_next;
 	p += (align-1);
 	p &= ~(align-1);
 	kas_next = (void*)p + size;
-	arch_spin_unlock(lock);
+	spin_unlock(lock);
 
 	return (void*)p;
 }
