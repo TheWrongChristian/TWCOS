@@ -268,9 +268,8 @@ void thread_init()
 	INIT_ONCE();
 
 	/* Craft a new bootstrap thread to replace the static defined thread */
+	sync_init();
 	arch_thread_init(slab_alloc(threads));
-	locktable = tree_new(0, TREE_SPLAY);
-	thread_gc_root(locktable);
 }
 
 static void thread_test2();

@@ -12,6 +12,7 @@ typedef struct slab_type {
 	struct slab_type * next, * prev;
 	void (*mark)(void *);
 	void (*finalize)(void *);
+	int lock[1];
 } slab_type_t;
 
 #define SLAB_TYPE(s, m, f) {.magic=0, .esize=s, .mark=m, .finalize=f}
@@ -118,8 +119,7 @@ static void slab_unlock()
 
 void * slab_alloc(slab_type_t * stype)
 {
-	slab_lock();
-
+	spin_lock(stype->lock);
 	slab_t * slab = stype->first ? stype->first : slab_new(stype);
 
 	while(slab) {
@@ -145,8 +145,7 @@ void * slab_alloc(slab_type_t * stype)
 				}
 
 				slab->available[i/32] &= ~mask;
-
-				slab_unlock();
+				spin_unlock(stype->lock);
 				return slab->data + slab->type->esize*slot;
 			}
 		}
@@ -157,8 +156,7 @@ void * slab_alloc(slab_type_t * stype)
 		}
 	}
 
-	slab_unlock();
-	
+	spin_unlock(stype->lock);
 	KTHROW(OutOfMemoryException, "Out of memory");
 	/* Shouldn't get here */
 	return 0;
