@@ -117,8 +117,8 @@ static int tarfs_validate( tarfs_header_t * h )
 	sum = tarfs_otoi(h->chksum, sizeof(h->chksum));
 
 	/* Compute both signed and unsigned checksums */
-	unsigned char * ucp = h;
-	signed char * scp = h;
+	unsigned char * ucp = (unsigned char *)h;
+	signed char * scp = (signed char *)h;
 	for(int i=0; i<sizeof(*h); i++) {
 		if (ucp+i>=h->chksum && ucp+i<h->type) {
 			/* In checksum, just use spaces */
