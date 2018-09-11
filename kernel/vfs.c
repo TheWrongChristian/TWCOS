@@ -136,9 +136,21 @@ void vnode_init(vnode_t * vnode, vnode_type type, fs_t * fs)
 
 void vfs_test(vnode_t * root)
 {
+	if (0 == root) {
+		kernel_panic("root is null!");
+	}
+
 	/* Open libk/tree.c */
 	vnode_t * libk = vnode_get_vnode(root, "libk");
+	if (0 == libk) {
+		kernel_panic("libk is null");
+	}
+
 	vnode_t * tree_c = vnode_get_vnode(libk, "tree.c");
+	if (0 == tree_c) {
+		kernel_panic("tree_c is null");
+	}
+
 
 	char * p = (void*)0x00010000;
 	segment_t * seg = vm_segment_vnode(p, vnode_get_size(tree_c), SEGMENT_U | SEGMENT_P, tree_c, 0);
