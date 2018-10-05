@@ -106,14 +106,14 @@ page_t page_calloc()
 void page_clean(page_t page)
 {
 	static void * p = 0;
-	static int lock[] = {0};
+	static mutex_t lock[] = {0};
 
-	SPIN_AUTOLOCK(lock) {
+	MUTEX_AUTOLOCK(lock) {
 		if (0==p) {
 			p = vm_kas_get_aligned(ARCH_PAGE_SIZE, ARCH_PAGE_SIZE);
 		}
 
-		vmap_map(kas, p, page, 1, 0);
+		vmap_map(0, p, page, 1, 0);
 		memset(p, 0, ARCH_PAGE_SIZE);
 	}
 }
