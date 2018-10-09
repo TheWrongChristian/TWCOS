@@ -88,15 +88,23 @@ static int scancodes[] = {
 
 static int keyq_translate(uint8_t scancode)
 {
-	return 0;
+	return (scancode < sizeof(scancodes)/sizeof(scancodes[0])) ? scancodes[scancode] : 0;
 }
 
 static void keyq_press(uint8_t scancode)
 {
+	int key = keyq_translate(scancode);
+
+	switch(key) {
+	}
 }
 
 static void keyq_release(uint8_t scancode)
 {
+	int key = keyq_translate(scancode);
+
+	switch(key) {
+	}
 }
 
 /*
