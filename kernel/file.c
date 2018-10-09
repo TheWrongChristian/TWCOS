@@ -47,7 +47,7 @@ static void file_set(int fd, file_t * file)
 {
 	check_int_bounds(fd, 0, PROC_MAX_FILE, "Invalid fd");
 	map_t * files = process_files();
-	file_t * oldfile = map_getip(files, fd);
+	file_t * oldfile = map_putip(files, fd, file);
 	if (oldfile) {
 		file_release(oldfile);
 	}
@@ -93,9 +93,7 @@ ssize_t file_write(int fd, void * buf, size_t count)
 void file_close(int fd)
 {
 	KTRY {
-		file_t * file = file_get(fd);
-		thread_lock(file);
-		thread_unlock(file);
+		file_set(fd, 0);
 	} KCATCH(Exception) {
 	}
 }
