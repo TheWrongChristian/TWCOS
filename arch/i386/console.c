@@ -43,6 +43,7 @@ static int console_column;
 static uint8_t console_color;
 static uint16_t* console_buffer;
 
+static int keyq_lock;
 static uint8_t keyq [256];
 #define keyq_ptr(i) ((i)%sizeof(keyq))
 static int keyhead;
@@ -115,27 +116,38 @@ static void keyb_isr()
 	uint8_t scancode = inb(0x60);
 	int head = keyhead;
 
-	if (keyq_ptr(head+1) != keyq_ptr(keytail)) {
-		keyq[keyq_ptr(head++)] = scancode;
+	SPIN_AUTOLOCK(&keyq_lock) {
+		if (keyq_ptr(head+1) != keyq_ptr(keytail)) {
+			keyq[keyq_ptr(head++)] = scancode;
+		}
+		keyhead = head;
 	}
-	keyhead = head;
 }
 
 
+/*
+ * keyq consumer
+ */
 int keyq_empty()
 {
-	return (keyhead == keytail);
+	int empty = 0;
+
+	SPIN_AUTOLOCK(&keyq_lock) {
+		empty = (keyhead == keytail);
+	}
+
+	return empty;
 }
 
 uint8_t keyq_get()
 {
 	uint8_t scancode = 0;
 
-	cli();
-	if (keyq_ptr(keyhead) != keyq_ptr(keytail)) {
-		scancode = keyq[keyq_ptr(keytail++)];
+	SPIN_AUTOLOCK(&keyq_lock) {
+		if (keyq_ptr(keyhead) != keyq_ptr(keytail)) {
+			scancode = keyq[keyq_ptr(keytail++)];
+		}
 	}
-	sti();
 
 	return scancode;
 }
