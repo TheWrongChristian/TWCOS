@@ -193,7 +193,7 @@ void vm_page_fault(void * p, int write, int user, int present)
 					vmap_map(as, p, page, write && SEGMENT_W & seg->perms, SEGMENT_U & seg->perms);
 				}
 				vm_vmpage_map(page, as, p);
-				vm_vmpage_setflags(page, VMPAGE_ACCESSED | (write) ? VMPAGE_DIRTY : 0);
+				vm_vmpage_setflags(page, VMPAGE_ACCESSED | ((write) ? VMPAGE_DIRTY : 0));
 			} else if (write && SEGMENT_W & seg->perms) {
 				page_t page = vmap_get_page(as, p);
 				vmap_map(as, p, page, write && SEGMENT_W & seg->perms, SEGMENT_U & seg->perms);
@@ -498,7 +498,7 @@ void * vm_kas_get_aligned( size_t size, size_t align )
 	uintptr_t p = (uintptr_t)kas_next;
 	p += (align-1);
 	p &= ~(align-1);
-	kas_next = (void*)p + size;
+	kas_next = (void*)(p + size);
 	spin_unlock(lock);
 
 	return (void*)p;
