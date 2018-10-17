@@ -19,7 +19,11 @@
 #endif
 
 static void idle() {
-	arch_idle();
+	while(1) {
+		thread_gc();
+		thread_yield();
+		arch_idle();
+	}
 }
 
 static void run_init() {

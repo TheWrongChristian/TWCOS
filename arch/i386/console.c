@@ -43,7 +43,7 @@ static int console_column;
 static uint8_t console_color;
 static uint16_t* console_buffer;
 
-static int keyq_lock;
+static monitor_t * keyq_lock;
 static uint8_t keyq [256];
 #define keyq_ptr(i) ((i)%sizeof(keyq))
 static int keyhead;
@@ -116,11 +116,12 @@ static void keyb_isr()
 	uint8_t scancode = inb(0x60);
 	int head = keyhead;
 
-	SPIN_AUTOLOCK(&keyq_lock) {
+	MONITOR_AUTOLOCK(keyq_lock) {
 		if (keyq_ptr(head+1) != keyq_ptr(keytail)) {
 			keyq[keyq_ptr(head++)] = scancode;
 		}
 		keyhead = head;
+		monitor_broadcast(keyq_lock);
 	}
 }
 
@@ -132,7 +133,7 @@ int keyq_empty()
 {
 	int empty = 0;
 
-	SPIN_AUTOLOCK(&keyq_lock) {
+	MONITOR_AUTOLOCK(keyq_lock) {
 		empty = (keyhead == keytail);
 	}
 
@@ -143,7 +144,7 @@ uint8_t keyq_get()
 {
 	uint8_t scancode = 0;
 
-	SPIN_AUTOLOCK(&keyq_lock) {
+	MONITOR_AUTOLOCK(keyq_lock) {
 		if (keyq_ptr(keyhead) != keyq_ptr(keytail)) {
 			scancode = keyq[keyq_ptr(keytail++)];
 		}
@@ -152,12 +153,26 @@ uint8_t keyq_get()
 	return scancode;
 }
 
+void keyb_thread()
+{
+	while(1) {
+		MONITOR_AUTOLOCK(keyq_lock) {
+			uint8_t scancode = keyq_get();
+
+			if (scancode) {
+				/* Do something with scancode */
+			} else {
+				monitor_wait(keyq_lock);
+			}
+		}
+	}
+}
+
 void console_initialize()
 {
 	INIT_ONCE();
 
 	page_t fb = 0xb8;
-	add_irq(1, keyb_isr);
 	keyhead = keytail = 0;
 	console_row = 0;
 	console_column = 0;
@@ -171,6 +186,17 @@ void console_initialize()
 			console_buffer[index] = make_vgaentry(' ', console_color);
 		}
 	}
+
+	keyq_lock = monitor_create();
+	thread_gc_root(keyq_lock);
+
+	thread_t * keythread = thread_fork();
+	if (0 == keythread) {
+		/* Keyboard handler thread */
+		thread_set_priority(0, THREAD_INTERRUPT);
+		keyb_thread();
+	}
+	add_irq(1, keyb_isr);
 }
 
 #if 0 

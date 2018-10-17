@@ -32,10 +32,11 @@ struct monitor_t {
 #define AUTOLOCK_VAR(line) AUTOLOCK_CONCAT(s,line)
 #define SPIN_AUTOLOCK(lock) int AUTOLOCK_VAR(__LINE__) = 0; while((AUTOLOCK_VAR(__LINE__) =spin_autolock(lock, AUTOLOCK_VAR(__LINE__) )))
 #define MUTEX_AUTOLOCK(lock) int AUTOLOCK_VAR(__LINE__) = 0; while((AUTOLOCK_VAR(__LINE__) =mutex_autolock(lock, AUTOLOCK_VAR(__LINE__) )))
+#define MONITOR_AUTOLOCK(lock) int AUTOLOCK_VAR(__LINE__) = 0; while((AUTOLOCK_VAR(__LINE__) =monitor_autolock(lock, AUTOLOCK_VAR(__LINE__) )))
 
 #endif
 
-static void lock_mark(void * p)
+static void mutex_mark(void * p)
 {
 	mutex_t * lock = p;
 
@@ -43,14 +44,14 @@ static void lock_mark(void * p)
 	slab_gc_mark(lock->waiting);
 }
 
-static slab_type_t locks[1] = {SLAB_TYPE(sizeof(mutex_t), lock_mark, 0)};
+static slab_type_t mutexes[1] = {SLAB_TYPE(sizeof(mutex_t), mutex_mark, 0)};
 
 
 static void monitor_mark(void * p)
 {
 	monitor_t * lock = p;
 
-	lock_mark(lock->lock);
+	mutex_mark(lock->lock);
 	slab_gc_mark(lock->waiting);
 }
 
@@ -101,6 +102,19 @@ int spin_autolock(int * lock, int state)
         return state;
 } 
 
+int monitor_autolock(monitor_t * lock, int state)
+{
+        if (state) {
+                monitor_leave(lock);
+                state = 0;
+        } else {
+                monitor_enter(lock);
+                state = 1;
+        }
+
+        return state;
+} 
+
 static void thread_lock_signal(mutex_t * lock)
 {
 	thread_t * resume = lock->waiting;
@@ -118,6 +132,11 @@ static void thread_lock_wait(mutex_t * lock)
 	spin_unlock(&lock->spin);
 	thread_schedule();
 	spin_lock(&lock->spin);
+}
+
+mutex_t * mutex_create()
+{
+	return slab_calloc(mutexes);
 }
 
 void mutex_lock(mutex_t * lock)
@@ -154,6 +173,11 @@ void mutex_unlock(mutex_t * lock)
 	}
 
 	spin_unlock(&lock->spin);
+}
+
+monitor_t * monitor_create()
+{
+	return slab_calloc(monitors);
 }
 
 void monitor_enter(monitor_t * monitor)
