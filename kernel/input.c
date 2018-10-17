@@ -274,3 +274,28 @@ struct input_consumer_t {
 
 
 #endif
+
+int key_to_char(int key, int modifiers)
+{
+	int shift = modifiers & (KEY_MOD_LSHIFT | KEY_MOD_RSHIFT);
+	int control = modifiers & (KEY_MOD_LSHIFT | KEY_MOD_RSHIFT);
+
+	if (key>=KEY_A && key<= KEY_Z) {
+		int base = 'a';
+
+		if (shift) {
+			base = 'A';
+		}
+
+		if (control) {
+			base = 1;
+		}
+
+		return base + (key-KEY_A);
+	} else if (key>=KEY_1 && key<=KEY_0) {
+		if (shift) {
+		}
+	}
+
+	return 0;
+}

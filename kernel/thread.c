@@ -99,9 +99,7 @@ static int queuelock;
 
 static void scheduler_lock()
 {
-	while(!spin_trylock(&queuelock)) {
-	}
-	return;
+	spin_lock(&queuelock);
 }
 
 static void scheduler_unlock()
