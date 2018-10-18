@@ -36,6 +36,7 @@ static void run_init() {
 void kernel_main() {
 	/* Initialize console interface */
 	arch_init();
+	console_writestring("\033[1;1HSimple kernel");
 
 	KTRY {
 		/* Initialize subsystems */

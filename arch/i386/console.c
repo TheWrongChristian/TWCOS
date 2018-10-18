@@ -239,7 +239,38 @@ static void console_cursor(int row, int col)
  
 void console_putchar_nocursor(char c)
 {
-	int i;
+
+#define NEXTCHAR(c) do { sequence[next++] = c; if (sizeof(sequence) == next) { state = 0; return; } state = __LINE__; return; case __LINE__: ;} while(0)
+#define SAVECHAR(c) do { sequence[next++] = c; if (sizeof(sequence) == next) { state = 0; return; } } while(0)
+#define RESET() state = 0
+
+	/* Sequence state */
+	static int state = 0;
+	static char sequence[128];
+	static int next = 0;
+
+	switch(state) {
+	case 0:
+		next = 0;
+		if (27 == c) {
+			NEXTCHAR(c);
+			if ('[' == c) {
+				/* CSI */
+				do {
+					NEXTCHAR(c);
+				} while(c >= 0x30 && c<=0x3f);
+				do {
+					NEXTCHAR(c);
+				} while(c >= 0x20 && c<=0x2f);
+				SAVECHAR(0);
+				state = 0;
+			} else {
+				/* Unknown/unhandled sequence */
+				state = 0;
+				return;
+			}
+		}
+	}
 
 	switch(c) {
 	case '\n':
@@ -257,9 +288,9 @@ void console_putchar_nocursor(char c)
 		}
 		break;
 	case '\t':
-		i = console_column;
 		console_column += 8;
 		console_column &= ~7;
+		int i = console_column;
 		if (console_column>=VGA_WIDTH) {
 			i=0;
 			console_column -= VGA_WIDTH;
