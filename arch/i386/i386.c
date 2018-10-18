@@ -346,6 +346,7 @@ static isr_t itable[256] = {
 };
 
 static thread_t initial;
+static thread_t * current;
 
 #define PIC_IRQ_BASE    0x20
 void i386_init()
@@ -380,7 +381,7 @@ void i386_init()
 	lidt(idt,sizeof(idt));
 
 	/* Craft the initial thread and stack */
-	*stackbase = &initial;
+	current = *stackbase = &initial;
 	initial.context.stack = stackbase;
 	initial.priority = THREAD_NORMAL;
 	initial.state = THREAD_RUNNING;
@@ -423,9 +424,12 @@ void i386_isr(uint32_t num, uint32_t * state)
 
 thread_t * arch_get_thread()
 {
+#if 0
 	thread_t ** stackbase = ARCH_GET_VPAGE(&stackbase);
 
 	return *stackbase;
+#endif
+	return current;
 }
 
 int arch_thread_fork(thread_t * dest)
@@ -491,6 +495,7 @@ void arch_thread_switch(thread_t * thread)
 			thread->state = THREAD_RUNNING;
 		}
 		tss[1] = (uint32_t)thread->context.stack + ARCH_PAGE_SIZE;
+		current = thread;
 		longjmp(thread->context.state, 1);
 	}
 }
