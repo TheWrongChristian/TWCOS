@@ -37,6 +37,11 @@ void kernel_main() {
 	/* Initialize console interface */
 	arch_init();
 	console_writestring("\033[1;1HSimple kernel");
+	console_writestring("\033[2;2HSimple kernel");
+	console_writestring("\033[3;3HSimple kernel");
+	console_writestring("\033[4;4HSimple kernel");
+	console_writestring("\033[4S");
+	console_writestring("\033[4T");
 
 	KTRY {
 		/* Initialize subsystems */

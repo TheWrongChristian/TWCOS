@@ -222,7 +222,37 @@ static void console_scroll()
 	{
 		console_buffer[i] = make_vgaentry(' ', console_color);
 	}
-	--console_row;
+	console_row--;
+}
+
+static void console_scrollup(int lines)
+{
+	/* Scroll up */
+	int i = VGA_WIDTH * lines;
+	for(;i<VGA_HEIGHT * VGA_WIDTH;i++) {
+		console_buffer[i-VGA_WIDTH * lines] = console_buffer[i];
+	}
+	/* Clear last lines */
+	for(i=VGA_HEIGHT * VGA_WIDTH - VGA_WIDTH; i<VGA_HEIGHT * lines; i++)
+	{
+		console_buffer[i] = make_vgaentry(' ', console_color);
+	}
+	console_row -= lines;
+}
+
+static void console_scrolldown(int lines)
+{
+	/* Scroll down */
+	int i = (VGA_HEIGHT-lines) * VGA_WIDTH;
+	for(;i>0;i--) {
+		console_buffer[i+VGA_WIDTH*lines-1] = console_buffer[i-1];
+	}
+	/* Clear first lines */
+	for(i=0; i<lines * VGA_WIDTH; i++)
+	{
+		console_buffer[i] = make_vgaentry(' ', console_color);
+	}
+	console_row += lines;
 }
 
 static void console_cursor(int row, int col)
@@ -235,6 +265,90 @@ static void console_cursor(int row, int col)
 	// cursor HIGH port to vga INDEX register
 	outb(0x3D4, 0x0E);
 	outb(0x3D5, (unsigned char )((position>>8)&0xFF));
+}
+
+void console_clamp_screen()
+{
+	if (console_row<0) {
+		console_row = 0;
+	} else if (console_row>=VGA_HEIGHT) {
+		console_row = VGA_HEIGHT-1;
+	}
+	if (console_column<0) {
+		console_column = 0;
+	} else if (console_column>=VGA_WIDTH) {
+		console_column = VGA_WIDTH-1;
+	}
+}
+
+void console_escape_interp(char * sequence)
+{
+#define IS(c,m) (c == m)
+#define CHECK(c,m) do { if (c != m) { return; } } while(0)
+#define RANGE(c,l,h) (c>=l && c<=h)
+#define ARG(i) ((i<args) ? arg[i] : 0)
+#define ARGd(i,d) ((i<args) ? arg[i] : d)
+
+	char * s = sequence;
+	int args = 0;
+	int arg[3] = {0};
+
+	CHECK('\033', *s++);
+	CHECK('[', *s++);
+
+	for(int i=0; i<sizeof(arg)/sizeof(arg[0]) && RANGE(*s, 0x30, 0x3f); s++) {
+		if (RANGE(*s, '0', '9')) {
+			arg[i] *= 10;
+			arg[i] += (*s - '0');
+			args = i+1;
+		} else if (IS(';', *s)) {
+			i++;
+			continue;
+		}
+	}
+
+	for(;RANGE(*s, 0x30, 0x3f); s++) {
+	}
+	for(;RANGE(*s, 0x20, 0x2f); s++) {
+	}
+
+	switch(*s) {
+	case 'A':
+		console_row -= ARGd(0, 1);
+		break;
+	case 'B':
+		console_row += ARGd(0, 1);
+		break;
+	case 'C':
+		console_column += ARGd(0, 1);
+		break;
+	case 'D':
+		console_column -= ARGd(0, 1);
+		break;
+	case 'E':
+		console_column = 0;
+		console_row += ARGd(0, 1);
+		break;
+	case 'F':
+		console_column = 0;
+		console_row -= ARGd(0, 1);
+		break;
+	case 'G':
+		console_column = ARGd(0, 1);
+		break;
+	case 'H':
+	case 'f':
+		console_row = ARGd(0, 1)-1;
+		console_column = ARGd(1, 1)-1;
+		break;
+	case 'S':
+		console_scrollup(ARGd(0, 1));
+		break;
+	case 'T':
+		console_scrolldown(ARGd(0, 1));
+		break;
+	}
+	console_clamp_screen();
 }
  
 void console_putchar_nocursor(char c)
@@ -256,14 +370,20 @@ void console_putchar_nocursor(char c)
 			NEXTCHAR(c);
 			if ('[' == c) {
 				/* CSI */
-				do {
+				NEXTCHAR(c);
+				while(c >= 0x30 && c<=0x3f) {
 					NEXTCHAR(c);
-				} while(c >= 0x30 && c<=0x3f);
-				do {
+				}
+				while(c >= 0x20 && c<=0x2f) {
 					NEXTCHAR(c);
-				} while(c >= 0x20 && c<=0x2f);
-				SAVECHAR(0);
+				}
+				if (c>=0x40 && c<=0x7e) {
+					SAVECHAR(c);
+					SAVECHAR(0);
+					console_escape_interp(sequence);
+				}
 				state = 0;
+				return;
 			} else {
 				/* Unknown/unhandled sequence */
 				state = 0;
