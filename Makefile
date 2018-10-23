@@ -16,6 +16,8 @@ subdir := kernel
 include $(subdir)/subdir.mk
 subdir := fs
 include $(subdir)/subdir.mk
+subdir := drivers
+include $(subdir)/subdir.mk
 subdir := build
 include $(subdir)/tools.mk
 subdir := arch/$(ARCH)
