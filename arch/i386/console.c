@@ -520,12 +520,7 @@ void dev_console_submit( dev_t * dev, buf_op_t * op )
 	} else {
 		char * cp = op->p;
 		for(int i=0; i<op->size; i++, cp++) {
-			if (queue_empty(input_queue)) {
-				op->size = i;
-				break;
-			} else {
-				*cp = queue_get(input_queue);
-			}
+			*cp = queue_get(input_queue);
 		}
 	}
 	op->status = DEV_BUF_OP_COMPLETE;
