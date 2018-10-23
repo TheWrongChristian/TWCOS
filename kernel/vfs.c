@@ -15,6 +15,10 @@ struct vfs_ops_t {
 	void (*close)(vnode_t * vnode);
 	size_t (*get_size)(vnode_t * vnode);
 
+	/* Stream read/write */
+	size_t (*read)(vnode_t * vnode, off_t offset, void * buf, size_t len);
+	size_t (*write)(vnode_t * vnode, off_t offset, void * buf, size_t len);
+
 	/* vnode Open/close */
 	vnode_t * (*get_vnode)(vnode_t * dir, const char * name);
 	void (*put_vnode)(vnode_t * vnode);
@@ -121,6 +125,16 @@ void vnode_close(vnode_t * vnode)
 	vnode->fs->fsops->close(vnode);
 }
 
+size_t vnode_write(vnode_t * vnode, off_t offset, void * buf, size_t len)
+{
+	return vnode->fs->fsops->write(vnode, offset, buf, len);
+}
+
+size_t vnode_read(vnode_t * vnode, off_t offset, void * buf, size_t len)
+{
+	return vnode->fs->fsops->read(vnode, offset, buf, len);
+}
+
 void fs_idle(vnode_t * root)
 {
 	root->fs->fsops->idle(root->fs);
@@ -132,7 +146,6 @@ void vnode_init(vnode_t * vnode, vnode_type type, fs_t * fs)
 	vnode->fs = fs;
 	vnode->ref = 1;
 }
-
 
 void vfs_test(vnode_t * root)
 {

@@ -50,6 +50,7 @@ void kernel_main() {
 		page_cache_init();
 		process_init();
 		timer_init(arch_timer_ops());
+		testshell_init();
 
 		/* Create process 1 - init */
 		if (0 == process_fork()) {

@@ -153,6 +153,16 @@ uint8_t keyq_get()
 	return scancode;
 }
 
+static queue_t * input_queue;
+void console_input(int key)
+{
+	if (key<0) {
+		queue_put(input_queue, 0xff);
+		key = -key;
+	}
+	queue_put(input_queue, key);
+}
+
 void keyb_thread()
 {
 	while(1) {
@@ -160,7 +170,15 @@ void keyb_thread()
 			uint8_t scancode = keyq_get();
 
 			if (scancode) {
-				/* Do something with scancode */
+				int release = scancode >> 7;
+				scancode &= 0x7f;
+
+				int key = keyq_translate(scancode);
+				if (release) {
+					console_input(-key);
+				} else {
+					console_input(key);
+				}
 			} else {
 				monitor_wait(keyq_lock);
 			}
@@ -189,6 +207,9 @@ void console_initialize()
 
 	keyq_lock = monitor_create();
 	thread_gc_root(keyq_lock);
+
+	input_queue = queue_new(64);
+	thread_gc_root(input_queue);
 
 	thread_t * keythread = thread_fork();
 	if (0 == keythread) {
@@ -483,4 +504,37 @@ stream_t * console_stream()
         sconsole.chars = 0;
 
         return &sconsole.stream;
+}
+
+void dev_console_submit( dev_t * dev, buf_op_t * op )
+{
+	if (op->write) {
+		static stream_t * stream = 0;
+		if (0 == stream) {
+			stream = console_stream();
+		}
+		char * cp = op->p;
+		for(int i=0; i<op->size; i++, cp++) {
+			console_putc(stream, *cp);
+		}
+	} else {
+		char * cp = op->p;
+		for(int i=0; i<op->size; i++, cp++) {
+			if (queue_empty(input_queue)) {
+				op->size = i;
+				break;
+			} else {
+				*cp = queue_get(input_queue);
+			}
+		}
+	}
+	op->status = DEV_BUF_OP_COMPLETE;
+}
+
+dev_t * console_dev()
+{
+	static dev_ops_t ops = { submit: dev_console_submit };
+	static dev_t dev = { .ops = &ops };
+
+	return &dev;
 }

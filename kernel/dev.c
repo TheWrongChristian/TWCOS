@@ -2,28 +2,28 @@
 
 #if INTERFACE
 
-typedef struct dev_ops_s {
-	void (*submit)( dev_s * dev, buf_op_s * op );
-} dev_ops_t;
+struct dev_ops_t {
+	void (*submit)( dev_t * dev, buf_op_t * op );
+};
 
-typedef struct dev_s {
+struct dev_t {
 	dev_ops_t * ops;
-} dev_t;
+};
 
-typedef struct dev_static_s {
+struct dev_static_t {
 	dev_t dev;
 	unsigned char * p;
 	size_t size;
-} dev_static_t;
+};
 
 enum dev_op_status { DEV_BUF_OP_SUBMITTED = 0, DEV_BUF_OP_COMPLETE, DEV_BUF_OP_TIMEDOUT, DEV_BUF_OP_FAILED };
-typedef struct buf_op_s {
+struct buf_op_t {
 	dev_op_status status;
 	int write;
 	void * p;
 	off_t offset;
 	size_t size;
-} buf_op_t;
+};
 
 #endif
 
@@ -70,4 +70,43 @@ dev_t * dev_static(void * p, size_t size)
 	sdev->size = size;
 
 	return &sdev->dev;
+}
+
+typedef struct {
+	vnode_t vnode;
+	dev_t * dev;
+} dev_vnode_t;
+
+size_t dev_read(vnode_t * vnode, off_t offset, void * buf, size_t len)
+{
+	dev_vnode_t * devnode = container_of(vnode, dev_vnode_t, vnode);
+	buf_op_t op = { write: 0, p: buf, offset: offset, size: len };
+
+	dev_op_submit(devnode->dev, &op);
+	dev_op_status status = dev_op_wait(&op);
+
+	return op.size;
+}
+
+size_t dev_write(vnode_t * vnode, off_t offset, void * buf, size_t len)
+{
+	dev_vnode_t * devnode = container_of(vnode, dev_vnode_t, vnode);
+	buf_op_t op = { write: 1, p: buf, offset: offset, size: len };
+
+	dev_op_submit(devnode->dev, &op);
+	dev_op_status status = dev_op_wait(&op);
+
+	return op.size;
+}
+
+vnode_t * dev_vnode(dev_t * dev)
+{
+	static vfs_ops_t ops = { read: dev_read, write: dev_write };
+	static fs_t devfs = { fsops: &ops };
+	dev_vnode_t * vnode = calloc(1, sizeof(*vnode));
+	
+	vnode_init(&vnode->vnode, VNODE_DEV, &devfs);
+	vnode->dev = dev;
+
+	return &vnode->vnode;
 }

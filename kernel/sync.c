@@ -204,8 +204,10 @@ void monitor_signal(monitor_t * monitor)
 {
 	thread_t * resume = monitor->waiting;
 
-	LIST_DELETE(monitor->waiting, resume);
-	thread_resume(resume);
+	if (resume) {
+		LIST_DELETE(monitor->waiting, resume);
+		thread_resume(resume);
+	}
 }
 
 void monitor_broadcast(monitor_t * monitor)
