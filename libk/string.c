@@ -3,6 +3,13 @@
 #if INTERFACE
 #include <stddef.h>
 #include <stdarg.h>
+
+struct cbuffer_t {
+	char * buf;
+	int capacity;
+	int len;
+};
+
 #endif
 
 void * memset(void *s, int c, size_t n)
@@ -298,4 +305,119 @@ int vsnprintf(char * buf, int size, char * fmt, va_list ap)
 	}
 
 	return sstring->chars;
+}
+
+void cbuffer_init(cbuffer_t * cbuf, int capacity)
+{
+	cbuf->buf = malloc(capacity);
+	cbuf->capacity = capacity;
+}
+
+static char * cbuffer_charat(cbuffer_t * cbuf, int index)
+{
+	if (index>=cbuf->len) {
+		return 0;
+	}
+
+	if (index < 0) {
+		index = cbuf->len + index;
+		if (index < 0) {
+			return 0;
+		}
+	}
+
+	assert(cbuf->len>index);
+
+	return cbuf->buf+index;
+}
+
+static void cbuffer_resize(cbuffer_t * cbuf, int capacity)
+{
+	cbuf->buf = realloc(cbuf->buf, capacity);
+	cbuf->capacity = capacity;
+}
+
+void cbuffer_putat(cbuffer_t * cbuf, int index, char c)
+{
+	char * cp = cbuffer_charat(cbuf, index);
+
+	if (cp) {
+		*cp = c;
+	}
+}
+
+char cbuffer_getat(cbuffer_t * cbuf, int index)
+{
+	char * cp = cbuffer_charat(cbuf, index);
+
+	if (cp) {
+		return *cp;
+	}
+
+	return 0;
+}
+
+void cbuffer_addc(cbuffer_t * cbuf, char c)
+{
+	int newlen = cbuf->len+1;
+
+	if (newlen>=cbuf->capacity) {
+		cbuffer_resize(cbuf, (cbuf->capacity) ? cbuf->capacity + cbuf->capacity/2 : 16);
+	}
+
+	cbuf->buf[cbuf->len] = c;
+	cbuf->len = newlen;
+}
+
+void cbuffer_adds(cbuffer_t * cbuf, char * str)
+{
+	for(int i=0; str[i]; i++) {
+		cbuffer_addc(cbuf, str[i]);
+	}
+}
+
+size_t cbuffer_len(cbuffer_t * cbuf)
+{
+	return cbuf->len;
+}
+
+char * cbuffer_str(cbuffer_t * cbuf)
+{
+	// Ensure termination
+	cbuffer_addc(cbuf, 0);
+	char * str = cbuf->buf;
+
+	cbuf->capacity = cbuf->len = 0;
+	cbuf->buf = 0;
+	
+	return str;
+}
+
+void cbuffer_trunc(cbuffer_t * cbuf, ssize_t size)
+{
+	if (size<0) {
+		// Truncate up to the last (-size) characters
+		size = cbuf->len + size;
+	}
+
+	if (size<0) {
+		size=0;
+	}
+
+	if (size>cbuf->len) {
+		size = cbuf->len;
+	}
+
+	cbuf->len = size;
+}
+
+void cbuffer_test()
+{
+	cbuffer_t cbuf[1] = {0};
+
+	cbuffer_adds(cbuf, "A test string: ");
+	cbuffer_adds(cbuf, "Blah blah blah\n\n");
+	cbuffer_trunc(cbuf, -1);
+
+	console_writestring(cbuffer_str(cbuf));
 }

@@ -60,7 +60,7 @@ static int scancodes[] = {
 
 	/* 0x10 */
 	KEY_Q, KEY_W, KEY_E, KEY_R, KEY_T, KEY_Y, KEY_U, KEY_I,
-	KEY_O, KEY_P, KEY_LEFTBRACE, KEY_RIGHTBRACE, KEY_LEFTCTRL, KEY_A, KEY_S,
+	KEY_O, KEY_P, KEY_LEFTBRACE, KEY_RIGHTBRACE, KEY_ENTER, KEY_LEFTCTRL, KEY_A, KEY_S,
 
 	/* 0x20 */
 	KEY_D, KEY_F, KEY_G, KEY_H, KEY_J, KEY_K, KEY_L, KEY_SEMICOLON,
@@ -424,6 +424,7 @@ void console_putchar_nocursor(char c)
 		break;
 	case '\b':
 		console_column -= 1;
+		console_putentryat(' ', console_color, console_column, console_row);
 		if (console_column<0) {
 			console_column = 0;
 		}

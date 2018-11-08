@@ -57,6 +57,7 @@ void kernel_main() {
 			run_init();
 		}
 
+		cbuffer_test();
 		dtor_test();
 		exception_test();
 		thread_test();
@@ -79,6 +80,9 @@ void kernel_main() {
 		char ** strs = ssplit("/a/path/file/name", '/');
 		strs = ssplit("", '/');
 		strs = ssplit("/", '/');
+
+		vnode_t * console = dev_vnode(console_dev());
+		vnode_t * terminal = terminal_new(console, console);
 
 		idle();
 	} KCATCH(Throwable) {
