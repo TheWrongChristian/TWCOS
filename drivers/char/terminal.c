@@ -21,9 +21,6 @@ static size_t terminal_read(vnode_t * vnode, off_t ignored, void * buf, size_t l
 {
 	vnode_terminal_t * terminal = container_of(vnode, vnode_terminal_t, vnode);
 
-#if 0
-	return vnode_read(terminal->input, ignored, buf, len);
-#endif
 	int i = 0;
 	MONITOR_AUTOLOCK(terminal->lock) {
 		while(0 == terminal->readlines && 0 == cbuffer_len(terminal->lines)) {
