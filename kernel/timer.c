@@ -168,6 +168,9 @@ static void timer_test_cb(void * p)
 
 void timer_test()
 {
+	if (thread_fork()) {
+		return;
+	}
 	kernel_printk("Sleeping for 1 second");
 	timer_start_timer();
 	timer_sleep(1000000);
@@ -178,4 +181,6 @@ void timer_test()
 	timer_sleep(2000000);
 	kernel_printk(" done\n");
 	timer_delete(test_timer);
+
+	thread_exit(0);
 }

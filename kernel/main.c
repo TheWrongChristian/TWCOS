@@ -29,7 +29,8 @@ static void idle() {
 static void run_init() {
 	kernel_printk("In process %d\n", arch_get_thread()->process->pid);
 	while(1) {
-		thread_yield();
+		kernel_printk("init sleeping for 10 seconds\n");
+		timer_sleep(10000000);
 	}
 }
  
@@ -51,11 +52,6 @@ void kernel_main() {
 		process_init();
 		timer_init(arch_timer_ops());
 		testshell_init();
-
-		/* Create process 1 - init */
-		if (0 == process_fork()) {
-			run_init();
-		}
 
 		cbuffer_test();
 		dtor_test();
@@ -83,6 +79,11 @@ void kernel_main() {
 
 		vnode_t * console = dev_vnode(console_dev());
 		vnode_t * terminal = terminal_new(console, console);
+
+		/* Create process 1 - init */
+		if (0 == process_fork()) {
+			run_init();
+		}
 
 		idle();
 	} KCATCH(Throwable) {
