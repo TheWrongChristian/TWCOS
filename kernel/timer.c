@@ -168,6 +168,7 @@ static void timer_test_cb(void * p)
 
 void timer_test()
 {
+#if 0
 	if (thread_fork()) {
 		return;
 	}
@@ -183,4 +184,5 @@ void timer_test()
 	timer_delete(test_timer);
 
 	thread_exit(0);
+#endif
 }
