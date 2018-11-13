@@ -125,7 +125,7 @@ void vnode_close(vnode_t * vnode)
 	vnode->fs->fsops->close(vnode);
 }
 
-size_t vnode_write(vnode_t * vnode, off_t offset, void * buf, size_t len)
+size_t vnode_write(vnode_t * vnode, off_t offset, const void * buf, size_t len)
 {
 	return vnode->fs->fsops->write(vnode, offset, buf, len);
 }

@@ -42,6 +42,7 @@ enum tpriority { THREAD_INTERRUPT = 0, THREAD_NORMAL, THREAD_IDLE, THREAD_PRIORI
 #endif
 
 static tls_key tls_next = 1;
+static map_t * allthreads;
 
 int tls_get_key()
 {
@@ -181,6 +182,7 @@ void thread_exit(void * retval)
 	thread_lock(this);
 	thread_broadcast(this);
 	thread_unlock(this);
+	map_removepp(allthreads, this);
 
 	/* Schedule the next thread */
 	thread_schedule();
@@ -268,6 +270,9 @@ void thread_init()
 	/* Craft a new bootstrap thread to replace the static defined thread */
 	sync_init();
 	arch_thread_init(slab_alloc(threads));
+	allthreads = tree_new(0, TREE_SPLAY);
+	thread_gc_root(allthreads);
+	map_putpp(allthreads, arch_get_thread(), arch_get_thread() );
 }
 
 static void thread_test2();

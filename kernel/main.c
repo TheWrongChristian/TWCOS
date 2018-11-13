@@ -19,9 +19,10 @@
 #endif
 
 static void idle() {
+	thread_set_priority(0, THREAD_IDLE);
 	while(1) {
 		thread_gc();
-		thread_yield();
+		thread_preempt();
 		arch_idle();
 	}
 }
@@ -51,7 +52,6 @@ void kernel_main() {
 		page_cache_init();
 		process_init();
 		timer_init(arch_timer_ops());
-		testshell_init();
 
 		cbuffer_test();
 		dtor_test();
@@ -77,8 +77,12 @@ void kernel_main() {
 		strs = ssplit("", '/');
 		strs = ssplit("/", '/');
 
-		vnode_t * console = dev_vnode(console_dev());
-		vnode_t * terminal = terminal_new(console, console);
+		thread_t * testshell = thread_fork();
+		if (0 == testshell) {
+			vnode_t * console = dev_vnode(console_dev());
+			vnode_t * terminal = terminal_new(console, console);
+			testshell_run(terminal);
+		}
 
 		/* Create process 1 - init */
 		if (0 == process_fork()) {

@@ -376,6 +376,13 @@ void cbuffer_adds(cbuffer_t * cbuf, char * str)
 	}
 }
 
+void cbuffer_addn(cbuffer_t * cbuf, char * str, int len)
+{
+	for(int i=0; i<len && str[i]; i++) {
+		cbuffer_addc(cbuf, str[i]);
+	}
+}
+
 size_t cbuffer_len(cbuffer_t * cbuf)
 {
 	return cbuf->len;

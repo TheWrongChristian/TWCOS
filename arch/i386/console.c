@@ -212,6 +212,7 @@ void console_initialize()
 	thread_gc_root(input_queue);
 
 	thread_t * keythread = thread_fork();
+	thread_gc_root(keythread);
 	if (0 == keythread) {
 		/* Keyboard handler thread */
 		thread_set_priority(0, THREAD_INTERRUPT);

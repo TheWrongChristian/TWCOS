@@ -327,25 +327,29 @@ static void slab_test_mark(void *p)
 	kernel_printk("Marking: %p\n", p);
 }
 
+static void slab_malloc_finalize(void * p)
+{
+}
+
 static slab_type_t pools[] = {
-	SLAB_TYPE(8, 0, 0),
-	SLAB_TYPE(12, 0, 0),
-	SLAB_TYPE(16, 0, 0),
-	SLAB_TYPE(24, 0, 0),
-	SLAB_TYPE(32, 0, 0),
-	SLAB_TYPE(48, 0, 0),
-	SLAB_TYPE(64, 0, 0),
-	SLAB_TYPE(96, 0, 0),
-	SLAB_TYPE(128, 0, 0),
-	SLAB_TYPE(196, 0, 0),
-	SLAB_TYPE(256, 0, 0),
-	SLAB_TYPE(384, 0, 0),
-	SLAB_TYPE(512, 0, 0),
-	SLAB_TYPE(768, 0, 0),
-	SLAB_TYPE(1024, 0, 0),
-	SLAB_TYPE(1536, 0, 0),
-	SLAB_TYPE((ARCH_PAGE_SIZE-2*sizeof(uint32_t))/2, 0, 0),
-	SLAB_TYPE((ARCH_PAGE_SIZE-2*sizeof(uint32_t)), 0, 0),
+	SLAB_TYPE(8, 0, slab_malloc_finalize),
+	SLAB_TYPE(12, 0, slab_malloc_finalize),
+	SLAB_TYPE(16, 0, slab_malloc_finalize),
+	SLAB_TYPE(24, 0, slab_malloc_finalize),
+	SLAB_TYPE(32, 0, slab_malloc_finalize),
+	SLAB_TYPE(48, 0, slab_malloc_finalize),
+	SLAB_TYPE(64, 0, slab_malloc_finalize),
+	SLAB_TYPE(96, 0, slab_malloc_finalize),
+	SLAB_TYPE(128, 0, slab_malloc_finalize),
+	SLAB_TYPE(196, 0, slab_malloc_finalize),
+	SLAB_TYPE(256, 0, slab_malloc_finalize),
+	SLAB_TYPE(384, 0, slab_malloc_finalize),
+	SLAB_TYPE(512, 0, slab_malloc_finalize),
+	SLAB_TYPE(768, 0, slab_malloc_finalize),
+	SLAB_TYPE(1024, 0, slab_malloc_finalize),
+	SLAB_TYPE(1536, 0, slab_malloc_finalize),
+	SLAB_TYPE((ARCH_PAGE_SIZE-2*sizeof(uint32_t))/2, 0, slab_malloc_finalize),
+	SLAB_TYPE((ARCH_PAGE_SIZE-2*sizeof(uint32_t)), 0, slab_malloc_finalize),
 };
 
 void * malloc(size_t size)

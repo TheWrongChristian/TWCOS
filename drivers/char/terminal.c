@@ -35,6 +35,7 @@ static size_t terminal_read(vnode_t * vnode, off_t ignored, void * buf, size_t l
 		for(i=0; i<len && terminal->readlines[i]; i++) {
 			cbuf[i] = terminal->readlines[i];
 			if ('\n' == terminal->readlines[i]) {
+				i++;
 				break;
 			}
 		}
