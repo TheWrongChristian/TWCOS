@@ -32,29 +32,6 @@ typedef struct slab {
 } slab_t;
 
 static slab_type_t * types;
-#if 0
-void slab_type_create(slab_type_t * stype, size_t esize, void (*mark)(void *), void (*finalize)(void *))
-{
-	stype->first = 0;
-	stype->esize = esize;
-	stype->mark = mark;
-	stype->finalize = finalize;
-	stype->magic = 997 * 0xaf653de9 * (uint32_t)stype;
-
-	/*           <-----------------d------------------>
-	 * | slab_t |a|f|              data                |
-	 *  <-----------------page size------------------->
-	 * data + a + f = ARCH_PAGE_SIZE-sizeof(slab_t)
-	 * c*s + c/8+4 + c/8+4 = psz-slab_t = d
-	 * 8*c*s + c + 32 + c + 32 = 8*d
-	 * 8*c*s + 2*c = 8*d - 64
-	 * c*(8*s + 2) = 8*d - 64
-	 * c = (8*d - 64) / (8*s + 2)
-	 */
-	stype->count = (8*(ARCH_PAGE_SIZE-sizeof(slab_t))-64)/ (8 * stype->esize + 2);
-	LIST_APPEND(types, stype);
-}
-#endif
 
 void slab_init()
 {
