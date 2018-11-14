@@ -10,8 +10,7 @@
 			list->prev->next = p; \
 			list->prev = p; \
 		} else { \
-			p->next = p; \
-			p->prev = p; \
+			p->next = p->prev = p; \
 			list = p; \
 		} \
 	}while(0)
