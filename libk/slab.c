@@ -12,10 +12,24 @@ typedef struct slab_type {
 	struct slab_type * next, * prev;
 	void (*mark)(void *);
 	void (*finalize)(void *);
-	int lock[1];
+	mutex_t lock[1];
 } slab_type_t;
 
 #define SLAB_TYPE(s, m, f) {.magic=0, .esize=s, .mark=m, .finalize=f}
+
+#ifdef DEBUG
+#define malloc(size) malloc_d(size, __FILE__, __LINE__)
+#define calloc(count, size) calloc_d(count, size, __FILE__, __LINE__)
+#define realloc(p, size) realloc_d(p, size, __FILE__, __LINE__)
+#define slab_alloc(type) slab_alloc_d(type, __FILE__, __LINE__)
+#define slab_calloc(type) slab_calloc_d(type, __FILE__, __LINE__)
+#else
+#define malloc(size) malloc_p(size)
+#define calloc(count, size) calloc_p(count, size)
+#define realloc(p, size) realloc_p(p, size)
+#define slab_alloc(type) slab_alloc_p(type)
+#define slab_calloc(type) slab_calloc_p(type)
+#endif
 
 #endif
 
@@ -79,24 +93,20 @@ static slab_t * slab_new(slab_type_t * stype)
 	return slab;
 }
 
-static int slabspin[1];
+static mutex_t slablock[1];
 static void slab_lock()
 {
-	while(1) {
-		if (arch_spin_trylock(slabspin)) {
-			return;
-		}
-	}
+	mutex_lock(slablock);
 }
 
 static void slab_unlock()
 {
-	arch_spin_unlock(slabspin);
+	mutex_unlock(slablock);
 }
 
-void * slab_alloc(slab_type_t * stype)
+void * slab_alloc_p(slab_type_t * stype)
 {
-	spin_lock(stype->lock);
+	mutex_lock(stype->lock);
 	slab_t * slab = stype->first ? stype->first : slab_new(stype);
 
 	while(slab) {
@@ -122,7 +132,7 @@ void * slab_alloc(slab_type_t * stype)
 				}
 
 				slab->available[i/32] &= ~mask;
-				spin_unlock(stype->lock);
+				mutex_unlock(stype->lock);
 				return slab->data + slab->type->esize*slot;
 			}
 		}
@@ -133,15 +143,15 @@ void * slab_alloc(slab_type_t * stype)
 		}
 	}
 
-	spin_unlock(stype->lock);
+	mutex_unlock(stype->lock);
 	KTHROW(OutOfMemoryException, "Out of memory");
 	/* Shouldn't get here */
 	return 0;
 }
 
-void * slab_calloc(slab_type_t * stype)
+void * slab_calloc_p(slab_type_t * stype)
 {
-	void * p = slab_alloc(stype);
+	void * p = slab_alloc_p(stype);
 	memset(p, 0, stype->esize);
 
 	return p;
@@ -245,9 +255,11 @@ static void slab_finalize(slab_t * slab)
 	}
         for(int i=0; i<slab->type->count; ) {
 		if (slab->finalize[i/32]) {
+			uint32_t finalize = slab->finalize[i/32];
 			uint32_t mask = 0x80000000;
+			slab->finalize[i/32] = 0;
 			for(; i<slab->type->count && mask; i++, mask>>=1) {
-				if (slab->finalize[i/32] & mask) {
+				if (finalize & mask) {
 					slab->type->finalize(slab->data + slab->type->esize*i);
 				}
 			}
@@ -329,11 +341,83 @@ static slab_type_t pools[] = {
 	SLAB_TYPE((ARCH_PAGE_SIZE-2*sizeof(uint32_t)), 0, slab_malloc_finalize),
 };
 
-void * malloc(size_t size)
+#ifdef DEBUG
+
+static struct {
+	void * p;
+	char * file;
+	int line;
+	size_t size;
+	slab_type_t * type;
+} audit[32];
+
+void * add_alloc_audit(void * p, char * file, int line, size_t size, slab_type_t * type)
+{
+	static int next = 0;
+
+	audit[next].p = p;
+	audit[next].file = file;
+	audit[next].line = line;
+	audit[next].size = size;
+	audit[next].type = type;
+
+	if (sizeof(audit)/sizeof(audit[0]) == ++next) {
+		next = 0;
+	}
+
+	return p;
+}
+
+void dump_alloc_audit(void * p)
+{
+	for(int i=0; i<sizeof(audit)/sizeof(audit[0]); i++) {
+		char * cp = (char*)p;
+		char * base = (char*)audit[i].p;
+
+		if (cp>=base && cp<base+audit[i].size) {
+			kernel_printk("pointer alloc'd at %s:%d\n", audit[i].file, audit[i].line);
+		}
+	}
+}
+
+void * malloc_d(size_t size, char * file, int line)
+{
+	return add_alloc_audit(malloc_p(size), file, line, size, 0);
+}
+
+void * calloc_d(int num, size_t size, char * file, int line)
+{
+	return add_alloc_audit(calloc_p(num, size), file, line, num*size, 0);
+}
+
+void * realloc_d(void * p, size_t size, char * file, int line)
+{
+	return add_alloc_audit(realloc_p(p, size), file, line, size, 0);
+}
+
+void * slab_alloc_d(slab_type_t * stype, char * file, int line)
+{
+	return add_alloc_audit(slab_alloc_p(stype), file, line, stype->esize, stype);
+}
+
+void * slab_calloc_d(slab_type_t * stype, char * file, int line)
+{
+	return add_alloc_audit(slab_calloc_p(stype), file, line, stype->esize, stype);
+}
+#else
+
+void dump_alloc_audit(void * p)
+{
+	kernel_printk("No alloc audit log\n");
+}
+
+#endif
+
+void * malloc_p(size_t size)
 {
 	for(int i=0; i<sizeof(pools)/sizeof(pools[0]);i++) {
 		if (pools[i].esize > size) {
-			return slab_alloc(pools+i);
+			return slab_alloc_p(pools+i);
 		}
 	}
 
@@ -347,9 +431,9 @@ void free(void *p)
 {
 }
 
-void * calloc(size_t num, size_t size)
+void * calloc_p(size_t num, size_t size)
 {
-	void * p = malloc(num*size);
+	void * p = malloc_p(num*size);
 	if (p) {
 		memset(p, 0, num*size);
 	}
@@ -357,10 +441,10 @@ void * calloc(size_t num, size_t size)
 	return p;
 }
 
-void *realloc(void *p, size_t size)
+void *realloc_p(void *p, size_t size)
 {
 	if (0 == p) {
-		return malloc(size);
+		return malloc_p(size);
 	}
 
 	slab_t * slab = slab_get(p);
@@ -370,7 +454,7 @@ void *realloc(void *p, size_t size)
 			/* Nothing to do, new memory fits in existing slot */
 			return p;
 		} else {
-			void * new = malloc(size);
+			void * new = malloc_p(size);
 
 			/* Copy old data (of old size) to new buffer */
 			return memcpy(new, p, slab->type->esize);
