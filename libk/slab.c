@@ -93,23 +93,29 @@ static slab_t * slab_new(slab_type_t * stype)
 	return slab;
 }
 
-static mutex_t slablock[1];
-static void slab_lock()
+static rwlock_t slablock[1];
+static void slab_lock(int gc)
 {
-	mutex_lock(slablock);
+	if (gc) {
+		rwlock_write(slablock);
+	} else {
+		rwlock_read(slablock);
+	}
 }
 
 static void slab_unlock()
 {
-	mutex_unlock(slablock);
+	rwlock_unlock(slablock);
 }
 
 void * slab_alloc_p(slab_type_t * stype)
 {
+	slab_lock(0);
 	mutex_lock(stype->lock);
 	slab_t * slab = stype->first ? stype->first : slab_new(stype);
 
 	while(slab) {
+		assert(stype == slab->type);
 		for(int i=0; i<slab->type->count; i+=32) {
 			if (slab->available[i/32]) {
 				/* There is some available slots */
@@ -133,6 +139,7 @@ void * slab_alloc_p(slab_type_t * stype)
 
 				slab->available[i/32] &= ~mask;
 				mutex_unlock(stype->lock);
+				slab_unlock();
 				return slab->data + slab->type->esize*slot;
 			}
 		}
@@ -144,6 +151,8 @@ void * slab_alloc_p(slab_type_t * stype)
 	}
 
 	mutex_unlock(stype->lock);
+	slab_unlock();
+
 	KTHROW(OutOfMemoryException, "Out of memory");
 	/* Shouldn't get here */
 	return 0;
@@ -172,7 +181,7 @@ static void slab_mark_available_all(slab_t * slab)
 
 void slab_gc_begin()
 {
-	slab_lock();
+	slab_lock(1);
 	slab_type_t * stype = types;
 
 	/* Mark all elements available */
@@ -291,6 +300,7 @@ void slab_gc_end()
 
 void slab_free(void * p)
 {
+#if 0
 	slab_t * slab = slab_get(p);
 
 	if (slab) {
@@ -304,6 +314,7 @@ void slab_free(void * p)
 		p = 0;
 		slab_unlock();
 	}
+#endif
 }
 
 static void slab_test_finalize(void * p)
