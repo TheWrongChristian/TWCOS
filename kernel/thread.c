@@ -18,6 +18,9 @@ struct thread_t {
 	tstate state;
 	tpriority priority;
 
+	/* Thread information */
+	char * name;
+
 	/* Return value */
 	void * retval;
 
@@ -154,6 +157,20 @@ void thread_schedule()
 	kernel_panic("Empty run queue!\n");
 }
 
+char * thread_get_name(thread_t * thread)
+{
+	if (0 == thread->name) {
+		thread->name = "Anonymous";
+	}
+
+	return thread->name;
+}
+
+void thread_set_name(thread_t * thread, char * name)
+{
+	thread->name = name;
+}
+
 thread_t * thread_fork()
 {
 	thread_t * this = arch_get_thread();
@@ -161,6 +178,9 @@ thread_t * thread_fork()
 
 	thread->priority = this->priority;
 	thread->process = this->process;
+	char buf[32];
+	snprintf( buf, sizeof(buf), "Child of %p", this);
+	thread_set_name(thread, strndup(buf, sizeof(buf)));
 
 	if (0 == arch_thread_fork(thread)) {
 		return 0;
@@ -276,22 +296,29 @@ void thread_init()
 }
 
 static void thread_test2();
-static void thread_test1()
+static void thread_test1(rwlock_t * rw)
 {
 	void ** bt = thread_backtrace(15);
 	kernel_printk("thread_test1\n");
 	while(*bt) {
 		kernel_printk("\t%p\n", *bt++);
 	}
+
+	rwlock_escalate(rw);
+	rwlock_read(rw);
+	rwlock_unlock(rw);
 }
 
-static void thread_test2()
+static void thread_test2(rwlock_t * rw)
 {
 	void ** bt = thread_backtrace(15);
 	kernel_printk("thread_test2\n");
 	while(*bt) {
 		kernel_printk("\t%p\n", *bt++);
 	}
+	rwlock_unlock(rw);
+	rwlock_write(rw);
+	rwlock_unlock(rw);
 }
 
 void thread_test()
@@ -303,14 +330,16 @@ void thread_test()
 		thread_join(thread1);
 		thread1 = 0;
 	} else {
+		static rwlock_t rw[1] = {{0}};
 		thread_t * thread2 = thread_fork();
+		rwlock_read(rw);
 		if (thread2) {
-			thread_test1();
+			thread_test1(rw);
 			thread_join(thread2);
 			thread2 = 0;
 			thread_exit(0);
 		} else {
-			thread_test2();
+			thread_test2(rw);
 			thread_exit(0);
 		}
 	}

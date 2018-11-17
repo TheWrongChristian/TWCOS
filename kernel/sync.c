@@ -19,6 +19,13 @@ struct monitor_t {
 	thread_t * waiting;
 };
 
+struct rwlock_t {
+	monitor_t lock[1];
+	int readcount;
+	thread_t * readers;
+	thread_t * writer;
+};
+
 #define INIT_ONCE() \
 	do { \
 		static int inited = 0; \
@@ -252,6 +259,59 @@ static int thread_trylock_internal(mutex_t * lock)
 	}
 
 	return 0;
+}
+
+void rwlock_read(rwlock_t * lock)
+{
+	MONITOR_AUTOLOCK(lock->lock) {
+		if (arch_get_thread() == lock->writer) {
+			/* We already have a write lock, give it up */
+			lock->writer = 0;
+		} else {
+			while(lock->writer) {
+				monitor_wait(lock->lock);
+			}
+		}
+		lock->readcount++;
+	}
+}
+
+void rwlock_write(rwlock_t * lock)
+{
+	thread_t * thread = arch_get_thread();
+	MONITOR_AUTOLOCK(lock->lock) {
+		/* Not already a reader, wait until no writer or readers */
+		while(lock->readcount || lock->writer) {
+			monitor_wait(lock->lock);
+		}
+		lock->writer = thread;
+	}
+}
+
+void rwlock_escalate(rwlock_t * lock)
+{
+	thread_t * thread = arch_get_thread();
+	MONITOR_AUTOLOCK(lock->lock) {
+		while(lock->readcount > 1 || lock->writer) {
+			monitor_wait(lock->lock);
+		}
+
+		lock->readcount = 0;
+		lock->writer = thread;
+	}
+}
+
+void rwlock_unlock(rwlock_t * lock)
+{
+	thread_t * thread = arch_get_thread();
+	MONITOR_AUTOLOCK(lock->lock) {
+		if (thread == lock->writer) {
+			lock->writer = 0;
+		} else {
+			lock->readcount--;
+		}
+		monitor_broadcast(lock->lock);
+	}
 }
 
 #if 0
