@@ -39,7 +39,8 @@ void testshell_run(vnode_t * terminal)
 		char ** args = ssplit(cmd, ' ');
 
 		while(*args) {
-			testshell_puts(terminal, args);
+			testshell_puts(terminal, *args);
+			testshell_puts(terminal, "\n");
 			args++;
 		}
 	}
