@@ -13,6 +13,10 @@
 			p->next = p->prev = p; \
 			list = p; \
 		} \
+		assert(p == p->prev->next); \
+		assert(p == p->next->prev); \
+		assert(p->prev == p->prev->prev->next); \
+		assert(p->next == p->next->next->prev); \
 	}while(0)
 
 #define LIST_PREPEND(list,p) \
@@ -26,6 +30,10 @@
 			p->next = p->prev = p; \
 		} \
 		list = p; \
+		assert(p == p->prev->next); \
+		assert(p == p->next->prev); \
+		assert(p->prev == p->prev->prev->next); \
+		assert(p->next == p->next->next->prev); \
 	} while(0)
 
 #define LIST_DELETE(list,p) \
@@ -55,6 +63,10 @@
 		} else { \
 			LIST_PREPEND(list, p); \
 		} \
+		assert(p == p->prev->next); \
+		assert(p == p->next->prev); \
+		assert(p->prev == p->prev->prev->next); \
+		assert(p->next == p->next->next->prev); \
 	} while(0)
 
 #define LIST_INSERT_AFTER(list, after, p) \
@@ -67,6 +79,10 @@
 		} else { \
 			LIST_PREPEND(list, p); \
 		} \
+		assert(p == p->prev->next); \
+		assert(p == p->next->prev); \
+		assert(p->prev == p->prev->prev->next); \
+		assert(p->next == p->next->next->prev); \
 	} while(0)
 
 #endif

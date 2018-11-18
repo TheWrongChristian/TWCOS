@@ -141,20 +141,24 @@ void thread_resume(thread_t * thread)
 
 void thread_schedule()
 {
-	int i;
-	scheduler_lock();
-	for(i=0; i<THREAD_PRIORITIES; i++) {
-		if (0 == queue[i]) {
-			continue;
-		} else {
-			thread_t * next = queue[i];
-			LIST_DELETE(queue[i], next);
-			scheduler_unlock();
-			arch_thread_switch(next);
-			return;
+	while(1) {
+		int i;
+		scheduler_lock();
+		for(i=0; i<THREAD_PRIORITIES; i++) {
+			if (0 == queue[i]) {
+				continue;
+			} else {
+				thread_t * next = queue[i];
+				LIST_DELETE(queue[i], next);
+				scheduler_unlock();
+				arch_thread_switch(next);
+				return;
+			}
 		}
+		kernel_printk("Empty run queue!\n");
+		scheduler_unlock();
+		arch_idle();
 	}
-	kernel_panic("Empty run queue!\n");
 }
 
 char * thread_get_name(thread_t * thread)

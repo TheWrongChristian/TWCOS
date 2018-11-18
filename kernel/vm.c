@@ -130,6 +130,7 @@ void vm_init()
 
 static void vm_invalid_pointer(void * p, int write, int user, int present)
 {
+	dump_alloc_audit(p);
 	kernel_panic("Invalid pointer: %p\n", p);
 }
 
