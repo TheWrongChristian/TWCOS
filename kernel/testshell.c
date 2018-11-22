@@ -21,7 +21,7 @@ char * testshell_read(vnode_t * terminal)
 
 		if (len) {
 			cbuffer_addn(cbuf, buf, len);
-			if ('\n' != buf[len-1]) {
+			if ('\n' == buf[len-1]) {
 				return cbuffer_str(cbuf);
 			}
 		} else {
