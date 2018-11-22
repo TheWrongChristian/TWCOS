@@ -40,7 +40,11 @@ static size_t terminal_read(vnode_t * vnode, off_t ignored, void * buf, size_t l
 			}
 		}
 
-		terminal->readlines += i;
+		if (0 == terminal->readlines[i]) {
+			terminal->readlines = 0;
+		} else {
+			terminal->readlines += i;
+		}
 	}
 
 	return i;
