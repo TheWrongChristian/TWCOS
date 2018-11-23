@@ -244,10 +244,10 @@ void slab_gc_mark_block(void ** block, size_t size)
 	}
 }
 
-void slab_gc_mark_range(void ** from, void ** to)
+void slab_gc_mark_range(void * from, void * to)
 {
-	void ** mark = from;
-	while(mark<to) {
+	void ** mark = (void**)from;
+	while((void*)mark<to) {
 		slab_gc_mark(*mark++);
 	}
 }

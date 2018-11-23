@@ -420,7 +420,7 @@ void cbuffer_trunc(cbuffer_t * cbuf, ssize_t size)
 
 void cbuffer_test()
 {
-	cbuffer_t cbuf[1] = {0};
+	cbuffer_t cbuf[1] = {{0}};
 
 	cbuffer_adds(cbuf, "A test string: ");
 	cbuffer_adds(cbuf, "Blah blah blah\n\n");
