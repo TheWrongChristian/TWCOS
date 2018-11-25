@@ -12,6 +12,7 @@ struct timer_ops_t {
 struct timer_t {
 	timer_event_t * queue;
 	timer_ops_t * ops;
+	int running;
 	int lock[1];
 };
 
@@ -32,15 +33,32 @@ void timer_init(timer_ops_t * ops)
 {
 	INIT_ONCE();
 
-	timers = malloc(sizeof(*timers));
-	timers->lock[0] = 0;
+	timers = calloc(1, sizeof(*timers));
 	timers->ops = ops;
 	thread_gc_root(timers);
+}
+
+static void timer_expire();
+static void timer_set()
+{
+	if (timers->queue && !timers->running) {
+		timers->running = 1;
+		timers->ops->timer_set(timer_expire, timers->queue->usec);
+	}
+}
+
+static void timer_clear()
+{
+	if (timers->queue && timers->running) {
+		timers->running = 0;
+		timers->queue->usec = timers->ops->timer_clear();
+	}
 }
 
 static void timer_expire()
 {
 	SPIN_AUTOLOCK(timers->lock) {
+		timers->running = 0;
 		timer_event_t * timer = timers->queue;
 		if (timer) {
 			/* Remove from queue */
@@ -53,9 +71,7 @@ static void timer_expire()
 			spin_lock(timers->lock);
 
 			/* Start next timer */
-			if (timers->queue) {
-				timers->ops->timer_set(timer_expire, timers->queue->usec);
-			}
+			timer_set();
 		} else {
 			/* FIXME: Spurious timer */
 		}
@@ -77,7 +93,7 @@ timer_event_t * timer_add(timerspec_t usec, void (*cb)(void * p), void * p)
 
 		if (next) {
 			/* Cancel the current outstanding timer */
-			next->usec -= timers->ops->timer_clear();
+			timer_clear();
 		}
 
 		while(next) {
@@ -96,7 +112,7 @@ timer_event_t * timer_add(timerspec_t usec, void (*cb)(void * p), void * p)
 		*pprev = timer;
 
 		/* Set the timer */
-		timers->ops->timer_set(timer_expire, timers->queue->usec);
+		timer_set();
 	}
 
 	return timer;
@@ -108,11 +124,7 @@ void timer_delete(timer_event_t * timer)
 		timer_event_t * next = timers->queue;
 		timer_event_t ** pprev = &timers->queue;
 
-		if (next) {
-			/* Cancel the current outstanding timer */
-			next->usec -= timers->ops->timer_clear();
-		}
-
+		timer_clear();
 		while(next) {
 			if (next == timer) {
 				if (timer->next) {
@@ -130,27 +142,28 @@ void timer_delete(timer_event_t * timer)
 		}
 
 		/* Set the timer */
-		if (timers->queue) {
-			timers->ops->timer_set(timer_expire, timers->queue->usec);
-		}
+		timer_set();
 	}
 }
 
 static void timer_sleep_cb(void * p)
 {
-	thread_lock(p);
-	thread_signal(p);
-	thread_unlock(p);
+	monitor_t * lock = p;
+
+	MONITOR_AUTOLOCK(lock) {
+		monitor_signal(lock);
+	}
 }
 
 void timer_sleep(timerspec_t usec)
 {
 	timer_event_t * timer;
+	monitor_t lock[1] = {0};
 
-	thread_lock(&timer);
-	timer = timer_add(usec, timer_sleep_cb, &timer);
-	thread_wait(&timer);
-	thread_unlock(&timer);
+	MONITOR_AUTOLOCK(lock) {
+		timer = timer_add(usec, timer_sleep_cb, lock);
+		monitor_wait(lock);
+	}
 }
 
 static timer_event_t * test_timer;
@@ -168,11 +181,9 @@ static void timer_test_cb(void * p)
 
 void timer_test()
 {
-#if 0
 	if (thread_fork()) {
 		return;
 	}
-#endif
 	kernel_printk("Sleeping for 1 second");
 	timer_start_timer();
 	timer_sleep(1000000);
@@ -183,7 +194,5 @@ void timer_test()
 	timer_sleep(2000000);
 	kernel_printk(" done\n");
 	timer_delete(test_timer);
-#if 0
 	thread_exit(0);
-#endif
 }

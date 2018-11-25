@@ -22,6 +22,7 @@ struct thread_t {
 	char * name;
 
 	/* Return value */
+	monitor_t lock[1];
 	void * retval;
 
 	/* Queue */
@@ -45,7 +46,6 @@ enum tpriority { THREAD_INTERRUPT = 0, THREAD_NORMAL, THREAD_IDLE, THREAD_PRIORI
 #endif
 
 static tls_key tls_next = 1;
-static map_t * allthreads;
 
 int tls_get_key()
 {
@@ -155,7 +155,7 @@ void thread_schedule()
 				return;
 			}
 		}
-		kernel_printk("Empty run queue!\n");
+		// kernel_printk("Empty run queue!\n");
 		scheduler_unlock();
 		arch_idle();
 	}
@@ -203,10 +203,9 @@ void thread_exit(void * retval)
 	this->state = THREAD_TERMINATED;
 
 	/* Signify to any threads waiting on this thread */
-	thread_lock(this);
-	thread_broadcast(this);
-	thread_unlock(this);
-	map_removepp(allthreads, this);
+	MONITOR_AUTOLOCK(this->lock) {
+		monitor_broadcast(this->lock);
+	}
 
 	/* Schedule the next thread */
 	thread_schedule();
@@ -215,12 +214,13 @@ void thread_exit(void * retval)
 void * thread_join(thread_t * thread)
 {
 	void * retval = 0;
-	thread_lock(thread);
-	while(thread->state != THREAD_TERMINATED) {
-		thread_wait(thread);
+
+	MONITOR_AUTOLOCK(thread->lock) {
+		while(thread->state != THREAD_TERMINATED) {
+			monitor_wait(thread->lock);
+		}
 	}
 	retval = thread->retval;
-	thread_unlock(thread);
 
 	/* FIXME: Clean up thread resources */
 
@@ -245,7 +245,7 @@ static void thread_gc_walk(void * p, void * key, void * d)
 
 void thread_gc()
 {
-	thread_cleanlocks();
+	// thread_cleanlocks();
 	slab_gc_begin();
 	slab_gc_mark(arch_get_thread());
 	for(int i=0; i<sizeof(queue)/sizeof(queue[0]); i++) {
@@ -294,9 +294,6 @@ void thread_init()
 	/* Craft a new bootstrap thread to replace the static defined thread */
 	sync_init();
 	arch_thread_init(slab_alloc(threads));
-	allthreads = tree_new(0, TREE_SPLAY);
-	thread_gc_root(allthreads);
-	map_putpp(allthreads, arch_get_thread(), arch_get_thread() );
 }
 
 static void thread_test2();
