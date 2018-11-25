@@ -224,6 +224,7 @@ void monitor_broadcast(monitor_t * monitor)
 	}
 }
 
+#if 0
 static monitor_t * thread_monitor_get(void * p)
 {
 	mutex_lock(&locktablelock);
@@ -242,6 +243,7 @@ static monitor_t * thread_monitor_get(void * p)
 
 	return lock;
 }
+#endif
 
 static int thread_trylock_internal(mutex_t * lock)
 {
@@ -321,7 +323,6 @@ int thread_tryplock(void * p)
 
 	return thread_trylock_internal(lock);
 }
-#endif
 
 void thread_lock(void * p)
 {
@@ -357,32 +358,7 @@ void thread_wait(void *p)
 
 	monitor_wait(lock);
 }
-
-#if 0
-static void thread_cleanlocks_copy(void * p, void * key, void * data)
-{
-	map_t * newlocktable = (map_t*)p;
-	monitor_t * lock = (monitor_t *)data;
-
-	SPIN_AUTOLOCK(&lock->spin) {
-		if (lock->owner || lock->waiting || lock->condwaiting || lock->getting) {
-			/* lock in use, copy */
-			map_putpp(newlocktable, key, data);
-		}
-	}
-}
 #endif
-
-void thread_cleanlocks()
-{
-#if 0
-	SPIN_AUTOLOCK(&locktablelock) {
-		map_t * newlocktable = tree_new(0, TREE_SPLAY);
-		map_walkpp(locktable, thread_cleanlocks_copy, newlocktable);
-		locktable = newlocktable;
-	}
-#endif
-}
 
 void sync_init()
 {

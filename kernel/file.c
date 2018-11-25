@@ -72,8 +72,6 @@ ssize_t file_read(int fd, void * buf, size_t count)
 	ssize_t retcode = 0;
 	KTRY {
 		file_t * file = file_get(fd);
-		thread_lock(file);
-		thread_unlock(file);
 	} KCATCH(Exception) {
 	}
 	return retcode;
@@ -83,8 +81,6 @@ ssize_t file_write(int fd, void * buf, size_t count)
 {
 	KTRY {
 		file_t * file = file_get(fd);
-		thread_lock(file);
-		thread_unlock(file);
 	} KCATCH(Exception) {
 	}
 	return 0;

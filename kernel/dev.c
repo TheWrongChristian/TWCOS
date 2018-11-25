@@ -23,6 +23,7 @@ struct buf_op_t {
 	void * p;
 	off_t offset;
 	size_t size;
+	monitor_t lock[1];
 };
 
 #endif
@@ -32,19 +33,19 @@ exception_def DeviceTimeoutException = { "DeviceTimeoutException", &DeviceExcept
 
 void dev_op_submit( dev_t * dev, buf_op_t * op )
 {
-	thread_lock(op);
-	op->status = DEV_BUF_OP_SUBMITTED;
-	dev->ops->submit(dev, op);
-	thread_unlock(op);
+	MONITOR_AUTOLOCK(op->lock) {
+		op->status = DEV_BUF_OP_SUBMITTED;
+		dev->ops->submit(dev, op);
+	}
 }
 
 dev_op_status dev_op_wait( buf_op_t * op )
 {
-	thread_lock(op);
-	while(op->status == DEV_BUF_OP_SUBMITTED) {
-		thread_wait(op);
+	MONITOR_AUTOLOCK(op->lock) {
+		while(op->status == DEV_BUF_OP_SUBMITTED) {
+			monitor_wait(op->lock);
+		}
 	}
-	thread_unlock(op);
 
 	return op->status;
 }
