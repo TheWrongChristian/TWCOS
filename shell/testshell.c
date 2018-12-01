@@ -30,12 +30,23 @@ char * testshell_read(vnode_t * terminal)
 	}
 }
 
+void testshell_consumer(void * arg, token_t * token)
+{
+	vnode_t * terminal = arg;
+
+	testshell_puts(terminal, cbuffer_str(token->token));
+	testshell_puts(terminal, "\n");
+}
+
 void testshell_run(vnode_t * terminal)
 {
 	testshell_puts(terminal, "Test shell\n");
 
+	lexer_t * lexer = clexer_new(testshell_consumer, terminal);
+
 	while(1) {
 		char * cmd = testshell_read(terminal);
+#if 0
 		char ** args = ssplit(cmd, ' ');
 
 		while(*args) {
@@ -43,5 +54,7 @@ void testshell_run(vnode_t * terminal)
 			testshell_puts(terminal, "\n");
 			args++;
 		}
+#endif
+		lexer_adds(lexer, cmd);
 	}
 }
