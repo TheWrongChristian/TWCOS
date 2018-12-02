@@ -297,6 +297,7 @@ int input_key_to_char(unsigned char key, int modifiers)
 			int i = key-KEY_1;
 			return "!@#$%^&*()"[i];
 		}
+		return (KEY_0==key) ? '0' : '1' + (key-KEY_1);
 	} else if (KEY_SPACE == key) {
 			return ' ';
 	} else if (KEY_ENTER == key) {
