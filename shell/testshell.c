@@ -46,15 +46,6 @@ void testshell_run(vnode_t * terminal)
 
 	while(1) {
 		char * cmd = testshell_read(terminal);
-#if 0
-		char ** args = ssplit(cmd, ' ');
-
-		while(*args) {
-			testshell_puts(terminal, *args);
-			testshell_puts(terminal, "\n");
-			args++;
-		}
-#endif
 		lexer_adds(lexer, cmd);
 	}
 }
