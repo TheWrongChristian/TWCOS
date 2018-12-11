@@ -5,6 +5,7 @@
 struct widget_ops_t {
 	void (*draw)(widget_t * w);
 	void (*clear)(widget_t * w);
+	void (*resize)(widget_t * w);
 	void (*putc)(widget_t * w, int x, int y, int c);
 	void (*puts)(widget_t * w, int x, int y, char * s);
 };
@@ -17,37 +18,35 @@ struct widget_t {
 	int h;
 	int minw;
 	int minh;
+	int border;
+	char * title;
 	widget_ops_t * ops;
 };
 
 struct textbox_t {
 	widget_t w;
 	char * text;
-	int border;
-	char * title;
 };
 
 struct button_t {
 	widget_t w;
-	int border;
-	char * title;
 };
 
 struct frame_t {
 	widget_t w;
-	int border;
 	packing_direction_t direction;
-	char * title;
 	map_t * widgets;
 };
 
 struct root_t {
 	widget_t w;
 	widget_t * root;
+	vnode_t * terminal;
+	char buf[128];
 }
 
 
-enum packing_direction_t { leftright, updown };
+enum packing_direction_t { packleft,  packtop };
 
 #endif
 
@@ -65,15 +64,15 @@ static void border(widget_t * b, int x, int y, int w, int h, char * title)
 {
 	wputc(b, x, y, '+');
 	wputc(b, x+w, y, '+');
-	wputc(b, x, y+h, '+');
-	wputc(b, x+w, y+h, '+');
-	for(int i=x+1; x<x+w-1; i++) {
+	wputc(b, x, y+h-1, '+');
+	wputc(b, x+w, y+h-1, '+');
+	for(int i=x+1; i<x+w-1; i++) {
 		wputc(b, i, y, '-');
-		wputc(b, i, y+h, '-');
+		wputc(b, i, y+h-1, '-');
 	}
-	for(int i=y+1; y<y+h-1; i++) {
-		wputc(b, i, y, '|');
-		wputc(b, i+w, y, '|');
+	for(int i=y+1; i<y+h-1; i++) {
+		wputc(b, x, i, '|');
+		wputc(b, x+w-1, i, '|');
 	}
 
 	if (title) {
@@ -95,8 +94,8 @@ static void clear(widget_t * c, int x, int y, int w, int h, int ch)
 static void wtextbox_draw(widget_t * w)
 {
 	textbox_t * t = container_of(w, textbox_t, w);
-	if (t->border) {
-		border(w->container, w->x, w->y, w->w, w->h, t->title);
+	if (w->border) {
+		border(w, w->x, w->y, w->w, w->h, w->title);
 	}
 }
 
@@ -111,9 +110,9 @@ widget_t * wtextbox(int border, char * title)
 
 static void wbutton_draw(widget_t * w)
 {
-        button_t * t = container_of(w, button_t, w);
-        if (t->border) {
-                border(w->container, w->x, w->y, w->w, w->h, t->title);
+        button_t * b = container_of(w, button_t, w);
+        if (w->border) {
+                border(w->container, w->x, w->y, w->w, w->h, w->title);
         }
 }
 
@@ -133,9 +132,13 @@ static void wframe_draw_walk(void * p, map_key key, void * widget)
 
 static void wframe_draw(widget_t * w)
 {
-        frame_t * t = container_of(w, frame_t, w);
+        frame_t * f = container_of(w, frame_t, w);
 
-	map_walkip(t->widgets, wframe_draw_walk, 0);
+	if (w->border) {
+                border(w, w->x, w->y, w->w, w->h, w->title);
+	}
+
+	map_walkip(f->widgets, wframe_draw_walk, 0);
 }
 
 widget_t * wframe(packing_direction_t direction)
@@ -143,6 +146,7 @@ widget_t * wframe(packing_direction_t direction)
 	static widget_ops_t ops = {wframe_draw};
 	frame_t * t = calloc(1, sizeof(*t));
 	t->w.ops = &ops;
+	t->widgets = arraymap_new(0, 32);
 
 	return &t->w;
 }
@@ -153,14 +157,42 @@ void wroot_draw(widget_t * w)
 	wdraw(r->root);
 }
 
+void wroot_resize(widget_t * w)
+{
+        root_t * r = container_of(w, root_t, w);
+	wresize(r->root, w->w, w->h);
+}
+
+void wroot_puts(widget_t * w, int x, int y, char * s)
+{
+        root_t * r = container_of(w, root_t, w);
+
+	snprintf(r->buf, sizeof(r->buf), "\033[%d;%dH%s", x+1, y+1, s);
+	vnode_write(r->terminal, 0, r->buf, strlen(r->buf));
+}
+
+void wroot_putc(widget_t * w, int x, int y, int c)
+{
+        root_t * r = container_of(w, root_t, w);
+
+	snprintf(r->buf, sizeof(r->buf), "\033[%d;%dH%c", x+1, y+1, c);
+	vnode_write(r->terminal, 0, r->buf, strlen(r->buf));
+}
+
+
 widget_t * wroot(vnode_t * terminal, widget_t * root)
 {
-	static widget_ops_t ops = {wroot_draw};
+	static widget_ops_t ops = {
+		draw: wroot_draw,
+		resize: wroot_resize,
+		putc: wroot_putc,
+		puts: wroot_puts
+	};
 	root_t * r = calloc(1, sizeof(*r));
 	r->w.ops = &ops;
 	r->root = root;
-
-	return &r->w;
+	r->terminal = terminal;
+	return (r->root->container = &r->w);
 }
 
 /* Generic operations */
@@ -175,6 +207,9 @@ void wresize(widget_t * w, int width, int height)
 {
 	w->w = imax(width, w->w);
 	w->h = imax(height, w->h);
+	if (w->ops->resize) {
+		w->ops->resize(w);
+	}
 }
 
 void wminsize(widget_t * w, int minw, int minh)
@@ -213,4 +248,10 @@ void wputc(widget_t * w, int x, int y, int c)
 	} else {
 		wputc(w->container, w->x+x, w->y+y, c);
 	}
+}
+
+void wborder(widget_t * w, int border, char * title)
+{
+	w->border = border;
+	w->title = title;
 }

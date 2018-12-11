@@ -360,8 +360,8 @@ void console_escape_interp(char * sequence)
 		break;
 	case 'H':
 	case 'f':
-		console_row = ARGd(0, 1)-1;
-		console_column = ARGd(1, 1)-1;
+		console_column = ARGd(0, 1)-1;
+		console_row = ARGd(1, 1)-1;
 		break;
 	case 'S':
 		console_scrollup(ARGd(0, 1));

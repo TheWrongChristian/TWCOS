@@ -41,6 +41,11 @@ void testshell_consumer(void * arg, token_t * token)
 void testshell_run(vnode_t * terminal)
 {
 	testshell_puts(terminal, "Test shell\n");
+	widget_t * frame = wframe(packtop);
+	wborder(frame, 1, "A frame");
+	widget_t * root = wroot(terminal, frame);
+	wresize(root, 80, 23);
+	wdraw(root);
 
 	lexer_t * lexer = clexer_new(testshell_consumer, terminal);
 
