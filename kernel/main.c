@@ -30,7 +30,9 @@ static void idle() {
 static void run_init() {
 	kernel_printk("In process %d\n", arch_get_thread()->process->pid);
 	while(1) {
+#if 0
 		kernel_printk("init sleeping for 10 seconds\n");
+#endif
 		timer_sleep(10000000);
 	}
 }
@@ -38,12 +40,6 @@ static void run_init() {
 void kernel_main() {
 	/* Initialize console interface */
 	arch_init();
-	console_writestring("\033[1;1HSimple kernel");
-	console_writestring("\033[2;2HSimple kernel");
-	console_writestring("\033[3;3HSimple kernel");
-	console_writestring("\033[4;4HSimple kernel");
-	console_writestring("\033[4S");
-	console_writestring("\033[4T");
 
 	KTRY {
 		/* Initialize subsystems */
@@ -52,7 +48,7 @@ void kernel_main() {
 		page_cache_init();
 		process_init();
 		timer_init(arch_timer_ops());
-
+#if 0
 		cbuffer_test();
 		dtor_test();
 		exception_test();
@@ -76,7 +72,7 @@ void kernel_main() {
 		char ** strs = ssplit("/a/path/file/name", '/');
 		strs = ssplit("", '/');
 		strs = ssplit("/", '/');
-
+#endif
 		thread_t * testshell = thread_fork();
 		if (0 == testshell) {
 			vnode_t * console = dev_vnode(console_dev());

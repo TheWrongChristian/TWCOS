@@ -6,6 +6,7 @@ struct widget_ops_t {
 	void (*draw)(widget_t * w);
 	void (*clear)(widget_t * w);
 	void (*resize)(widget_t * w);
+	void (*pack)(widget_t * c, widget_t * w);
 	void (*putc)(widget_t * w, int x, int y, int c);
 	void (*puts)(widget_t * w, int x, int y, char * s);
 };
@@ -19,6 +20,7 @@ struct widget_t {
 	int minw;
 	int minh;
 	int border;
+	packing_expand_t expand;
 	char * title;
 	widget_ops_t * ops;
 };
@@ -30,12 +32,15 @@ struct textbox_t {
 
 struct button_t {
 	widget_t w;
+	char * text;
 };
 
 struct frame_t {
 	widget_t w;
 	packing_direction_t direction;
-	map_t * widgets;
+	widget_t ** widgets;
+	int widgetnum;
+	int nextdim;
 };
 
 struct root_t {
@@ -47,6 +52,7 @@ struct root_t {
 
 
 enum packing_direction_t { packleft,  packtop };
+enum packing_expand_t { expandnone,  expandx, expandy, expandxy };
 
 #endif
 
@@ -99,7 +105,7 @@ static void wtextbox_draw(widget_t * w)
 	}
 }
 
-widget_t * wtextbox(int border, char * title)
+widget_t * wtextbox()
 {
 	static widget_ops_t ops = {wtextbox_draw};
 	textbox_t * t = calloc(1, sizeof(*t));
@@ -114,41 +120,117 @@ static void wbutton_draw(widget_t * w)
         if (w->border) {
                 border(w->container, w->x, w->y, w->w, w->h, w->title);
         }
+	wputs(w, 1+(w->w - w->minw)/2, 0, b->text);
 }
 
 widget_t * wbutton(char * text)
 {
 	static widget_ops_t ops = {wbutton_draw};
-	button_t * t = calloc(1, sizeof(*t));
-	t->w.ops = &ops;
+	button_t * b = calloc(1, sizeof(*b));
+	b->w.ops = &ops;
+	b->text = text;
 
-	return &t->w;
-}
+	/* Set the minimum size */
+	wminsize(&b->w, 2+strlen(text), 1);
 
-static void wframe_draw_walk(void * p, map_key key, void * widget)
-{
-	wdraw((widget_t*)widget);
+	return &b->w;
 }
 
 static void wframe_draw(widget_t * w)
 {
         frame_t * f = container_of(w, frame_t, w);
 
-	if (w->border) {
-                border(w, w->x, w->y, w->w, w->h, w->title);
+	for(int i=0; i<f->widgetnum; i++) {
+		wdraw(f->widgets[i]);
+	}
+}
+
+static void wpartition_draw(widget_t * p);
+static void wframe_pack(widget_t * c, widget_t * w)
+{
+        frame_t * f = container_of(c, frame_t, w);
+	int ispartition = (wpartition_draw == w->ops->draw);
+	f->widgets = realloc(f->widgets, (1+f->widgetnum)*sizeof(*f->widgets));
+	f->widgets[f->widgetnum++] = w;
+
+	if (packleft == f->direction) {
+		if (ispartition) {
+			wminsize(w, 1, 3);
+			wexpand(w, expandy);
+		}
+		w->x = c->minw;
+		c->minw += w->minw;
+		c->minh = imax(c->minh, w->minh);
+	 } else {
+		if (ispartition) {
+			wminsize(w, 3, 1);
+			wexpand(w, expandx);
+		}
+		w->y = c->minh;
+		c->minw = imax(c->minw, w->minw);
+		c->minh += w->minh;
 	}
 
-	map_walkip(f->widgets, wframe_draw_walk, 0);
+	/* Resize to minimum */
+	wresize(w, 0, 0);
+}
+
+static void wframe_resize(widget_t * c)
+{
+        frame_t * f = container_of(c, frame_t, w);
+	int offset = 0;
+	for(int i=0; i<f->widgetnum; i++) {
+		wexpand(f->widgets[i], 0);
+		if (packleft == f->direction) {
+			f->widgets[i]->x = offset;
+			offset += f->widgets[i]->w;
+		} else {
+			f->widgets[i]->y = offset;
+			offset += f->widgets[i]->h;
+		}
+		wresize(f->widgets[i], f->widgets[i]->w, f->widgets[i]->h);
+	}
 }
 
 widget_t * wframe(packing_direction_t direction)
 {
-	static widget_ops_t ops = {wframe_draw};
-	frame_t * t = calloc(1, sizeof(*t));
-	t->w.ops = &ops;
-	t->widgets = arraymap_new(0, 32);
+	static widget_ops_t ops = {
+		draw: wframe_draw,
+		pack: wframe_pack,
+		resize: wframe_resize
+	};
+	frame_t * f = calloc(1, sizeof(*f));
+	f->direction = direction;
+	f->w.ops = &ops;
 
-	return &t->w;
+	return &f->w;
+}
+
+static void wpartition_draw(widget_t * p)
+{
+	if (p->w > p->h) {
+		/* Horizontal partition */
+		for(int i=p->x; i<p->x+p->w; i++) {
+			wputc(p, i, 0, '-');
+		}
+	} else {
+		/* Vertical partition */
+		for(int i=p->y; i<p->y+p->h; i++) {
+			wputc(p, 0, i, '|');
+		}
+	}
+}
+
+widget_t * wpartition()
+{
+	static widget_ops_t ops = {
+		draw: wpartition_draw,
+	};
+	widget_t * p = calloc(1, sizeof(*p));
+	p->ops = &ops;
+	wminsize(p, 1, 1);
+
+	return p;
 }
 
 void wroot_draw(widget_t * w)
@@ -205,8 +287,8 @@ void wmoveto(widget_t * w, int x, int y)
 
 void wresize(widget_t * w, int width, int height)
 {
-	w->w = imax(width, w->w);
-	w->h = imax(height, w->h);
+	w->w = imax(width, w->minw);
+	w->h = imax(height, w->minh);
 	if (w->ops->resize) {
 		w->ops->resize(w);
 	}
@@ -254,4 +336,26 @@ void wborder(widget_t * w, int border, char * title)
 {
 	w->border = border;
 	w->title = title;
+}
+
+void wpack(widget_t * c, widget_t * w)
+{
+	if (c->ops->pack) {
+		c->ops->pack(c, w);
+		w->container = c;
+	}
+}
+
+void wexpand(widget_t * w, packing_expand_t expand)
+{
+	w->expand |= expand;
+
+	if (w->expand & expandx && w->container) {
+		w->x = 0;
+		w->w = w->container->w;
+	}
+	if (w->expand & expandy && w->container) {
+		w->y = 0;
+		w->h = w->container->h;
+	}
 }

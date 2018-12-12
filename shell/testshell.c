@@ -41,10 +41,22 @@ void testshell_consumer(void * arg, token_t * token)
 void testshell_run(vnode_t * terminal)
 {
 	testshell_puts(terminal, "Test shell\n");
-	widget_t * frame = wframe(packtop);
-	wborder(frame, 1, "A frame");
+
+	widget_t * button_frame = wframe(packtop);
+	widget_t * button1 = wbutton("Button 1");
+	widget_t * button2 = wbutton("Button 2");
+	wpack(button_frame, button1);
+	wpack(button_frame, wpartition());
+	wpack(button_frame, button2);
+
+	widget_t * frame = wframe(packleft);
+	wpack(frame, button_frame);
+	wpack(frame, wpartition());
+	wpack(frame, wtextbox());
+
 	widget_t * root = wroot(terminal, frame);
-	wresize(root, 80, 23);
+	wresize(root, 80, 24);
+	wclear(root);
 	wdraw(root);
 
 	lexer_t * lexer = clexer_new(testshell_consumer, terminal);
