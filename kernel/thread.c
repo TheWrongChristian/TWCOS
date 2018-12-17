@@ -14,6 +14,13 @@ struct thread_t {
 	arch_context_t context;
 	process_t * process;
 
+	/* Thread CPU usage */
+	int acct;
+	struct {
+		timerspec_t tstart;
+		timerspec_t tlen;
+	} accts[64];
+
 	/* Run state */
 	tstate state;
 	tpriority priority;
@@ -148,10 +155,23 @@ void thread_schedule()
 			if (0 == queue[i]) {
 				continue;
 			} else {
+				thread_t * current = arch_get_thread();
 				thread_t * next = queue[i];
 				LIST_DELETE(queue[i], next);
 				scheduler_unlock();
-				arch_thread_switch(next);
+				if (arch_get_thread() != next) {
+					/* Thread is changing, do accounting and switch to next */
+					current->accts[current->acct].tlen = timer_uptime() - current->accts[current->acct].tstart;
+					current->acct++;
+					if (sizeof(current->accts)/sizeof(current->accts[0]) == current->acct) {
+						current->acct = 0;
+					}
+					arch_thread_switch(next);
+					current->accts[current->acct].tstart = timer_uptime();
+				} else {
+					/* Restore thread state to running */
+					current->state = THREAD_RUNNING;
+				}
 				return;
 			}
 		}
