@@ -69,9 +69,9 @@ static int imax(int v1, int v2)
 static void border(widget_t * b, int x, int y, int w, int h, char * title)
 {
 	wputc(b, x, y, '+');
-	wputc(b, x+w, y, '+');
+	wputc(b, x+w-1, y, '+');
 	wputc(b, x, y+h-1, '+');
-	wputc(b, x+w, y+h-1, '+');
+	wputc(b, x+w-1, y+h-1, '+');
 	for(int i=x+1; i<x+w-1; i++) {
 		wputc(b, i, y, '-');
 		wputc(b, i, y+h-1, '-');
@@ -120,7 +120,7 @@ static void wbutton_draw(widget_t * w)
         if (w->border) {
                 border(w->container, w->x, w->y, w->w, w->h, w->title);
         }
-	wputs(w, 1+(w->w - w->minw)/2, 0, b->text);
+	wputs(w, 1+(w->w - w->minw)/2, w->border ? 1 : 0, b->text);
 }
 
 widget_t * wbutton(char * text)
@@ -129,9 +129,10 @@ widget_t * wbutton(char * text)
 	button_t * b = calloc(1, sizeof(*b));
 	b->w.ops = &ops;
 	b->text = text;
+	b->w.border = 1;
 
 	/* Set the minimum size */
-	wminsize(&b->w, 2+strlen(text), 1);
+	wminsize(&b->w, 2+strlen(text), 3);
 
 	return &b->w;
 }

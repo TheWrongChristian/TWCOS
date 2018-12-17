@@ -44,7 +44,9 @@ void testshell_run(vnode_t * terminal)
 
 	widget_t * button_frame = wframe(packtop);
 	widget_t * button1 = wbutton("Button 1");
-	widget_t * button2 = wbutton("Button 2");
+	widget_t * button2 = wbutton("Biiiiig Button 2");
+	wexpand(button1, expandx);
+	wexpand(button2, expandx);
 	wpack(button_frame, button1);
 	wpack(button_frame, wpartition());
 	wpack(button_frame, button2);
