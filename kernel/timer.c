@@ -28,6 +28,12 @@ struct timer_event_t {
 #endif
 
 static timer_t * timers;
+static timerspec_t uptime = 0;
+
+static void timer_uptime_cb(void * ignored)
+{
+	timer_add(10000000, timer_uptime_cb, 0);
+}
 
 void timer_init(timer_ops_t * ops)
 {
@@ -36,6 +42,9 @@ void timer_init(timer_ops_t * ops)
 	timers = calloc(1, sizeof(*timers));
 	timers->ops = ops;
 	thread_gc_root(timers);
+
+	/* Uptime tracking timer - update uptime at least every 10 seconds second */
+	timer_add(10000000, timer_uptime_cb, 0);
 }
 
 static void timer_expire();
@@ -51,7 +60,9 @@ static void timer_clear()
 {
 	if (timers->queue && timers->running) {
 		timers->running = 0;
-		timers->queue->usec = timers->ops->timer_clear();
+		timerspec_t remaining = timers->ops->timer_clear();
+		uptime += (timers->queue->usec - remaining);
+		timers->queue->usec = remaining;
 	}
 }
 
@@ -64,6 +75,7 @@ static void timer_expire()
 			/* Remove from queue */
 			timers->queue = timer->next;
 			timer->next = 0;
+			uptime += timer->usec;
 
 			spin_unlock(timers->lock);
 			/* Call the callback */
@@ -146,6 +158,19 @@ void timer_delete(timer_event_t * timer)
 	}
 }
 
+timerspec_t timer_uptime()
+{
+	timerspec_t t = 0;
+
+	SPIN_AUTOLOCK(timers->lock) {
+		timer_clear();
+		t = uptime;
+		timer_set();
+	}
+
+	return t;
+}
+
 static void timer_sleep_cb(void * p)
 {
 	monitor_t * lock = p;
@@ -157,11 +182,10 @@ static void timer_sleep_cb(void * p)
 
 void timer_sleep(timerspec_t usec)
 {
-	timer_event_t * timer;
 	monitor_t lock[1] = {0};
 
 	MONITOR_AUTOLOCK(lock) {
-		timer = timer_add(usec, timer_sleep_cb, lock);
+		timer_add(usec, timer_sleep_cb, lock);
 		monitor_wait(lock);
 	}
 }
