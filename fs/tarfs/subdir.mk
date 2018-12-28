@@ -1,6 +1,7 @@
 SRCS_C += $(subdir)/tarfs.c $(subdir)/tarfs.tar.c
 
-TARFS_FILES := $(SRCS_KERNEL_C) $(SRCS_LIBK_C)
+SRCS_VT_FILES = shell/aart
+TARFS_FILES := $(SRCS_KERNEL_C) $(SRCS_LIBK_C) $(SRCS_VT_FILES)
 TARFS_TAR := $(subdir)/tarfs.tar
 TARFS_TAR_C := $(subdir)/tarfs.tar.c
 TARFS_DEEPDIR := $(subdir)/a/deep/directory/
