@@ -188,7 +188,7 @@ static void pit_timer_set(void (*expire)(), timerspec_t usec)
 {
 	SPIN_AUTOLOCK(pit_lock) {
 		pit_expire = expire;
-		ticks = 1193180 * usec / 1000000;
+		ticks = 1193182 * usec / 1000000;
 
 		pit_set();
 	}
@@ -209,7 +209,7 @@ static timerspec_t pit_timer_clear()
 		pit_expire = 0;
 	}
 
-	return remaining * 1000000 / 1193180;
+	return remaining * 1000000 / 1193182;
 }
 
 timer_ops_t * arch_timer_ops()
