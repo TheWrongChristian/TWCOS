@@ -2,6 +2,8 @@
 
 #if INTERFACE
 
+#include <stdint.h>
+
 typedef int64_t timerspec_t;
 
 struct timer_ops_t {
