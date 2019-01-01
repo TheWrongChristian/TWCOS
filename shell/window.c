@@ -46,7 +46,6 @@ struct frame_t {
 struct root_t {
 	widget_t w;
 	widget_t * root;
-	vnode_t * terminal;
 	char buf[128];
 }
 
@@ -251,7 +250,7 @@ void wroot_puts(widget_t * w, int x, int y, char * s)
         root_t * r = container_of(w, root_t, w);
 
 	snprintf(r->buf, sizeof(r->buf), "\033[%d;%dH%s", x+1, y+1, s);
-	vnode_write(r->terminal, 0, r->buf, strlen(r->buf));
+	write(1, r->buf, strlen(r->buf));
 }
 
 void wroot_putc(widget_t * w, int x, int y, int c)
@@ -259,11 +258,11 @@ void wroot_putc(widget_t * w, int x, int y, int c)
         root_t * r = container_of(w, root_t, w);
 
 	snprintf(r->buf, sizeof(r->buf), "\033[%d;%dH%c", x+1, y+1, c);
-	vnode_write(r->terminal, 0, r->buf, strlen(r->buf));
+	write(1, r->buf, strlen(r->buf));
 }
 
 
-widget_t * wroot(vnode_t * terminal, widget_t * root)
+widget_t * wroot(widget_t * root)
 {
 	static widget_ops_t ops = {
 		draw: wroot_draw,
@@ -274,7 +273,6 @@ widget_t * wroot(vnode_t * terminal, widget_t * root)
 	root_t * r = calloc(1, sizeof(*r));
 	r->w.ops = &ops;
 	r->root = root;
-	r->terminal = terminal;
 	return (r->root->container = &r->w);
 }
 

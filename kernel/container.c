@@ -5,7 +5,6 @@
 struct container_t {
         pid_t nextpid;
         map_t * pids;
-        vnode_t * root;
 };
 
 #endif

@@ -23,8 +23,6 @@ struct file_t {
 
 typedef long ssize_t;
 
-#define PROC_MAX_FILE 1024
-
 #endif
 
 static file_t * file_get(int fd)
@@ -53,7 +51,57 @@ static void file_set(int fd, file_t * file)
 	}
 }
 
+static file_t * file_new(vnode_t * vnode)
+{
+	file_t * file = calloc(1, sizeof(*file));
 
+	file->vnode = vnode;
+	file->refs = 1;
+
+	return file;
+}
+
+static int file_get_fd()
+{
+	map_t * files = process_files();
+	for(int i=0; i<PROC_MAX_FILE; i++) {
+		if (0 == map_getip(files, i)) {
+			return i;
+		}
+	}
+
+	return -1;
+}
+
+int file_vopen(vnode_t * vnode, int flags, mode_t mode)
+{
+	file_t * file = file_new(vnode);
+	int fd = file_get_fd();
+
+	if (fd>=0) {
+		file_set(fd, file);
+	}
+
+	return fd;
+}
+
+int file_dup2(int fd, int fdup)
+{
+	file_t * file = file_get(fd);
+
+	if (file) {
+		file_set(fdup, file);
+		return fdup;
+	}
+
+	return -1;
+}
+int file_dup(int fd)
+{
+	int fdup = file_get_fd();
+
+	return file_dup2(fd, fdup);
+}
 
 int file_open(const char * name, int flags, mode_t mode)
 {
@@ -72,16 +120,28 @@ ssize_t file_read(int fd, void * buf, size_t count)
 	ssize_t retcode = 0;
 	KTRY {
 		file_t * file = file_get(fd);
+		retcode = vnode_read(file->vnode, file->fp, buf, count);
+		if (retcode>0) {
+			file->fp += retcode;
+		}
 	} KCATCH(Exception) {
+		return -1;
 	}
 	return retcode;
 }
 
 ssize_t file_write(int fd, void * buf, size_t count)
 {
+	check_int_bounds(fd, 0, PROC_MAX_FILE, "Invalid fd");
+	ssize_t retcode = 0;
 	KTRY {
 		file_t * file = file_get(fd);
+		retcode = vnode_write(file->vnode, file->fp, buf, count);
+		if (retcode>0) {
+			file->fp += retcode;
+		}
 	} KCATCH(Exception) {
+		return -1;
 	}
 	return 0;
 }

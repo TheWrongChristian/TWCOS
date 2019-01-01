@@ -72,17 +72,22 @@ void kernel_main() {
 		char ** strs = ssplit("/a/path/file/name", '/');
 		strs = ssplit("", '/');
 		strs = ssplit("/", '/');
-#endif
 		thread_t * testshell = thread_fork();
 		if (0 == testshell) {
-			vnode_t * console = dev_vnode(console_dev());
-			vnode_t * terminal = terminal_new(console, console);
 			testshell_run(terminal);
 		}
+#endif
 
 		/* Create process 1 - init */
 		if (0 == process_fork()) {
-			run_init();
+			/* Open stdin/stdout/stderr */
+			vnode_t * console = dev_vnode(console_dev());
+			vnode_t * terminal = terminal_new(console, console);
+			file_vopen(terminal, 0, 0);
+			file_dup(0);
+			file_dup(0);
+			
+			testshell_run();
 		}
 
 		idle();

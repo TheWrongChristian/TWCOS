@@ -16,6 +16,12 @@ struct process_t {
 	map_t * as;
 	map_t * files;
 
+	/*
+	 * root and working directories
+	 */
+	vnode_t * root;
+	vnode_t * cwd;
+
 	container_t * container;
 };
 

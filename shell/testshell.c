@@ -4,20 +4,20 @@
 
 #endif
 
-void testshell_puts(vnode_t * terminal, const char * s)
+void testshell_puts(const char * s)
 {
 	int len = strlen(s);
 
-	vnode_write(terminal, 0, s, len);
+	write(1, s, len);
 }
 
-char * testshell_read(vnode_t * terminal)
+char * testshell_read()
 {
 	cbuffer_t cbuf[1] = {{0}};
 
 	while(1) {
 		char buf[32];
-		int len = vnode_read(terminal, 0, buf, sizeof(buf));
+		int len = read(0, buf, sizeof(buf));
 
 		if (len) {
 			cbuffer_addn(cbuf, buf, len);
@@ -32,15 +32,13 @@ char * testshell_read(vnode_t * terminal)
 
 void testshell_consumer(void * arg, token_t * token)
 {
-	vnode_t * terminal = arg;
-
-	testshell_puts(terminal, cbuffer_str(token->token));
-	testshell_puts(terminal, "\n");
+	testshell_puts(cbuffer_str(token->token));
+	testshell_puts("\n");
 }
 
-void testshell_run(vnode_t * terminal)
+void testshell_run()
 {
-	testshell_puts(terminal, "Test shell\n");
+	testshell_puts("Test shell\n");
 
 	widget_t * button_frame = wframe(packtop);
 	widget_t * button1 = wbutton("Button 1");
@@ -56,15 +54,19 @@ void testshell_run(vnode_t * terminal)
 	wpack(frame, wpartition());
 	wpack(frame, wtextbox());
 
-	widget_t * root = wroot(terminal, frame);
-	wresize(root, 80, 24);
-	wclear(root);
-	wdraw(root);
+	widget_t * root = wroot(frame);
 
-	lexer_t * lexer = clexer_new(testshell_consumer, terminal);
+	for(int i=60; i<=80; i++) {
+		wresize(root, i, i*24/80);
+		wclear(root);
+		wdraw(root);
+		timer_sleep(100000);
+	}
+
+	lexer_t * lexer = clexer_new(testshell_consumer, 0);
 
 	while(1) {
-		char * cmd = testshell_read(terminal);
+		char * cmd = testshell_read();
 		lexer_adds(lexer, cmd);
 	}
 }
