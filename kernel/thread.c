@@ -40,16 +40,6 @@ struct thread_t {
 enum tstate { THREAD_NEW, THREAD_RUNNABLE, THREAD_RUNNING, THREAD_SLEEPING, THREAD_TERMINATED };
 enum tpriority { THREAD_INTERRUPT = 0, THREAD_NORMAL, THREAD_IDLE, THREAD_PRIORITIES };
 
-#define INIT_ONCE() \
-	do { \
-		static int inited = 0; \
-		if (inited) { \
-			return; \
-		} \
-		inited = 1; \
-	} while(0)
-
-
 #endif
 
 static tls_key tls_next = 1;
