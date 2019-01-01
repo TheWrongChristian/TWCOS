@@ -102,7 +102,7 @@ _start:
 	movl $pg_dir, %eax
 	movl %eax, %cr3
 	movl %cr4, %eax
-	orl $0x00000010, %eax
+	orl $0x00000008, %eax
 	movl %eax, %cr4
 	movl %cr0, %eax
 	orl $0x80000000, %eax
