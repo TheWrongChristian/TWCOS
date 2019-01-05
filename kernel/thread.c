@@ -173,6 +173,10 @@ void thread_schedule()
 
 char * thread_get_name(thread_t * thread)
 {
+	if (0 == thread) {
+		thread = arch_get_thread();
+	}
+
 	if (0 == thread->name) {
 		thread->name = "Anonymous";
 	}
@@ -182,6 +186,10 @@ char * thread_get_name(thread_t * thread)
 
 void thread_set_name(thread_t * thread, char * name)
 {
+	if (0 == thread) {
+		thread = arch_get_thread();
+	}
+
 	thread->name = name;
 }
 
@@ -216,6 +224,9 @@ void thread_exit(void * retval)
 	MONITOR_AUTOLOCK(this->lock) {
 		monitor_broadcast(this->lock);
 	}
+
+	/* Remove this thread from the set of process threads */
+	map_removepp(this->process->threads, this);
 
 	/* Schedule the next thread */
 	thread_schedule();

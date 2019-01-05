@@ -22,6 +22,11 @@ struct process_t {
 	vnode_t * root;
 	vnode_t * cwd;
 
+	/*
+	 * Threads
+	 */
+	map_t * threads;
+
 	container_t * container;
 };
 
@@ -77,15 +82,17 @@ void process_init()
 	INIT_ONCE();
 
 	container_init();
+	thread_t * current = arch_get_thread();
 
 	/* Sculpt initial process */
-	process_t * process = slab_alloc(processes);
-	arch_get_thread()->process = process;
-	process->as = tree_new(0, TREE_TREAP);
-	process->parent = 0;
-	process->container = container_get(0);
-	process->files = vector_new();
-	process_nextpid(process);
+	current->process = slab_alloc(processes);
+	current->process->as = tree_new(0, TREE_TREAP);
+	current->process->threads = tree_new(0, TREE_TREAP);
+	map_putpp(current->process->threads, current, current);
+	current->process->parent = 0;
+	current->process->container = container_get(0);
+	current->process->files = vector_new();
+	process_nextpid(current->process);
 }
 
 pid_t process_fork()
@@ -99,6 +106,9 @@ pid_t process_fork()
 	/* New address space */
 	new->as = process_duplicate_as(current);
 
+	/* Thread set */
+	new->threads = tree_new(0, TREE_TREAP);
+
 	/* Copy of all file descriptors */
 	new->files = vector_new();
 	map_put_all(new->files, current->files);
@@ -108,10 +118,13 @@ pid_t process_fork()
 	process_nextpid(new);
 
 	/* Finally, new thread */
-	if (0 == thread_fork()) {
+	thread_t * thread = thread_fork();
+	if (0 == thread) {
 		/* Child thread */
-		arch_get_thread()->process = new;
 		return 0;
+	} else {
+		thread->process = new;
+		map_putpp(thread->process->threads, thread, thread);
 	}
 
 	return new->pid;
