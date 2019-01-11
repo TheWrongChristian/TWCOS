@@ -70,6 +70,7 @@ static int file_get_fd()
 		}
 	}
 
+	KTHROW(FileException, "Too many open files");
 	return -1;
 }
 
@@ -105,10 +106,8 @@ int file_dup(int fd)
 
 int file_open(const char * name, int flags, mode_t mode)
 {
-	KTRY {
-	} KCATCH(Exception) {
-	} KFINALLY {
-	}
+	process_t * proc = process_get();
+	int fd = file_get_fd();
 
 	return -1;
 }
