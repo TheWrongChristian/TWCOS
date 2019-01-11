@@ -38,6 +38,8 @@ void testshell_consumer(void * arg, token_t * token)
 
 void testshell_run()
 {
+	thread_set_name(0, "Testshell");
+
 	testshell_puts("Test shell\n");
 
 	widget_t * button_frame = wframe(packtop);
@@ -56,12 +58,16 @@ void testshell_run()
 
 	widget_t * root = wroot(frame);
 
+	wresize(root, 80, 24);
+	wclear(root);
+	wdraw(root);
+#if 0
 	for(int i=60; i<=80; i++) {
 		wresize(root, i, i*24/80);
-		wclear(root);
-		wdraw(root);
+		// wclear(root);
 		timer_sleep(100000);
 	}
+#endif
 
 	lexer_t * lexer = clexer_new(testshell_consumer, 0);
 

@@ -125,7 +125,10 @@ void * isr_labels[] = {
 #include "isr_labels.h"
 };
 
-enum regs { ISR_REG_EDI, ISR_REG_ESI, ISR_REG_EBP, ISR_REG_ESP, ISR_REG_EBX, ISR_REG_EDX, ISR_REG_ECX, ISR_REG_EAX, ISR_REG_DS, ISR_ERRORCODE };
+#if INTERFACE
+enum regs_e { ISR_REG_EDI, ISR_REG_ESI, ISR_REG_EBP, ISR_REG_ESP, ISR_REG_EBX, ISR_REG_EDX, ISR_REG_ECX, ISR_REG_EAX, ISR_REG_DS, ISR_ERRORCODE };
+#endif
+
 typedef void (*isr_t)(uint32_t i, uint32_t * state);
 
 
@@ -342,7 +345,8 @@ static isr_t itable[256] = {
 	i386_irq, i386_irq, i386_irq, i386_irq,
 
 	i386_irq, i386_irq, i386_irq, i386_irq,
-	i386_irq, i386_irq, i386_irq, i386_irq
+	i386_irq, i386_irq, i386_irq, i386_irq,
+	[0x80]=i386_syscall
 };
 
 static thread_t initial;
