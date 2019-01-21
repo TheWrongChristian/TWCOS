@@ -8,11 +8,17 @@ typedef uint32_t pid_t;
 
 
 struct process_t {
+	monitor_t lock;
+
 	pid_t pid;
-	process_t * parent;
+	pid_t ppid;
 #if 0
 	credential_t * credentials;
 #endif
+
+	/*
+	 * Process resources
+	 */
 	map_t * as;
 	map_t * files;
 
@@ -26,6 +32,16 @@ struct process_t {
 	 * Threads
 	 */
 	map_t * threads;
+
+	/*
+	 * process hierarchy
+	 */
+	map_t * children;
+
+	/*
+	 * Status
+	 */
+	int exitcode;
 
 	container_t * container;
 };
@@ -62,19 +78,6 @@ static map_t * process_duplicate_as(process_t * from)
 	return as;
 }
 
-static void process_nextpid( process_t * process )
-{
-	static int lock[] = {0};
-	container_t * container = process->container;
-
-	spin_lock(lock);
-	do {
-		 process->pid = container->nextpid++;
-	} while(map_getip(container->pids, process->pid));
-	map_putip(container->pids, process->pid, process);
-	spin_unlock(lock);
-}
-
 slab_type_t processes[] = {SLAB_TYPE(sizeof(process_t), 0, 0)};
 
 void process_init()
@@ -88,11 +91,11 @@ void process_init()
 	current->process = slab_alloc(processes);
 	current->process->as = tree_new(0, TREE_TREAP);
 	current->process->threads = tree_new(0, TREE_TREAP);
+	current->process->children = tree_new(0, TREE_TREAP);
 	map_putpp(current->process->threads, current, current);
-	current->process->parent = 0;
 	current->process->container = container_get(0);
 	current->process->files = vector_new();
-	process_nextpid(current->process);
+	container_nextpid(current->process);
 }
 
 pid_t process_fork()
@@ -112,10 +115,14 @@ pid_t process_fork()
 	/* Copy of all file descriptors */
 	new->files = vector_new();
 	map_put_all(new->files, current->files);
-	new->parent = current;
 
 	/* Find an unused pid */
-	process_nextpid(new);
+	container_nextpid(new);
+
+	/* Process hierarchy */
+	new->children = tree_new(0, TREE_TREAP);
+	new->ppid = current->pid;
+	map_putip(current->children, new->pid, new);
 
 	/* Finally, new thread */
 	thread_t * thread = thread_fork();
@@ -128,4 +135,57 @@ pid_t process_fork()
 	}
 
 	return new->pid;
+}
+
+void process_exit(int code)
+{
+	process_t * current = process_get();
+	process_t * parent = container_getprocess(current->container, current->ppid);
+	process_t * init = container_getprocess(current->container, 1);
+
+	MONITOR_AUTOLOCK(&parent->lock) {
+		current->exitcode = code;
+		container_endprocess(current);
+		monitor_signal(&parent->lock);
+	}
+}
+
+static void waitpid_find_child(void * p, map_key key, void * data)
+{
+	process_t * child = data;
+
+	if (child->exitcode) {
+		longjmp(p, child->pid);
+	}
+}
+
+pid_t process_waitpid(pid_t pid, int * wstatus, int options)
+{
+	pid_t child = 0;
+	process_t * current = process_get();
+
+	MONITOR_AUTOLOCK(&current->lock) {
+#if 0
+		if (-1 == pid) {
+			/* Any child */
+		} else if (pid<0) {
+			/* Any child in process group -pid */
+		} else if (0 == pid) {
+			child = pid;
+		} else {
+		}
+#endif
+		do {
+			if (pid>0) {
+				child=pid;
+			} else {
+				jmp_buf buf;
+				child = setjmp(buf);
+				map_walkip(current->children, waitpid_find_child, buf);
+				monitor_wait(&current->lock);
+			}
+		} while(0 == child);
+	}
+
+	return child;
 }

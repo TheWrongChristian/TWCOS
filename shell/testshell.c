@@ -73,6 +73,11 @@ void testshell_run()
 
 	while(1) {
 		char * cmd = testshell_read();
-		lexer_adds(lexer, cmd);
+		pid_t pid = fork();
+		if (0 == pid) {
+			lexer_adds(lexer, cmd);
+			exit(0);
+		}
+		waitpid(0, 0, 0);
 	}
 }

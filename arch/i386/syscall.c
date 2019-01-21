@@ -2,6 +2,8 @@
 
 #if INTERFACE
 
+#include <stdint.h>
+
 typedef intptr_t reg_t;
 
 enum syscall_e {
@@ -79,13 +81,26 @@ void i386_syscall(uint32_t intr, uint32_t * state)
 
 	KTRY {
 		switch(sc) {
-		case sc_read: {
-			int fd = state[ISR_REG_EBX];
-			void * p = (void*)state[ISR_REG_ECX];
-			int count = state[ISR_REG_EDX];
-			retval = file_read(fd, p, count);
+		case sc_fork:
+			retval = process_fork();
 			break;
-		}
+		case sc_exit:
+			process_exit(state[ISR_REG_EBX]);
+			break;
+		case sc_waitpid: {
+				int pid = state[ISR_REG_EBX];
+				int * pstatus = (int*)state[ISR_REG_ECX];
+				int options = state[ISR_REG_EDX];
+				retval = process_waitpid(pid, pstatus, options);
+				break;
+			}
+		case sc_read: {
+				int fd = state[ISR_REG_EBX];
+				void * p = (void*)state[ISR_REG_ECX];
+				int count = state[ISR_REG_EDX];
+				retval = file_read(fd, p, count);
+				break;
+			}
 		case sc_write: {
 			int fd = state[ISR_REG_EBX];
 			void * p = (void*)state[ISR_REG_ECX];
