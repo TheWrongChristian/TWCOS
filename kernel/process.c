@@ -11,7 +11,6 @@ struct process_t {
 	monitor_t lock;
 
 	pid_t pid;
-	pid_t ppid;
 #if 0
 	credential_t * credentials;
 #endif
@@ -36,7 +35,9 @@ struct process_t {
 	/*
 	 * process hierarchy
 	 */
+	process_t * parent;
 	map_t * children;
+	map_t * zombies;
 
 	/*
 	 * Status
@@ -73,7 +74,7 @@ static map_t * process_duplicate_as(process_t * from)
 {
 	map_t * as = tree_new(0, TREE_TREAP);
 
-	map_walk(from->as, process_duplicate_as_copy_seg, as);
+	map_walkpp(from->as, process_duplicate_as_copy_seg, as);
 
 	return as;
 }
@@ -92,6 +93,7 @@ void process_init()
 	current->process->as = tree_new(0, TREE_TREAP);
 	current->process->threads = tree_new(0, TREE_TREAP);
 	current->process->children = tree_new(0, TREE_TREAP);
+	current->process->zombies = tree_new(0, TREE_TREAP);
 	map_putpp(current->process->threads, current, current);
 	current->process->container = container_get(0);
 	current->process->files = vector_new();
@@ -121,7 +123,8 @@ pid_t process_fork()
 
 	/* Process hierarchy */
 	new->children = tree_new(0, TREE_TREAP);
-	new->ppid = current->pid;
+	new->zombies = tree_new(0, TREE_TREAP);
+	new->parent = current;
 	map_putip(current->children, new->pid, new);
 
 	/* Finally, new thread */
@@ -137,26 +140,45 @@ pid_t process_fork()
 	return new->pid;
 }
 
+static void process_exit_reparent(void * p, map_key key, void * data)
+{
+	process_t * current = data;
+	current->parent = p;
+}
+
 void process_exit(int code)
 {
 	process_t * current = process_get();
-	process_t * parent = container_getprocess(current->container, current->ppid);
 	process_t * init = container_getprocess(current->container, 1);
 
-	MONITOR_AUTOLOCK(&parent->lock) {
-		current->exitcode = code;
-		container_endprocess(current);
-		monitor_signal(&parent->lock);
+	if (init == current) {
+		kernel_panic("init: exiting!");
 	}
+
+	MONITOR_AUTOLOCK(&current->parent->lock) {
+		pid_t pid = current->pid;
+		current->exitcode = code;
+		map_putip(current->parent->zombies, pid, map_removeip(current->parent->children, pid));
+		monitor_signal(&current->parent->lock);
+
+		/* Pass off any child/zombie processes to init */
+		MONITOR_AUTOLOCK(&current->lock) {
+			MONITOR_AUTOLOCK(&init->lock) {
+				map_walkip(init->children, process_exit_reparent, init);
+				map_put_all(init->children, current->children);
+				map_walkip(init->zombies, process_exit_reparent, init);
+				map_put_all(init->zombies, current->zombies);
+			}
+		}
+	}
+
+	/* FIXME: Clean up address space, files, other threads etc. */
+	thread_exit(0);
 }
 
-static void waitpid_find_child(void * p, map_key key, void * data)
+static void process_waitpid_getzombie(void * p, map_key key, void * data)
 {
-	process_t * child = data;
-
-	if (child->exitcode) {
-		longjmp(p, child->pid);
-	}
+	longjmp(p, key);
 }
 
 pid_t process_waitpid(pid_t pid, int * wstatus, int options)
@@ -179,12 +201,24 @@ pid_t process_waitpid(pid_t pid, int * wstatus, int options)
 			if (pid>0) {
 				child=pid;
 			} else {
-				jmp_buf buf;
-				child = setjmp(buf);
-				map_walkip(current->children, waitpid_find_child, buf);
+				jmp_buf env;
+				child = setjmp(env);
+				if (0 == child) {
+					map_walkip(current->zombies, process_waitpid_getzombie, env);
+				}
+			}
+			if (0 == child) {
 				monitor_wait(&current->lock);
 			}
 		} while(0 == child);
+
+		process_t * process = map_removeip(current->zombies, child);
+		if (wstatus) {
+			*wstatus = process->exitcode;
+		}
+
+		/* Finally remove the process from the set of all processes */
+		container_endprocess(process);
 	}
 
 	return child;

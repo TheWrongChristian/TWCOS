@@ -78,6 +78,10 @@ void testshell_run()
 			lexer_adds(lexer, cmd);
 			exit(0);
 		}
-		waitpid(0, 0, 0);
+		int status;
+		pid_t wpid = waitpid(0, &status, 0);
+		static char message[128];
+		snprintf(message, sizeof(message), "Process %d exited: status %d\n", wpid, status);
+		testshell_puts(message);
 	}
 }

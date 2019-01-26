@@ -257,6 +257,12 @@ static void slab_finalize_clear_param(void * param)
 	param = 0;
 }
 
+int finalizer_debug_val;
+static void debug_finalizer(slab_t * slab)
+{
+	finalizer_debug_val=1;
+}
+
 static void slab_finalize(slab_t * slab)
 {
         for(int i=0; i<slab->type->count; i+=32) {
@@ -264,6 +270,7 @@ static void slab_finalize(slab_t * slab)
 	}
         for(int i=0; i<slab->type->count; ) {
 		if (slab->finalize[i/32]) {
+			debug_finalizer(slab);
 			uint32_t finalize = slab->finalize[i/32];
 			uint32_t mask = 0x80000000;
 			slab->finalize[i/32] = 0;
