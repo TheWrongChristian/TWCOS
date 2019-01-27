@@ -112,7 +112,7 @@ static void vmap_set_pte(asid vid, void * vaddress, pte_t pte)
 		page_t page = page_alloc();
 
 		for(int i=0; i<ASID_COUNT; i++, pgtbl += ARCH_PAGE_TABLE_SIZE) {
-			vmap_map(0, pgtbl+vpage, page, 1, 0);
+			vmap_map(0, pgtbl+vpage, page, 1, pte & 0x4);
 		}
 
 		page_clean(page);
