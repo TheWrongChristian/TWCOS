@@ -257,7 +257,7 @@ void thread_set_priority(thread_t * thread, tpriority priority)
 	thread->priority = priority;
 }
 
-static map_t * roots;
+static void ** roots;
 
 static void thread_gc_walk(void * p, void * key, void * d)
 {
@@ -278,10 +278,10 @@ void thread_gc()
 
 void thread_gc_root(void * p)
 {
-	if (0 == roots) {
-		roots = arraymap_new(0, 128);
-	}
-	map_putpp(roots, p, p);
+	static int rootcount = 0;
+
+	roots = realloc(roots, sizeof(*roots)*rootcount+1);
+	roots[rootcount++] = p;
 }
 
 static void thread_mark(void * p)
