@@ -6,6 +6,7 @@
 
 typedef uint32_t pid_t;
 
+#define WNOHANG 1
 
 struct process_t {
 	monitor_t lock;
@@ -164,9 +165,9 @@ void process_exit(int code)
 		/* Pass off any child/zombie processes to init */
 		MONITOR_AUTOLOCK(&current->lock) {
 			MONITOR_AUTOLOCK(&init->lock) {
-				map_walkip(init->children, process_exit_reparent, init);
+				map_walkip(current->children, process_exit_reparent, init);
 				map_put_all(init->children, current->children);
-				map_walkip(init->zombies, process_exit_reparent, init);
+				map_walkip(current->zombies, process_exit_reparent, init);
 				map_put_all(init->zombies, current->zombies);
 			}
 		}
@@ -183,6 +184,7 @@ static void process_waitpid_getzombie(void * p, map_key key, void * data)
 
 pid_t process_waitpid(pid_t pid, int * wstatus, int options)
 {
+	int hang = 0 == (options&WNOHANG);
 	pid_t child = 0;
 	process_t * current = process_get();
 
@@ -207,18 +209,20 @@ pid_t process_waitpid(pid_t pid, int * wstatus, int options)
 					map_walkip(current->zombies, process_waitpid_getzombie, env);
 				}
 			}
-			if (0 == child) {
+			if (0 == child && hang) {
 				monitor_wait(&current->lock);
 			}
-		} while(0 == child);
+		} while(0 == child && hang);
 
-		process_t * process = map_removeip(current->zombies, child);
-		if (wstatus) {
-			*wstatus = process->exitcode;
+		if (child) {
+			process_t * process = map_removeip(current->zombies, child);
+			if (wstatus) {
+				*wstatus = process->exitcode;
+			}
+
+			/* Finally remove the process from the set of all processes */
+			container_endprocess(process);
 		}
-
-		/* Finally remove the process from the set of all processes */
-		container_endprocess(process);
 	}
 
 	return child;

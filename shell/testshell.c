@@ -71,9 +71,17 @@ void testshell_run()
 	}
 #endif
 
+	pid_t pid = fork();
+	if (0 == pid) {
+		extern char user_start[];
+		segment_t * s = vm_segment_direct((void*)0x100000, 0x1000, 0x1f, 0x100);
+		map_putpp(process_get()->as, (void*)0x100000, s);
+		arch_startuser(user_start);
+	}
+
 	while(1) {
 		char * cmd = testshell_read();
-		pid_t pid = fork();
+		pid = fork();
 		if (0 == pid) {
 			int count = 0;
 			lexer_t * lexer = clexer_new(testshell_consumer, &count);
@@ -81,11 +89,16 @@ void testshell_run()
 			lexer_adds(lexer, cmd);
 			exit(count);
 		}
+
 		int status;
-		pid_t wpid = waitpid(0, &status, 0);
-		static char message[128];
+		pid_t wpid;
 		timerspec_t uptime = timer_uptime();
-		snprintf(message, sizeof(message), "%d: Process %d exited: status %d\n", (int)uptime/1000000, wpid, status);
-		testshell_puts(message);
+		static char message[128];
+		wpid = waitpid(0, &status, WNOHANG);
+		while(wpid) {
+			snprintf(message, sizeof(message), "%d: Process %d exited: status %d\n", (int)uptime/1000000, wpid, status);
+			testshell_puts(message);
+			wpid = waitpid(0, &status, WNOHANG);
+		}
 	}
 }

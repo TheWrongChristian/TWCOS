@@ -375,6 +375,9 @@ void i386_init()
 		i386_set_idt(i, isr_labels[i], 0x8f00);
 	}
 
+	/* int 0x80 - System call interface for user code */
+	i386_set_idt(0x80, isr_labels[0x80], 0xef00);
+
 	/* Configure interrupt gates for irqs */
 	for(i=PIC_IRQ_BASE;i<PIC_IRQ_BASE+16; i++) {
 		i386_set_idt(i, isr_labels[i], 0x8e00);
@@ -571,6 +574,10 @@ void arch_spin_unlock(int * p)
 	sti();
 }
 
+void arch_startuser(void * start)
+{
+	asm("push %0; push $0; push $0 ; push %1; push %2; iret" : : "r" (0x23), "r" (0x1b), "r" (start));
+}
 
 #if INTERFACE
 
