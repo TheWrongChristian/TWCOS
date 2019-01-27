@@ -22,7 +22,7 @@ queue_t * queue_new(int size)
 	return queue;
 }
 
-#define QUEUE_INDEX(queue, i) (i%queue->size)
+#define QUEUE_INDEX(queue, i) ((i)%queue->size)
 
 static int queue_empty_locked(queue_t * queue)
 {
