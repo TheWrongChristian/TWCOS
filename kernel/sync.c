@@ -135,7 +135,7 @@ static void thread_lock_signal(mutex_t * lock)
 static void thread_lock_wait(mutex_t * lock)
 {
 	lock->waiting = thread_queue(lock->waiting, 0, THREAD_SLEEPING);
-	thread_lock_signal(lock);
+	/* thread_lock_signal(lock); */
 	spin_unlock(&lock->spin);
 	thread_schedule();
 	spin_lock(&lock->spin);
