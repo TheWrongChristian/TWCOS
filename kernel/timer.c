@@ -20,6 +20,7 @@ struct timer_t {
 
 struct timer_event_t {
 	timerspec_t usec;
+	timerspec_t reset;
 
 	void (*cb)(void * p);
 	void * p;
@@ -31,10 +32,12 @@ struct timer_event_t {
 
 static timer_t * timers;
 static timerspec_t uptime = 0;
+static timer_event_t * uptime_timer = 0;
 
 static void timer_uptime_cb(void * ignored)
 {
-	timer_add(10000000, timer_uptime_cb, 0);
+	/* Restart */
+	timer_start(uptime_timer);
 }
 
 void timer_init(timer_ops_t * ops)
@@ -46,7 +49,7 @@ void timer_init(timer_ops_t * ops)
 	thread_gc_root(timers);
 
 	/* Uptime tracking timer - update uptime at least every 10 seconds second */
-	timer_add(10000000, timer_uptime_cb, 0);
+	uptime_timer = timer_add(10000000, timer_uptime_cb, 0);
 }
 
 static void timer_expire();
@@ -95,15 +98,24 @@ static void timer_expire()
 timer_event_t * timer_add(timerspec_t usec, void (*cb)(void * p), void * p)
 {
 	timer_event_t * timer = malloc(sizeof(*timer));
+	timer->usec = usec;
+	timer->reset = usec;
+	timer->cb = cb;
+	timer->p = p;
+	timer->next = 0;
+
+	timer_start(timer);
+
+	return timer;
+}
+
+void timer_start(timer_event_t * timer)
+{
+	timer->usec = timer->reset;
 
 	SPIN_AUTOLOCK(timers->lock) {
 		timer_event_t * next = timers->queue;
 		timer_event_t ** pprev = &timers->queue;
-
-		timer->usec = usec;
-		timer->cb = cb;
-		timer->p = p;
-		timer->next = 0;
 
 		if (next) {
 			/* Cancel the current outstanding timer */
@@ -128,8 +140,6 @@ timer_event_t * timer_add(timerspec_t usec, void (*cb)(void * p), void * p)
 		/* Set the timer */
 		timer_set();
 	}
-
-	return timer;
 }
 
 void timer_delete(timer_event_t * timer)
