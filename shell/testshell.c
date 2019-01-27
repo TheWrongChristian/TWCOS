@@ -32,6 +32,8 @@ char * testshell_read()
 
 void testshell_consumer(void * arg, token_t * token)
 {
+	int * pcount = arg;
+	(*pcount)++;
 	testshell_puts(cbuffer_str(token->token));
 	testshell_puts("\n");
 }
@@ -69,14 +71,15 @@ void testshell_run()
 	}
 #endif
 
-	lexer_t * lexer = clexer_new(testshell_consumer, 0);
-
 	while(1) {
 		char * cmd = testshell_read();
 		pid_t pid = fork();
 		if (0 == pid) {
+			int count = 0;
+			lexer_t * lexer = clexer_new(testshell_consumer, &count);
+
 			lexer_adds(lexer, cmd);
-			exit(0);
+			exit(count);
 		}
 		int status;
 		pid_t wpid = waitpid(0, &status, 0);
