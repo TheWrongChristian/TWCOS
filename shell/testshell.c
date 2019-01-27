@@ -84,7 +84,8 @@ void testshell_run()
 		int status;
 		pid_t wpid = waitpid(0, &status, 0);
 		static char message[128];
-		snprintf(message, sizeof(message), "Process %d exited: status %d\n", wpid, status);
+		timerspec_t uptime = timer_uptime();
+		snprintf(message, sizeof(message), "%d: Process %d exited: status %d\n", (int)uptime/1000000, wpid, status);
 		testshell_puts(message);
 	}
 }
