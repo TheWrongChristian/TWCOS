@@ -31,7 +31,7 @@ static pte_t * vmap_get_pgtable(asid vid)
 {
 	int i;
 	int lowseq = INT32_MAX;
-	int lowi;
+	int lowi = 0;
 	static int seq = 0;
 
 	if (0 == vid) {
@@ -94,7 +94,7 @@ static pte_t vmap_get_pte(asid vid, void * vaddress)
 	page_t vpage = (uint32_t)vaddress >> ARCH_PAGE_SIZE_LOG2;
 	pte_t * pgtbl = vmap_get_pgtable(vid);
 
-	if (0 == vmap_get_page(vid, pgtbls+vpage)) {
+	if (0 == vmap_get_page(vid, pgtbl+vpage)) {
 		return 0;
 	}
 
@@ -106,13 +106,16 @@ static void vmap_set_pte(asid vid, void * vaddress, pte_t pte)
 	page_t vpage = (uint32_t)vaddress >> ARCH_PAGE_SIZE_LOG2;
 	pte_t * pgtbl = vmap_get_pgtable(vid);
 
-	if (0 == vmap_get_page(vid, pgtbls+vpage)) {
-		page_t page = page_alloc();
+	if (0 == vmap_get_page(vid, pgtbl+vpage)) {
+		/* No page table, create a new one */
 		pte_t * pgtbl = pgtbls;
+		page_t page = page_alloc();
 
 		for(int i=0; i<ASID_COUNT; i++, pgtbl += ARCH_PAGE_TABLE_SIZE) {
-			vmap_map(0, pgtbl+vpage, page, 1, 0);
+			vmap_map(0, pgtbl+vpage, page, 1, pte & 0x4);
 		}
+
+		page_clean(page);
 	}
 	pgtbl[vpage] = pte;
 	/* FIXME: Only need this if vid is current or kernel as */

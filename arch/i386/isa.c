@@ -188,7 +188,7 @@ static void pit_timer_set(void (*expire)(), timerspec_t usec)
 {
 	SPIN_AUTOLOCK(pit_lock) {
 		pit_expire = expire;
-		ticks = 1193180 * usec / 1000000;
+		ticks = 1193182 * usec / 1000000;
 
 		pit_set();
 	}
@@ -209,7 +209,7 @@ static timerspec_t pit_timer_clear()
 		pit_expire = 0;
 	}
 
-	return remaining * 1000000 / 1193180;
+	return remaining * 1000000 / 1193182;
 }
 
 timer_ops_t * arch_timer_ops()
@@ -226,32 +226,7 @@ timer_ops_t * arch_timer_ops()
 
 void arch_idle()
 {
-	int i = 0;
-	static char wheel[] = {'|', '/', '-', '\\' };
-	while(1) {
-		int irq = wait_irq();
-
-		switch(irq) {
-		case 0:
-			kernel_printk("%c\r", wheel[i]);
-			i=(i+1)&3;
-			break;
-		default:
-			kernel_printk("%d\n", irq);
-			break;
-		}
-		for(uint8_t scancode = keyq_get(); scancode; scancode = keyq_get()) {
-			kernel_printk("%x\n", scancode);
-			if (0x13 == scancode) {
-				reset();
-			}
-		}
-		thread_lock(arch_idle);
-		thread_gc();
-		thread_unlock(arch_idle);
-		thread_yield();
-	}
-	kernel_panic("idle finished");
+	hlt();
 }
 
 void isa_init()

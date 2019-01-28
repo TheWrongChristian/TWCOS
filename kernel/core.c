@@ -38,27 +38,37 @@ void page_add_range(page_t base, uint32_t count)
 	mmap_count++;
 }
 
+static int mmap_lock[] = {0};
 void page_free(page_t page)
 {
 	int i = 0;
+
+	if (0 == page) {
+		/* Ignore page zero */
+		return;
+	}
+
+	spin_lock(mmap_lock);
 	for(; i<mmap_count; i++) {
 		int p = page - mmap[i].base;
-		if (p > 0 && p < mmap[i].count) {
+		if (p >= 0 && p < mmap[i].count) {
 			/*
 			 * Page is in this memory range, mark it as free
 			 */
 			mmap[i].available[p/32] |= (0x80000000 >> p%32);
 			mmap[i].free++;
+			spin_unlock(mmap_lock);
 			return;
 		}
 	}
-	/* FIXME: Panic here */
+	kernel_panic("Unable to free page %d\n", page);
 }
 
 page_t page_alloc()
 {
 	int m = mmap_count - 1;
 
+	spin_lock(mmap_lock);
 	for(;m>=0; m--) {
 		if (mmap[m].free>0) {
 			int p;
@@ -70,19 +80,43 @@ page_t page_alloc()
 						if (mmap[m].available[p/32] & mask) {
 							mmap[m].available[p/32] &= (~mask);
 							mmap[m].free--;
+							spin_unlock(mmap_lock);
 							return mmap[m].base + p;
 						}
 					}
-					/* FIXME: panic */
+					kernel_panic("Couldn't find available page\n");
 				}
 			}
-			/* FIXME: panic, we should have found a free page */
+			kernel_panic("Couldn't find free page\n");
 		}
 	}
 	/* FIXME: Out of memory panic or exception */
+	kernel_panic("Out of free pages\n");
 	return 0;
 }
 
+page_t page_calloc()
+{
+	page_t page = page_alloc();
+	page_clean(page);
+
+	return page;
+}
+
+void page_clean(page_t page)
+{
+	static void * p = 0;
+	static mutex_t lock[] = {0};
+
+	MUTEX_AUTOLOCK(lock) {
+		if (0==p) {
+			p = vm_kas_get_aligned(ARCH_PAGE_SIZE, ARCH_PAGE_SIZE);
+		}
+
+		vmap_map(0, p, page, 1, 0);
+		memset(p, 0, ARCH_PAGE_SIZE);
+	}
+}
 
 segment_t * heap;
 static int heap_cache_lock;
@@ -96,7 +130,7 @@ void * page_heap_alloc()
 			heap_cache = heap_cache[0];
 		} else {
 			p = arch_heap_page();
-			page_t page = page_alloc();
+			page_t page = page_calloc();
 			vmap_map(0, p, page, 1, 0);
 
 			if (heap) {
@@ -104,7 +138,6 @@ void * page_heap_alloc()
 			}
 		}
 
-		memset(p, 0, ARCH_PAGE_SIZE);
 	}
 
 	return p;

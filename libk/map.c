@@ -323,9 +323,11 @@ map_key map_arraykey3( map_key k1, map_key k2, map_key k3 )
 	return (map_key)key;
 }
 
+#if 0
 static void map_compound_key_add( map_compound_key_t * key, void * p, size_t size)
 {
 }
+#endif
 
 static map_compound_key_t * map_compound_key_process( map_compound_key_t * key, const char * fmt, va_list ap)
 {
@@ -423,7 +425,7 @@ map_compound_key_t * map_compound_tempkey( map_compound_tempkey_t * key, const c
 {
 	va_list ap;
 	va_start(ap, fmt);
-	map_compound_key_process(key, fmt, ap);
+	map_compound_key_process((map_compound_key_t*)key, fmt, ap);
 	va_end(ap);
 
 	return (map_compound_key_t*)key;
@@ -480,7 +482,7 @@ void map_test(map_t * map, map_t * akmap)
 	map_walkpp(map, map_walk_dump, akmap);
 	map_walkpp_range(map, map_walk_dump, 0, "Christ", "Steven");
 	if (akmap) {
-		map_walkip_range(akmap, map_walk_dump, 0, map_arraykey1((map_key)akmap), map_arraykey1((map_key)akmap+1));
+		map_walkpp_range(akmap, map_walk_dump, 0, (void*)map_arraykey1((map_key)akmap), (void*)map_arraykey1((map_key)akmap+1));
 	}
 
 	kernel_printk("%s LE Christ\n", map_getpp_cond(map, "Christ", MAP_LE));
@@ -495,6 +497,7 @@ void map_test(map_t * map, map_t * akmap)
 	map_compound_key_t * key2 = map_compound_tempkey(&prefix, "i4i8", (int32_t)10, (int64_t)32);
 	int comp = map_compound_key_comp(key1, key2);
 	int isprefix = map_compound_key_prefix(key2, key1);
+	// kernel_printk("comp=%d, isprefix=%s\n", comp, (isprefix) ? "true" : "false");
 }
 
 static void map_put_all_walk(void *p,map_key key,map_data data)

@@ -2,17 +2,48 @@
 
 #if INTERFACE
 
+#include <stdint.h>
+
 typedef uint32_t pid_t;
 
+#define WNOHANG 1
 
 struct process_t {
+	monitor_t lock;
+
 	pid_t pid;
-	process_t * parent;
 #if 0
 	credential_t * credentials;
 #endif
+
+	/*
+	 * Process resources
+	 */
 	map_t * as;
 	map_t * files;
+
+	/*
+	 * root and working directories
+	 */
+	vnode_t * root;
+	vnode_t * cwd;
+
+	/*
+	 * Threads
+	 */
+	map_t * threads;
+
+	/*
+	 * process hierarchy
+	 */
+	process_t * parent;
+	map_t * children;
+	map_t * zombies;
+
+	/*
+	 * Status
+	 */
+	int exitcode;
 
 	container_t * container;
 };
@@ -44,22 +75,9 @@ static map_t * process_duplicate_as(process_t * from)
 {
 	map_t * as = tree_new(0, TREE_TREAP);
 
-	map_walk(from->as, process_duplicate_as_copy_seg, as);
+	map_walkpp(from->as, process_duplicate_as_copy_seg, as);
 
 	return as;
-}
-
-static void process_nextpid( process_t * process )
-{
-	static int lock[] = {0};
-	container_t * container = process->container;
-
-	spin_lock(lock);
-	do {
-		 process->pid = container->nextpid++;
-	} while(map_getip(container->pids, process->pid));
-	map_putip(container->pids, process->pid, process);
-	spin_unlock(lock);
 }
 
 slab_type_t processes[] = {SLAB_TYPE(sizeof(process_t), 0, 0)};
@@ -69,15 +87,18 @@ void process_init()
 	INIT_ONCE();
 
 	container_init();
+	thread_t * current = arch_get_thread();
 
 	/* Sculpt initial process */
-	process_t * process = slab_alloc(processes);
-	arch_get_thread()->process = process;
-	process->as = tree_new(0, TREE_TREAP);
-	process->parent = 0;
-	process->container = container_get(0);
-	process->files = vector_new();
-	process_nextpid(process);
+	current->process = slab_alloc(processes);
+	current->process->as = tree_new(0, TREE_TREAP);
+	current->process->threads = tree_new(0, TREE_TREAP);
+	current->process->children = tree_new(0, TREE_TREAP);
+	current->process->zombies = tree_new(0, TREE_TREAP);
+	map_putpp(current->process->threads, current, current);
+	current->process->container = container_get(0);
+	current->process->files = vector_new();
+	container_nextpid(current->process);
 }
 
 pid_t process_fork()
@@ -91,20 +112,118 @@ pid_t process_fork()
 	/* New address space */
 	new->as = process_duplicate_as(current);
 
+	/* Thread set */
+	new->threads = tree_new(0, TREE_TREAP);
+
 	/* Copy of all file descriptors */
 	new->files = vector_new();
 	map_put_all(new->files, current->files);
-	new->parent = current;
 
 	/* Find an unused pid */
-	process_nextpid(new);
+	container_nextpid(new);
+
+	/* Process hierarchy */
+	new->children = tree_new(0, TREE_TREAP);
+	new->zombies = tree_new(0, TREE_TREAP);
+	new->parent = current;
+	map_putip(current->children, new->pid, new);
 
 	/* Finally, new thread */
-	if (0 == thread_fork()) {
+	thread_t * thread = thread_fork();
+	if (0 == thread) {
 		/* Child thread */
-		arch_get_thread()->process = new;
 		return 0;
+	} else {
+		thread->process = new;
+		map_putpp(thread->process->threads, thread, thread);
 	}
 
 	return new->pid;
+}
+
+static void process_exit_reparent(void * p, map_key key, void * data)
+{
+	process_t * current = data;
+	current->parent = p;
+}
+
+void process_exit(int code)
+{
+	process_t * current = process_get();
+	process_t * init = container_getprocess(current->container, 1);
+
+	if (init == current) {
+		kernel_panic("init: exiting!");
+	}
+
+	MONITOR_AUTOLOCK(&current->parent->lock) {
+		pid_t pid = current->pid;
+		current->exitcode = code;
+		map_putip(current->parent->zombies, pid, map_removeip(current->parent->children, pid));
+		monitor_signal(&current->parent->lock);
+
+		/* Pass off any child/zombie processes to init */
+		MONITOR_AUTOLOCK(&current->lock) {
+			MONITOR_AUTOLOCK(&init->lock) {
+				map_walkip(current->children, process_exit_reparent, init);
+				map_put_all(init->children, current->children);
+				map_walkip(current->zombies, process_exit_reparent, init);
+				map_put_all(init->zombies, current->zombies);
+			}
+		}
+	}
+
+	/* FIXME: Clean up address space, files, other threads etc. */
+	thread_exit(0);
+}
+
+static void process_waitpid_getzombie(void * p, map_key key, void * data)
+{
+	longjmp(p, key);
+}
+
+pid_t process_waitpid(pid_t pid, int * wstatus, int options)
+{
+	int hang = 0 == (options&WNOHANG);
+	pid_t child = 0;
+	process_t * current = process_get();
+
+	MONITOR_AUTOLOCK(&current->lock) {
+#if 0
+		if (-1 == pid) {
+			/* Any child */
+		} else if (pid<0) {
+			/* Any child in process group -pid */
+		} else if (0 == pid) {
+			child = pid;
+		} else {
+		}
+#endif
+		do {
+			if (pid>0) {
+				child=pid;
+			} else {
+				jmp_buf env;
+				child = setjmp(env);
+				if (0 == child) {
+					map_walkip(current->zombies, process_waitpid_getzombie, env);
+				}
+			}
+			if (0 == child && hang) {
+				monitor_wait(&current->lock);
+			}
+		} while(0 == child && hang);
+
+		if (child) {
+			process_t * process = map_removeip(current->zombies, child);
+			if (wstatus) {
+				*wstatus = process->exitcode;
+			}
+
+			/* Finally remove the process from the set of all processes */
+			container_endprocess(process);
+		}
+	}
+
+	return child;
 }

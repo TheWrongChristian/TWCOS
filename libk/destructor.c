@@ -4,9 +4,11 @@
 
 #include <stdint.h>
 
+typedef void (*dtor_f)(void * p);
+
 struct dtor_t {
 	dtor_t * next;
-	void (*dtor)(void * p);
+	dtor_f dtor;
 	void * p;
 }
 
@@ -105,13 +107,13 @@ void dtor_remove( void (*dtor)(void * p), void * p )
 
 void dtor_test()
 {
-	dtor_t * p1 = dtor_push(kernel_printk, "p1");
-	dtor_push(kernel_printk, "p2");
-	dtor_push(kernel_printk, "p3");
-	dtor_push(kernel_printk, "p4");
-	dtor_t * p5 = dtor_push(kernel_printk, "p5");
-	dtor_push(kernel_printk, "p6");
-	dtor_push(kernel_printk, "p7");
+	dtor_t * p1 = dtor_push((dtor_f)kernel_printk, "p1");
+	dtor_push((dtor_f)kernel_printk, "p2");
+	dtor_push((dtor_f)kernel_printk, "p3");
+	dtor_push((dtor_f)kernel_printk, "p4");
+	dtor_t * p5 = dtor_push((dtor_f)kernel_printk, "p5");
+	dtor_push((dtor_f)kernel_printk, "p6");
+	dtor_push((dtor_f)kernel_printk, "p7");
 	dtor_pop(p5);
 	dtor_pop(p1);
 }

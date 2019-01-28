@@ -102,12 +102,30 @@ _start:
 	movl $pg_dir, %eax
 	movl %eax, %cr3
 	movl %cr4, %eax
-	orl $0x00000010, %eax
+	orl $0x00000008, %eax
 	movl %eax, %cr4
 	movl %cr0, %eax
 	orl $0x80000000, %eax
 	movl %eax, %cr0
 	jmp .highmem
+
+.global user_start
+.type user_start, @function
+user_start:
+	movl $2, %eax
+	int $128
+	test %eax,%eax
+	je 1f
+
+	# parent
+	movl $1, %eax
+	movl $25, %ebx
+	int $128
+	# child
+1:
+	movl $1, %eax
+	movl $25, %ebx
+	int $128
 
 .section .text
 .highmem:

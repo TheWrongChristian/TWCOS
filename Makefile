@@ -16,6 +16,10 @@ subdir := kernel
 include $(subdir)/subdir.mk
 subdir := fs
 include $(subdir)/subdir.mk
+subdir := drivers
+include $(subdir)/subdir.mk
+subdir := shell
+include $(subdir)/subdir.mk
 subdir := build
 include $(subdir)/tools.mk
 subdir := arch/$(ARCH)
@@ -46,7 +50,7 @@ qemu: all .gdbinit
 	qemu-system-i386 -m 16 -s -S -kernel $(KERNEL) &
 
 run: all
-	qemu-system-i386 -m 16 -kernel $(KERNEL) &
+	qemu-system-i386 -m 16 -s -kernel $(KERNEL) &
 
 includes::
 	$(MAKEHEADERS) $(SRCS_C)

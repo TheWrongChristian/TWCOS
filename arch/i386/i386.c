@@ -125,7 +125,10 @@ void * isr_labels[] = {
 #include "isr_labels.h"
 };
 
-enum regs { ISR_REG_EDI, ISR_REG_ESI, ISR_REG_EBP, ISR_REG_ESP, ISR_REG_EBX, ISR_REG_EDX, ISR_REG_ECX, ISR_REG_EAX, ISR_REG_DS, ISR_ERRORCODE };
+#if INTERFACE
+enum regs_e { ISR_REG_EDI, ISR_REG_ESI, ISR_REG_EBP, ISR_REG_ESP, ISR_REG_EBX, ISR_REG_EDX, ISR_REG_ECX, ISR_REG_EAX, ISR_REG_DS, ISR_ERRORCODE };
+#endif
+
 typedef void (*isr_t)(uint32_t i, uint32_t * state);
 
 
@@ -342,10 +345,12 @@ static isr_t itable[256] = {
 	i386_irq, i386_irq, i386_irq, i386_irq,
 
 	i386_irq, i386_irq, i386_irq, i386_irq,
-	i386_irq, i386_irq, i386_irq, i386_irq
+	i386_irq, i386_irq, i386_irq, i386_irq,
+	[0x80]=i386_syscall
 };
 
 static thread_t initial;
+static thread_t * current;
 
 #define PIC_IRQ_BASE    0x20
 void i386_init()
@@ -370,6 +375,9 @@ void i386_init()
 		i386_set_idt(i, isr_labels[i], 0x8f00);
 	}
 
+	/* int 0x80 - System call interface for user code */
+	i386_set_idt(0x80, isr_labels[0x80], 0xef00);
+
 	/* Configure interrupt gates for irqs */
 	for(i=PIC_IRQ_BASE;i<PIC_IRQ_BASE+16; i++) {
 		i386_set_idt(i, isr_labels[i], 0x8e00);
@@ -380,15 +388,12 @@ void i386_init()
 	lidt(idt,sizeof(idt));
 
 	/* Craft the initial thread and stack */
-	*stackbase = &initial;
+	current = *stackbase = &initial;
 	initial.context.stack = stackbase;
 	initial.priority = THREAD_NORMAL;
 	initial.state = THREAD_RUNNING;
 
 	PIC_remap(PIC_IRQ_BASE, PIC_IRQ_BASE+16);
-
-	cli();
-	sti();
 }
 
 void arch_thread_init(thread_t * thread)
@@ -426,9 +431,12 @@ void i386_isr(uint32_t num, uint32_t * state)
 
 thread_t * arch_get_thread()
 {
+#if 0
 	thread_t ** stackbase = ARCH_GET_VPAGE(&stackbase);
 
 	return *stackbase;
+#endif
+	return current;
 }
 
 int arch_thread_fork(thread_t * dest)
@@ -494,6 +502,7 @@ void arch_thread_switch(thread_t * thread)
 			thread->state = THREAD_RUNNING;
 		}
 		tss[1] = (uint32_t)thread->context.stack + ARCH_PAGE_SIZE;
+		current = thread;
 		longjmp(thread->context.state, 1);
 	}
 }
@@ -565,6 +574,10 @@ void arch_spin_unlock(int * p)
 	sti();
 }
 
+void arch_startuser(void * start)
+{
+	asm("push %0; push $0; push $0 ; push %1; push %2; iret" : : "r" (0x23), "r" (0x1b), "r" (start));
+}
 
 #if INTERFACE
 

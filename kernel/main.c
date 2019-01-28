@@ -19,13 +19,21 @@
 #endif
 
 static void idle() {
-	arch_idle();
+	thread_set_priority(0, THREAD_IDLE);
+	while(1) {
+		thread_gc();
+		thread_preempt();
+		arch_idle();
+	}
 }
 
 static void run_init() {
 	kernel_printk("In process %d\n", arch_get_thread()->process->pid);
 	while(1) {
-		thread_yield();
+#if 0
+		kernel_printk("init sleeping for 10 seconds\n");
+#endif
+		timer_sleep(10000000);
 	}
 }
  
@@ -40,12 +48,8 @@ void kernel_main() {
 		page_cache_init();
 		process_init();
 		timer_init(arch_timer_ops());
-
-		/* Create process 1 - init */
-		if (0 == process_fork()) {
-			run_init();
-		}
-
+#if 0
+		cbuffer_test();
 		dtor_test();
 		exception_test();
 		thread_test();
@@ -68,6 +72,23 @@ void kernel_main() {
 		char ** strs = ssplit("/a/path/file/name", '/');
 		strs = ssplit("", '/');
 		strs = ssplit("/", '/');
+		thread_t * testshell = thread_fork();
+		if (0 == testshell) {
+			testshell_run(terminal);
+		}
+#endif
+
+		/* Create process 1 - init */
+		if (0 == process_fork()) {
+			/* Open stdin/stdout/stderr */
+			vnode_t * console = dev_vnode(console_dev());
+			vnode_t * terminal = terminal_new(console, console);
+			file_vopen(terminal, 0, 0);
+			file_dup(0);
+			file_dup(0);
+			
+			testshell_run();
+		}
 
 		idle();
 	} KCATCH(Throwable) {

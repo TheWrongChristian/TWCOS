@@ -324,6 +324,7 @@ static node_t * node_next( node_t * current )
 	return 0;
 }
 
+#if 0
 static void tree_walk_node( node_t * node, walk_func func, void * p )
 {
         if (NULL == node) {
@@ -341,6 +342,7 @@ static void tree_walk_node( node_t * node, walk_func func, void * p )
 		node = node_next(node);
 	}
 }
+#endif
 
 static node_t * tree_node_first(tree_t * tree)
 {
@@ -763,6 +765,7 @@ static void tree_graph_node(node_t * node, int level)
 	}
 }
 
+#if 0
 static void tree_walk_dump(void * p, void * key, void * data)
 {
 	kernel_printk("%s\n", data);
@@ -774,6 +777,7 @@ static void tree_walk_dump(void * p, void * key, void * data)
 		map_putpp(akmap, ak, data);
 	}
 }
+#endif
 
 void tree_test()
 {

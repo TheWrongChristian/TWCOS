@@ -78,32 +78,31 @@ void arena_setstate(arena_t * arena, arena_state state)
 }
 
 static arena_t * free_arenas = 0;
+static mutex_t arena_lock[1] = {0};
 
 arena_t * arena_get()
 {
 	arena_t * arena = 0;
 
-	thread_lock(&free_arenas);
-
-	if (free_arenas) {
-		arena = free_arenas;
-		free_arenas = free_arenas->next;
-	} else {
-		arena = arena_create(0x400000);
+	MUTEX_AUTOLOCK(arena_lock) {
+		if (free_arenas) {
+			arena = free_arenas;
+			free_arenas = free_arenas->next;
+		} else {
+			arena = arena_create(0x400000);
+		}
 	}
-
-	thread_unlock(&free_arenas);
 
 	return arena;
 }
 
 void arena_free(arena_t * arena)
 {
-	thread_lock(&free_arenas);
-	arena->next = free_arenas;
-	arena->state = arena->base;
-	free_arenas = arena;
-	thread_unlock(&free_arenas);
+	MUTEX_AUTOLOCK(arena_lock) {
+		arena->next = free_arenas;
+		arena->state = arena->base;
+		free_arenas = arena;
+	}
 }
 
 static int arena_key = 0;
@@ -111,11 +110,11 @@ arena_t * arena_thread_get()
 {
 	/* Check we have a valid TLS key, init if not */
 	if (0 == arena_key) {
-		thread_lock(arena_thread_get);
+		MUTEX_AUTOLOCK(arena_lock) {
 			if (0 == arena_key) {
 				arena_key = tls_get_key();
 			}
-		thread_unlock(arena_thread_get);
+		}
 	}
 
 	/* Get the TLS arena, and get a new one if there is none */

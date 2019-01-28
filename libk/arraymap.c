@@ -92,11 +92,11 @@ static void arraymap_walk_range(map_t * map, walk_func func, void * p, map_key f
 static map_data arraymap_put( map_t * map, map_key key, map_data data )
 {
 	arraymap_t * amap = container_of(map, arraymap_t, map);
-	int low = 0;
-	int high = amap->count;
-	int diff;
 
 	if (amap->count) {
+		int low = 0;
+		int high = amap->count;
+		int diff;
 		do {
 			int i = (low + high) / 2;
 			diff = amap->comp(key, amap->data[i].key);

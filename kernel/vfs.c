@@ -15,6 +15,10 @@ struct vfs_ops_t {
 	void (*close)(vnode_t * vnode);
 	size_t (*get_size)(vnode_t * vnode);
 
+	/* Stream read/write */
+	size_t (*read)(vnode_t * vnode, off_t offset, void * buf, size_t len);
+	size_t (*write)(vnode_t * vnode, off_t offset, void * buf, size_t len);
+
 	/* vnode Open/close */
 	vnode_t * (*get_vnode)(vnode_t * dir, const char * name);
 	void (*put_vnode)(vnode_t * vnode);
@@ -121,6 +125,16 @@ void vnode_close(vnode_t * vnode)
 	vnode->fs->fsops->close(vnode);
 }
 
+size_t vnode_write(vnode_t * vnode, off_t offset, const void * buf, size_t len)
+{
+	return vnode->fs->fsops->write(vnode, offset, buf, len);
+}
+
+size_t vnode_read(vnode_t * vnode, off_t offset, void * buf, size_t len)
+{
+	return vnode->fs->fsops->read(vnode, offset, buf, len);
+}
+
 void fs_idle(vnode_t * root)
 {
 	root->fs->fsops->idle(root->fs);
@@ -133,12 +147,23 @@ void vnode_init(vnode_t * vnode, vnode_type type, fs_t * fs)
 	vnode->ref = 1;
 }
 
-
 void vfs_test(vnode_t * root)
 {
+	if (0 == root) {
+		kernel_panic("root is null!");
+	}
+
 	/* Open libk/tree.c */
 	vnode_t * libk = vnode_get_vnode(root, "libk");
+	if (0 == libk) {
+		kernel_panic("libk is null");
+	}
+
 	vnode_t * tree_c = vnode_get_vnode(libk, "tree.c");
+	if (0 == tree_c) {
+		kernel_panic("tree_c is null");
+	}
+
 
 	char * p = (void*)0x00010000;
 	segment_t * seg = vm_segment_vnode(p, vnode_get_size(tree_c), SEGMENT_U | SEGMENT_P, tree_c, 0);

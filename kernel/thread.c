@@ -14,11 +14,22 @@ struct thread_t {
 	arch_context_t context;
 	process_t * process;
 
+	/* Thread CPU usage */
+	int acct;
+	struct {
+		timerspec_t tstart;
+		timerspec_t tlen;
+	} accts[64];
+
 	/* Run state */
 	tstate state;
 	tpriority priority;
 
+	/* Thread information */
+	char * name;
+
 	/* Return value */
+	monitor_t lock[1];
 	void * retval;
 
 	/* Queue */
@@ -28,19 +39,6 @@ struct thread_t {
 
 enum tstate { THREAD_NEW, THREAD_RUNNABLE, THREAD_RUNNING, THREAD_SLEEPING, THREAD_TERMINATED };
 enum tpriority { THREAD_INTERRUPT = 0, THREAD_NORMAL, THREAD_IDLE, THREAD_PRIORITIES };
-
-#define INIT_ONCE() \
-	do { \
-		static int inited = 0; \
-		if (inited) { \
-			return; \
-		} \
-		inited = 1; \
-	} while(0)
-
-#define SPIN_AUTOLOCK_CONCAT(a, b) a ## b
-#define SPIN_AUTOLOCK_VAR(line) SPIN_AUTOLOCK_CONCAT(s,line)
-#define SPIN_AUTOLOCK(lock) int SPIN_AUTOLOCK_VAR(__LINE__) = 0; while((SPIN_AUTOLOCK_VAR(__LINE__) =spin_autolock(lock, SPIN_AUTOLOCK_VAR(__LINE__) )))
 
 #endif
 
@@ -102,9 +100,7 @@ static int queuelock;
 
 static void scheduler_lock()
 {
-	while(!spin_trylock(&queuelock)) {
-	}
-	return;
+	spin_lock(&queuelock);
 }
 
 static void scheduler_unlock()
@@ -142,20 +138,59 @@ void thread_resume(thread_t * thread)
 
 void thread_schedule()
 {
-	int i;
-	scheduler_lock();
-	for(i=0; i<THREAD_PRIORITIES; i++) {
-		if (0 == queue[i]) {
-			continue;
-		} else {
-			thread_t * next = queue[i];
-			LIST_DELETE(queue[i], next);
-			scheduler_unlock();
-			arch_thread_switch(next);
-			return;
+	while(1) {
+		int i;
+		scheduler_lock();
+		for(i=0; i<THREAD_PRIORITIES; i++) {
+			if (0 == queue[i]) {
+				continue;
+			} else {
+				thread_t * current = arch_get_thread();
+				thread_t * next = queue[i];
+				LIST_DELETE(queue[i], next);
+				scheduler_unlock();
+				if (arch_get_thread() != next) {
+					/* Thread is changing, do accounting and switch to next */
+					current->accts[current->acct].tlen = timer_uptime() - current->accts[current->acct].tstart;
+					current->acct++;
+					if (sizeof(current->accts)/sizeof(current->accts[0]) == current->acct) {
+						current->acct = 0;
+					}
+					arch_thread_switch(next);
+					current->accts[current->acct].tstart = timer_uptime();
+				} else {
+					/* Restore thread state to running */
+					current->state = THREAD_RUNNING;
+				}
+				return;
+			}
 		}
+		// kernel_printk("Empty run queue!\n");
+		scheduler_unlock();
+		arch_idle();
 	}
-	kernel_panic("Empty run queue!\n");
+}
+
+char * thread_get_name(thread_t * thread)
+{
+	if (0 == thread) {
+		thread = arch_get_thread();
+	}
+
+	if (0 == thread->name) {
+		thread->name = "Anonymous";
+	}
+
+	return thread->name;
+}
+
+void thread_set_name(thread_t * thread, char * name)
+{
+	if (0 == thread) {
+		thread = arch_get_thread();
+	}
+
+	thread->name = name;
 }
 
 thread_t * thread_fork()
@@ -165,6 +200,9 @@ thread_t * thread_fork()
 
 	thread->priority = this->priority;
 	thread->process = this->process;
+	char buf[32];
+	snprintf( buf, sizeof(buf), "Child of %p", this);
+	thread_set_name(thread, strndup(buf, sizeof(buf)));
 
 	if (0 == arch_thread_fork(thread)) {
 		return 0;
@@ -183,9 +221,12 @@ void thread_exit(void * retval)
 	this->state = THREAD_TERMINATED;
 
 	/* Signify to any threads waiting on this thread */
-	thread_lock(this);
-	thread_broadcast(this);
-	thread_unlock(this);
+	MONITOR_AUTOLOCK(this->lock) {
+		monitor_broadcast(this->lock);
+	}
+
+	/* Remove this thread from the set of process threads */
+	map_removepp(this->process->threads, this);
 
 	/* Schedule the next thread */
 	thread_schedule();
@@ -194,12 +235,13 @@ void thread_exit(void * retval)
 void * thread_join(thread_t * thread)
 {
 	void * retval = 0;
-	thread_lock(thread);
-	while(thread->state != THREAD_TERMINATED) {
-		thread_wait(thread);
+
+	MONITOR_AUTOLOCK(thread->lock) {
+		while(thread->state != THREAD_TERMINATED) {
+			monitor_wait(thread->lock);
+		}
 	}
 	retval = thread->retval;
-	thread_unlock(thread);
 
 	/* FIXME: Clean up thread resources */
 
@@ -215,7 +257,7 @@ void thread_set_priority(thread_t * thread, tpriority priority)
 	thread->priority = priority;
 }
 
-static map_t * roots;
+static void ** roots;
 
 static void thread_gc_walk(void * p, void * key, void * d)
 {
@@ -224,7 +266,7 @@ static void thread_gc_walk(void * p, void * key, void * d)
 
 void thread_gc()
 {
-	thread_cleanlocks();
+	// thread_cleanlocks();
 	slab_gc_begin();
 	slab_gc_mark(arch_get_thread());
 	for(int i=0; i<sizeof(queue)/sizeof(queue[0]); i++) {
@@ -236,10 +278,10 @@ void thread_gc()
 
 void thread_gc_root(void * p)
 {
-	if (0 == roots) {
-		roots = arraymap_new(0, 128);
-	}
-	map_putpp(roots, p, p);
+	static int rootcount = 0;
+
+	roots = realloc(roots, sizeof(*roots)*rootcount+1);
+	roots[rootcount++] = p;
 }
 
 static void thread_mark(void * p)
@@ -271,26 +313,34 @@ void thread_init()
 	INIT_ONCE();
 
 	/* Craft a new bootstrap thread to replace the static defined thread */
+	sync_init();
 	arch_thread_init(slab_alloc(threads));
 }
 
 static void thread_test2();
-static void thread_test1()
+static void thread_test1(rwlock_t * rw)
 {
 	void ** bt = thread_backtrace(15);
 	kernel_printk("thread_test1\n");
 	while(*bt) {
 		kernel_printk("\t%p\n", *bt++);
 	}
+
+	rwlock_escalate(rw);
+	rwlock_read(rw);
+	rwlock_unlock(rw);
 }
 
-static void thread_test2()
+static void thread_test2(rwlock_t * rw)
 {
 	void ** bt = thread_backtrace(15);
 	kernel_printk("thread_test2\n");
 	while(*bt) {
 		kernel_printk("\t%p\n", *bt++);
 	}
+	rwlock_unlock(rw);
+	rwlock_write(rw);
+	rwlock_unlock(rw);
 }
 
 void thread_test()
@@ -302,14 +352,16 @@ void thread_test()
 		thread_join(thread1);
 		thread1 = 0;
 	} else {
+		static rwlock_t rw[1] = {{0}};
 		thread_t * thread2 = thread_fork();
+		rwlock_read(rw);
 		if (thread2) {
-			thread_test1();
+			thread_test1(rw);
 			thread_join(thread2);
 			thread2 = 0;
 			thread_exit(0);
 		} else {
-			thread_test2();
+			thread_test2(rw);
 			thread_exit(0);
 		}
 	}

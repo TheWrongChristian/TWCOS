@@ -12,8 +12,8 @@ MAKEHEADERS=$(TOP)/build/makeheaders
 
 include $(TOP)/build/param.mk
 
-COPTS=-g
-CFLAGS=$(COPTS) -std=gnu99 -ffreestanding -Wall -I$(TOP)/arch/$(ARCH)/include -I$(TOP)/include
+COPTS=-g -DDEBUG
+CFLAGS=$(COPTS) -pipe -std=gnu99 -ffreestanding -Wall -I$(TOP)/arch/$(ARCH)/include -I$(TOP)/include
 ASFLAGS=-g
 
 OBJS=$(SRCS_S:.S=.o) $(SRCS_C:.c=.o)
