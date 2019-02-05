@@ -6,7 +6,9 @@
 typedef uint32_t jmp_buf[6];
 
 int setjmp(jmp_buf env);
-void longjmp(jmp_buf env, int value);
+void klongjmp(jmp_buf env, int value);
+
+#define longjmp klongjmp
 
 
 
