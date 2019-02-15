@@ -4,9 +4,10 @@ endif
 
 TOOLS=$(TOP)/tools/bin
 HOSTCC=gcc
-CC=$(TOOLS)/i386-linux-gcc
-LD=$(TOOLS)/i386-linux-ld
-AS=$(TOOLS)/i386-linux-as
+CROSS=i686-elf-
+CC=$(TOOLS)/$(CROSS)gcc
+LD=$(TOOLS)/$(CROSS)ld
+AS=$(TOOLS)/$(CROSS)as
 CP=cp -f
 MAKEHEADERS=$(TOP)/build/makeheaders
 
