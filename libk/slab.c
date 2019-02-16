@@ -201,16 +201,27 @@ static void slab_mark_available_all(slab_t * slab)
 
 }
 
+static struct
+{
+	size_t inuse;
+	size_t peak;
+	size_t total;
+} gc_stats = {0};
+
 void slab_gc_begin()
 {
 	slab_lock(1);
 	slab_type_t * stype = types;
+
+	gc_stats.inuse = 0;
+	gc_stats.total = 0;
 
 	/* Mark all elements available */
 	while(stype) {
 		slab_t * slab = stype->first;
 
 		while(slab) {
+			gc_stats.total += stype->esize * stype->count;
 			slab_mark_available_all(slab);
 			LIST_NEXT(stype->first, slab);
 		}
@@ -249,6 +260,11 @@ void slab_gc_mark(void * root)
 		root = slab->data + slab->type->esize*i;
 		uint32_t mask = (0x80000000u >> i%32);
 		if (slab->available[i/32] & mask) {
+			gc_stats.inuse += slab->type->esize;
+			if (gc_stats.inuse >= gc_stats.peak) {
+				gc_stats.peak = gc_stats.inuse;
+			}
+
 			/* Marked as available, clear the mark */
 			slab->available[i/32] &= ~mask;
 			if (slab->type->mark) {
