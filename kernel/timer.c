@@ -97,7 +97,7 @@ static void timer_expire()
 
 timer_event_t * timer_add(timerspec_t usec, void (*cb)(void * p), void * p)
 {
-	timer_event_t * timer = malloc(sizeof(*timer));
+	timer_event_t * timer = calloc(1, sizeof(*timer));
 	timer->usec = usec;
 	timer->reset = usec;
 	timer->cb = cb;

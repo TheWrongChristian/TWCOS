@@ -107,7 +107,7 @@ void exception_throw(exception_def * type, char * file, int line, char * message
 	va_list ap;
 	va_start(ap,message);
 
-	struct exception_cause * cause = slab_alloc(causes);
+	struct exception_cause * cause = slab_calloc(causes);
 	cause->type = type;
 	cause->file = file;
 	cause->line = line;

@@ -90,7 +90,7 @@ void process_init()
 	thread_t * current = arch_get_thread();
 
 	/* Sculpt initial process */
-	current->process = slab_alloc(processes);
+	current->process = slab_calloc(processes);
 	current->process->as = tree_new(0, TREE_TREAP);
 	current->process->threads = tree_new(0, TREE_TREAP);
 	current->process->children = tree_new(0, TREE_TREAP);
@@ -104,7 +104,7 @@ void process_init()
 pid_t process_fork()
 {
 	process_t * current = process_get();
-	process_t * new = slab_alloc(processes);
+	process_t * new = slab_calloc(processes);
 
 	/* Share the same container */
 	new->container = current->container;
