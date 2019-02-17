@@ -96,7 +96,7 @@ void testshell_run()
 		static char message[128];
 		wpid = waitpid(0, &status, WNOHANG);
 		while(wpid) {
-			snprintf(message, sizeof(message), "%d: Process %d exited: status %d\n", (int)uptime/1000000, wpid, status);
+			snprintf(message, sizeof(message), "%d: Process %d exited: status %d\n", (unsigned)(uptime/1000000), wpid, status);
 			testshell_puts(message);
 			wpid = waitpid(0, &status, WNOHANG);
 		}

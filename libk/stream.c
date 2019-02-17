@@ -40,10 +40,11 @@ static void stream_putulong(stream_t * stream, int base, uint64_t i)
 
 static void stream_putint(stream_t * stream, int base, int i)
 {
+	if (i<0) {
+		stream_putc(stream, '-');
+		i = -i;
+	}
 	if (i<base) {
-		if (i<0) {
-			stream_putc(stream, '-');
-		}
 		stream_putc(stream, digits[i]);
 	} else {
 		stream_putint(stream, base, i / base);
