@@ -125,7 +125,7 @@ void vnode_close(vnode_t * vnode)
 	vnode->fs->fsops->close(vnode);
 }
 
-size_t vnode_write(vnode_t * vnode, off_t offset, const void * buf, size_t len)
+size_t vnode_write(vnode_t * vnode, off_t offset, void * buf, size_t len)
 {
 	return vnode->fs->fsops->write(vnode, offset, buf, len);
 }
@@ -153,21 +153,25 @@ void vfs_test(vnode_t * root)
 		kernel_panic("root is null!");
 	}
 
-	/* Open libk/tree.c */
-	vnode_t * libk = vnode_get_vnode(root, "libk");
-	if (0 == libk) {
-		kernel_panic("libk is null");
+	/* Open user/shell/init */
+	vnode_t * user = vnode_get_vnode(root, "user");
+	if (0 == user) {
+		kernel_panic("user is null");
 	}
 
-	vnode_t * tree_c = vnode_get_vnode(libk, "tree.c");
-	if (0 == tree_c) {
-		kernel_panic("tree_c is null");
+	vnode_t * shell = vnode_get_vnode(user, "shell");
+	if (0 == shell) {
+		kernel_panic("shell is null");
 	}
 
+	vnode_t * init = vnode_get_vnode(shell, "init");
+	if (0 == init) {
+		kernel_panic("init is null");
+	}
 
-	char * p = (void*)0x00010000;
-	segment_t * seg = vm_segment_vnode(p, vnode_get_size(tree_c), SEGMENT_U | SEGMENT_P, tree_c, 0);
+	struct Elf32_Ehdr * p = (struct Elf32_Ehdr *)0x00010000;
+	segment_t * seg = vm_segment_vnode(p, vnode_get_size(init), SEGMENT_U | SEGMENT_P, init, 0);
 	map_putpp(arch_get_thread()->process->as, p, seg);
-	kernel_printk("test.c: %d bytes\n", strlen(p));
-	kernel_printk("%s\n", p);
+	int supported = elf_check_supported(p);
+	kernel_printk("Supported: %d\n", supported);
 }

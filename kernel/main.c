@@ -48,6 +48,8 @@ void kernel_main() {
 		page_cache_init();
 		process_init();
 		timer_init(arch_timer_ops());
+		vnode_t * root = tarfs_test();
+		vfs_test(root);
 #if 0
 		cbuffer_test();
 		dtor_test();

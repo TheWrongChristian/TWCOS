@@ -24,6 +24,8 @@ subdir := build
 include $(subdir)/tools.mk
 subdir := arch/$(ARCH)
 include $(subdir)/subdir.mk
+subdir := user
+include $(subdir)/subdir.mk
 
 all:: boot.iso
 
@@ -56,6 +58,9 @@ includes::
 	$(MAKEHEADERS) $(SRCS_C)
 
 cflow:
+	cflow -d 4 -m kernel_main $(SRCS_C)
+
+cflowr:
 	cflow -d 4 -r $(SRCS_C)
 
 cxref:
