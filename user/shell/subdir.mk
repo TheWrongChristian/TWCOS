@@ -7,3 +7,6 @@ all:: $(INIT)
 
 $(INIT): $(INIT_OBJS_C)
 	$(CC) $(CFLAGS) -o $@ $(INIT_OBJS_C)
+
+clean::
+	$(RM) $(INIT) $(INIT_OBJS_C)

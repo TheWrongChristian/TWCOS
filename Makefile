@@ -36,7 +36,7 @@ KERNEL=arch/$(ARCH)/kernel
 boot.iso: grub.cfg $(KERNEL)
 	mkdir -p isodir/boot/grub
 	cp $(KERNEL) isodir/boot/kernel
-	cp grub.cfg isodir/boot/grub/grub.cfg
+	cp -f grub.cfg isodir/boot/grub/grub.cfg
 	grub-mkrescue -o boot.iso isodir
 
 .PHONY: clean

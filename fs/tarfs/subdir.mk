@@ -21,7 +21,7 @@ $(TARFS_TAR): $(TARFS_FILES) $(TARFS_DEEPDIR)/file1 $(TARFS_DEEPDIR)/file2
 $(TARFS_TAR_C): $(TARFS_TAR)
 	xxd -i $(TARFS_TAR) > $(TARFS_TAR_C)
 
-includes:: $(TARFS_TAR_C)
+# includes:: $(TARFS_TAR_C)
 
 clean::
-	rm -f $(TARFS_TAR_C)
+	rm -f $(TARFS_TAR_C) $(TARFS_TAR)

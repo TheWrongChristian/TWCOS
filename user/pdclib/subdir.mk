@@ -161,8 +161,6 @@ PDCLIB_SRCS_C := \
 LIBC_SRCS_C += $(PDCLIB_SRCS_C) $(ARCH_USYSCALL_C)
 LIBC_OBJS_C = $(LIBC_SRCS_C:.c=.o)
 
-all:: $(TOP)/lib/libc.a $(TOP)/lib/libg.a
-
 $(TOP)/lib/libc.a: $(LIBC_OBJS_C)
 	$(AR) rcs $@ $(LIBC_OBJS_C)
 
