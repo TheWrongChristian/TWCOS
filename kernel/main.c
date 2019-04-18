@@ -48,9 +48,9 @@ void kernel_main() {
 		page_cache_init();
 		process_init();
 		timer_init(arch_timer_ops());
+#if 0
 		vnode_t * root = tarfs_test();
 		vfs_test(root);
-#if 0
 		cbuffer_test();
 		dtor_test();
 		exception_test();
@@ -79,7 +79,12 @@ void kernel_main() {
 			testshell_run(terminal);
 		}
 #endif
-
+		static vnode_t * root = 0;
+		if (initrd) {
+			process_t * p = process_get();
+			p->root = p->cwd = tarfs_open(dev_static(initrd, initrdsize));
+			vfs_test(p->root);
+		}
 		/* Create process 1 - init */
 		if (0 == process_fork()) {
 			/* Open stdin/stdout/stderr */

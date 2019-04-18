@@ -76,6 +76,9 @@ int arch_is_heap_pointer(void *p)
 	return ((char*)p)>=&_bootstrap_nextalloc && (char*)p<nextalloc;
 }
 
+void * initrd=0;
+size_t initrdsize=0;
+
 void arch_init()
 {
 	INIT_ONCE();
@@ -84,10 +87,24 @@ void arch_init()
 	ptrdiff_t koffset = _bootstrap_nextalloc - _bootstrap_end;
 	page_t pstart;
 	page_t pend;
+	void * modstart = 0;
+	size_t modsize = 0;
 	int pcount = 0;
+
+	multiboot_module_t * mod = multiboot_mod(0);
+	if (mod) {
+		modstart = (void*)(mod->mod_start+koffset);
+		modsize = mod->mod_end-mod->mod_start;
+		nextalloc = koffset + mod->mod_end;
+		nextalloc += ARCH_PAGE_SIZE;
+		nextalloc = (char*)((uint32_t)nextalloc & ~(ARCH_PAGE_SIZE-1));
+	}
 
 	memset(zero_start, 0, zero_end-zero_start);
 	cli();
+	initrd = modstart;
+	initrdsize = modsize;
+
 	for(i=0;;i++) {
 		multiboot_memory_map_t * mmap = multiboot_mmap(i);
 

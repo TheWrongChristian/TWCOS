@@ -33,9 +33,10 @@ obj:
 	mkdir -p obj
 
 KERNEL=arch/$(ARCH)/kernel
-boot.iso: grub.cfg $(KERNEL)
+boot.iso: grub.cfg $(KERNEL) $(INITRD_TAR)
 	mkdir -p isodir/boot/grub
 	cp $(KERNEL) isodir/boot/kernel
+	cp $(INITRD_TAR) isodir/boot/initrd
 	cp -f grub.cfg isodir/boot/grub/grub.cfg
 	grub-mkrescue -o boot.iso isodir
 
@@ -49,7 +50,7 @@ clean::
 	echo break kernel_main | tee -a .gdbinit
 
 qemu: all .gdbinit
-	qemu-system-i386 -m 16 -s -S -kernel $(KERNEL) &
+	qemu-system-i386 -m 16 -s -S -kernel $(KERNEL) -initrd $(INITRD_TAR) &
 
 run: all
 	qemu-system-i386 -m 16 -s -kernel $(KERNEL) &
