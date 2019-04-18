@@ -152,7 +152,7 @@ void vfs_test(vnode_t * root)
 	if (0 == root) {
 		kernel_panic("root is null!");
 	}
-
+#if 0
 	/* Open user/shell/init */
 	vnode_t * user = vnode_get_vnode(root, "user");
 	if (0 == user) {
@@ -165,6 +165,8 @@ void vfs_test(vnode_t * root)
 	}
 
 	vnode_t * init = vnode_get_vnode(shell, "init");
+#endif
+	vnode_t * init = file_namev("/user/shell/init");
 	if (0 == init) {
 		kernel_panic("init is null");
 	}

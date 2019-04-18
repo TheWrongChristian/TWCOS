@@ -59,6 +59,18 @@ enum Elf_Type {
 #define EM_386		(3)  // x86 Machine Type
 #define EV_CURRENT	(1)  // ELF Current Version
 
+struct Elf32_Phdr
+{
+	Elf32_Word type;
+	Elf32_Off offset;
+	Elf32_Addr vaddr;
+	Elf32_Word unused;
+	Elf32_Word fsize;
+	Elf32_Word msize;
+	Elf32_Word flags;
+	Elf32_Word align;
+};
+
 #endif
 
 exception_def ElfException = { "ElfException", &Exception };

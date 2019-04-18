@@ -60,6 +60,7 @@ struct exception_frame {
 
 #define KTHROW(type,message) exception_throw(&type, __FILE__, __LINE__, message)
 #define KTHROWF(type,message, ...) exception_throw(&type, __FILE__, __LINE__, message, __VA_ARGS__ )
+#define KRETHROW() exception_rethrow()
 
 #define EXCEPTION_DEF(type,parent) static exception_def type = { #type, &parent }
 EXCEPTION_DEF(TestException, Exception);
@@ -115,6 +116,13 @@ void exception_throw(exception_def * type, char * file, int line, char * message
 	va_end(ap);
 
 	exception_throw_cause(cause);
+}
+
+void exception_rethrow()
+{
+	/* Propagate the exception */
+	exception_frame * frame = tls_get(exception_key);
+	frame->caught = 0;
 }
 
 int exception_finished(char * file, int line)

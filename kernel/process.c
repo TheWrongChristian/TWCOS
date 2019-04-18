@@ -128,6 +128,10 @@ pid_t process_fork()
 	new->parent = current;
 	map_putip(current->children, new->pid, new);
 
+	/* Directories */
+	new->root = current->root;
+	new->cwd = current->cwd;
+
 	/* Finally, new thread */
 	thread_t * thread = thread_fork();
 	if (0 == thread) {
@@ -226,4 +230,66 @@ pid_t process_waitpid(pid_t pid, int * wstatus, int options)
 	}
 
 	return child;
+}
+
+void process_execve(char * filename, char * argv[], char * envp[])
+{
+	vnode_t * f = file_namev(filename);
+	process_t * p = arch_get_thread()->process;
+
+	/* Save old AS */
+	map_t * oldas = p->as;
+
+	KTRY {
+		/* Create and switch to new address space */
+		p->as = tree_new(0, TREE_TREAP);
+		vmap_set_asid(p->as);
+
+		/* Map header temporarily to 0x00001000 */
+		struct Elf32_Ehdr * ehdr = (struct Elf32_Ehdr *)0x00001000;
+		segment_t * seg = vm_segment_vnode(ehdr, vnode_get_size(f), SEGMENT_U | SEGMENT_P, f, 0);
+		map_putpp(p->as, ehdr, seg);
+		int supported = elf_check_supported(ehdr);
+		if (!supported) {
+			KTHROW(Exception, "Unsupported executable format");
+		}
+
+		Elf32_Phdr * phdr = (Elf32_Phdr *)(((char*)ehdr) + ehdr->e_phoff);
+		if (sizeof(*phdr) != ehdr->e_phentsize) {
+			KTHROW(Exception, "Unsupported executable format");
+		}
+		for(int i=0; i<ehdr->e_phnum; i++) {
+			if (1 == phdr[i].type) {
+				void * vaddr = (void*)phdr[i].vaddr;
+				int perms = SEGMENT_U | SEGMENT_P;
+				int isexec = phdr[i].flags & 1;
+				int iswr = phdr[i].flags & 2;
+				int isrd = phdr[i].flags & 4;
+
+				if (isrd) {
+					perms |= SEGMENT_R;
+				}
+				if (iswr) {
+					perms |= SEGMENT_W;
+				}
+				if (isexec) {
+					perms |= SEGMENT_X;
+				}
+
+				segment_t * seg = vm_segment_vnode(vaddr, phdr[i].msize, perms, f, phdr[i].offset);
+				map_putpp(p->as, vaddr, seg);
+			} else {
+				KTHROW(Exception, "Unsupported executable format");
+			}
+		}
+
+		arch_startuser((void*)ehdr->e_entry);
+	} KCATCH(Exception) {
+		/* Restore old AS */
+		p->as = oldas;
+		vmap_set_asid(p->as);
+
+		/* Propagate original exception */
+		KRETHROW();
+	}
 }

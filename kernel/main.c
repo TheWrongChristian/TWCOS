@@ -79,6 +79,7 @@ void kernel_main() {
 			testshell_run(terminal);
 		}
 #endif
+		char ** strs = ssplit("/a/path/file/name", '/');
 		static vnode_t * root = 0;
 		if (initrd) {
 			process_t * p = process_get();
@@ -93,7 +94,8 @@ void kernel_main() {
 			file_vopen(terminal, 0, 0);
 			file_dup(0);
 			file_dup(0);
-			
+		
+			process_execve("/user/shell/init", 0, 0);	
 			testshell_run();
 		}
 
