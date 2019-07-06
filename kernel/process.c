@@ -90,7 +90,7 @@ void process_init()
 	thread_t * current = arch_get_thread();
 
 	/* Sculpt initial process */
-	current->process = slab_alloc(processes);
+	current->process = slab_calloc(processes);
 	current->process->as = tree_new(0, TREE_TREAP);
 	current->process->threads = tree_new(0, TREE_TREAP);
 	current->process->children = tree_new(0, TREE_TREAP);
@@ -104,7 +104,7 @@ void process_init()
 pid_t process_fork()
 {
 	process_t * current = process_get();
-	process_t * new = slab_alloc(processes);
+	process_t * new = slab_calloc(processes);
 
 	/* Share the same container */
 	new->container = current->container;
@@ -127,6 +127,10 @@ pid_t process_fork()
 	new->zombies = tree_new(0, TREE_TREAP);
 	new->parent = current;
 	map_putip(current->children, new->pid, new);
+
+	/* Directories */
+	new->root = current->root;
+	new->cwd = current->cwd;
 
 	/* Finally, new thread */
 	thread_t * thread = thread_fork();
@@ -226,4 +230,24 @@ pid_t process_waitpid(pid_t pid, int * wstatus, int options)
 	}
 
 	return child;
+}
+
+void process_execve(char * filename, char * argv[], char * envp[])
+{
+	vnode_t * f = file_namev(filename);
+	process_t * p = arch_get_thread()->process;
+
+	/* Save old AS */
+	map_t * oldas = p->as;
+
+	KTRY {
+		elf_execve(f, p, argv, envp);
+	} KCATCH(Exception) {
+		/* Restore old AS */
+		p->as = oldas;
+		vmap_set_asid(p->as);
+
+		/* Propagate original exception */
+		KRETHROW();
+	}
 }

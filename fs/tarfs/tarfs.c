@@ -193,7 +193,7 @@ static void tarfs_add_node( tarfs_t * fs, const char * fullname, tarfsnode_t * v
 				/* Fake a directory */
 				tarfsnode_t * dir = malloc(sizeof(*dir));
 				vnode_init(&dir->vnode, VNODE_DIRECTORY, &fs->fs);
-				dir->inode = fs->inext++;
+				inode = dir->inode = fs->inext++;
 				tarfs_dirent_t * newdirent = malloc(sizeof(*newdirent));
 				newdirent->dir = dnode;
 				newdirent->name = dirs[i];
@@ -423,6 +423,10 @@ vnode_t * tarfs_open(dev_t * dev)
 
 vnode_t * tarfs_test()
 {
+#if 0
 	vnode_t * root = tarfs_open(dev_static(fs_tarfs_tarfs_tar, fs_tarfs_tarfs_tar_len));
 	return root;
+#else
+	return 0;
+#endif
 }

@@ -1,0 +1,4 @@
+int cstart()
+{
+	return main();
+}

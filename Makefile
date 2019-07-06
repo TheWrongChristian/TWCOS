@@ -24,6 +24,8 @@ subdir := build
 include $(subdir)/tools.mk
 subdir := arch/$(ARCH)
 include $(subdir)/subdir.mk
+subdir := user
+include $(subdir)/subdir.mk
 
 all:: boot.iso
 
@@ -31,10 +33,11 @@ obj:
 	mkdir -p obj
 
 KERNEL=arch/$(ARCH)/kernel
-boot.iso: grub.cfg $(KERNEL)
+boot.iso: grub.cfg $(KERNEL) $(INITRD_TAR)
 	mkdir -p isodir/boot/grub
 	cp $(KERNEL) isodir/boot/kernel
-	cp grub.cfg isodir/boot/grub/grub.cfg
+	cp $(INITRD_TAR) isodir/boot/initrd
+	cp -f grub.cfg isodir/boot/grub/grub.cfg
 	grub-mkrescue -o boot.iso isodir
 
 .PHONY: clean
@@ -47,15 +50,18 @@ clean::
 	echo break kernel_main | tee -a .gdbinit
 
 qemu: all .gdbinit
-	qemu-system-i386 -m 16 -s -S -kernel $(KERNEL) &
+	qemu-system-i386 -m 16 -s -S -kernel $(KERNEL) -initrd $(INITRD_TAR) &
 
 run: all
-	qemu-system-i386 -m 16 -s -kernel $(KERNEL) &
+	qemu-system-i386 -m 16 -s -kernel $(KERNEL) -initrd $(INITRD_TAR) &
 
 includes::
-	$(MAKEHEADERS) $(SRCS_C)
+	$(MAKEHEADERS) $(SRCS_C) $(PDCLIB_TWCOS_SRCS_C)
 
 cflow:
+	cflow -d 4 -m kernel_main $(SRCS_C)
+
+cflowr:
 	cflow -d 4 -r $(SRCS_C)
 
 cxref:

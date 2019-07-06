@@ -25,6 +25,8 @@ typedef long ssize_t;
 
 #endif
 
+exception_def FileNotFoundException = { "FileNotFoundException", &FileException };
+
 static file_t * file_get(int fd)
 {
 	check_int_bounds(fd, 0, PROC_MAX_FILE, "Invalid fd");
@@ -108,6 +110,7 @@ int file_open(const char * name, int flags, mode_t mode)
 {
 	process_t * proc = process_get();
 	int fd = file_get_fd();
+	vnode_t * v = file_namev(name);
 
 	return -1;
 }
@@ -142,4 +145,24 @@ ssize_t file_write(int fd, void * buf, size_t count)
 void file_close(int fd)
 {
 	file_set(fd, 0);
+}
+
+vnode_t * file_namev(const char * filename)
+{
+	process_t * p = process_get();
+	vnode_t * v = ('/' == filename[0]) ? p->root : p->cwd;
+	char ** names = ssplit(filename, '/');
+
+	for(int i=0; names[i]; i++) {
+		if (*names[i]) {
+			vnode_t * next = vnode_get_vnode(v, names[i]);
+			if (next) {
+				v = next;
+			} else {
+				KTHROWF(FileNotFoundException, "File not found: %s", names[i]);
+			}
+		}
+	}
+
+	return v;
 }

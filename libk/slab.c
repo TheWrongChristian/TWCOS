@@ -50,6 +50,7 @@ static slab_type_t * types;
 void slab_init()
 {
 	INIT_ONCE();
+	kernel_startlogging(1);
 }
 
 static slab_t * slab_new(slab_type_t * stype)
@@ -108,6 +109,25 @@ static void slab_unlock()
 	rwlock_unlock(slablock);
 }
 
+static void debug_fillbuf(void * p, size_t l, int c)
+{
+	memset(p, c, l);
+}
+
+static void debug_checkbuf(void * p, size_t l)
+{
+	const char * cp = p;
+	char c = *cp;
+
+	for(int i=0; i<l; i++)
+	{
+		if (c != *cp) {
+			kernel_panic("Corrupted buffer: %p", p);
+		}
+	}
+}
+
+
 void * slab_alloc_p(slab_type_t * stype)
 {
 	slab_lock(0);
@@ -138,8 +158,11 @@ void * slab_alloc_p(slab_type_t * stype)
 				}
 
 				slab->available[i/32] &= ~mask;
+				slab->finalize[i/32] &= ~mask;
 				mutex_unlock(stype->lock);
 				slab_unlock();
+				debug_checkbuf(slab->data + slab->type->esize*slot, slab->type->esize);
+				debug_fillbuf(slab->data + slab->type->esize*slot, slab->type->esize, 0x0a);
 				return slab->data + slab->type->esize*slot;
 			}
 		}
@@ -179,16 +202,27 @@ static void slab_mark_available_all(slab_t * slab)
 
 }
 
+static struct
+{
+	size_t inuse;
+	size_t peak;
+	size_t total;
+} gc_stats = {0};
+
 void slab_gc_begin()
 {
 	slab_lock(1);
 	slab_type_t * stype = types;
+
+	gc_stats.inuse = 0;
+	gc_stats.total = 0;
 
 	/* Mark all elements available */
 	while(stype) {
 		slab_t * slab = stype->first;
 
 		while(slab) {
+			gc_stats.total += stype->esize * stype->count;
 			slab_mark_available_all(slab);
 			LIST_NEXT(stype->first, slab);
 		}
@@ -211,14 +245,27 @@ static slab_t * slab_get(void * p)
 	return 0;
 }
 
+static void slab_debug()
+{
+	int i = 0;
+	i++;
+}
+
 void slab_gc_mark(void * root)
 {
 	slab_t * slab = slab_get(root);
 
 	if (slab) {
 		int i = ((char*)root - slab->data) / slab->type->esize;
-		int mask = (0x80000000 >> i%32);
+		/* Ensure we're at the start of the block */
+		root = slab->data + slab->type->esize*i;
+		uint32_t mask = (0x80000000u >> i%32);
 		if (slab->available[i/32] & mask) {
+			gc_stats.inuse += slab->type->esize;
+			if (gc_stats.inuse >= gc_stats.peak) {
+				gc_stats.peak = gc_stats.inuse;
+			}
+
 			/* Marked as available, clear the mark */
 			slab->available[i/32] &= ~mask;
 			if (slab->type->mark) {
@@ -277,6 +324,7 @@ static void slab_finalize(slab_t * slab)
 			for(; i<slab->type->count && mask; i++, mask>>=1) {
 				if (finalize & mask) {
 					slab->type->finalize(slab->data + slab->type->esize*i);
+					debug_fillbuf(slab->data + slab->type->esize*i, slab->type->esize, 0x0f);
 				}
 			}
 		} else {

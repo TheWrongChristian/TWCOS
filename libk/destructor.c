@@ -92,17 +92,19 @@ dtor_t * dtor_push(void (*dtor)(void * p), void * p)
 	return frame->next;
 }
 
-void dtor_remove( void (*dtor)(void * p), void * p )
+void * dtor_remove( void (*dtor)(void * p), void * p )
 {
 	dtor_t * frame = tls_get(dtor_get_key());
 
 	while(frame) {
 		if (dtor == frame->dtor && p == frame->p) {
 			frame->dtor = 0;
-			return;
+			return p;
 		}
 		frame = frame->next;
 	}
+
+	return p;
 }
 
 void dtor_test()

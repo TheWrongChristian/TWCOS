@@ -171,4 +171,45 @@ lcs:
 1:
 	ret
 
+.global arch_startuser
+.type arch_startuser, @function
+arch_startuser:
+	push %ebp
+	mov %esp,%ebp
+
+	# data segment
+	mov $0x23,%ecx
+	mov %ecx, %ds
+	mov %ecx, %es
+	mov %ecx, %fs
+	mov %ecx, %gs
+	# stack segment
+	push %ecx
+
+	# stack pointer
+	mov 12(%ebp),%ecx
+	push %ecx
+
+	# eflags
+	pushl $0
+
+	# user cs
+	pushl $0x1b
+
+	# user pc
+	mov 8(%ebp), %ecx
+	push %ecx
+
+	xor %eax, %eax
+	mov %eax, %ebx
+	mov %eax, %ecx
+	mov %eax, %edx
+	mov %eax, %ebp
+	mov %eax, %esi
+	mov %eax, %edi
+
+	# Jump to user mode
+	iret
+	
+
 #include "isr.inc"

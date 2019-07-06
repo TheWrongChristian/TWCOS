@@ -30,6 +30,16 @@ BOOTSTRAP_CODE void multiboot_init(multiboot_uint32_t magic, multiboot_info_t * 
 	}
 }
 
+BOOTSTRAP_CODE multiboot_module_t * multiboot_mod(int index)
+{
+	if (info && info->flags & MULTIBOOT_INFO_MODS && index < info->mods_count) {
+		multiboot_module_t * table = (multiboot_module_t *)info->mods_addr;
+
+		return table+index;
+	}
+	return 0;
+}
+
 BOOTSTRAP_CODE multiboot_memory_map_t * multiboot_mmap(int index)
 {
 	if (info && info->flags & MULTIBOOT_INFO_MEM_MAP && index < info->mmap_length/sizeof(multiboot_memory_map_t)) {

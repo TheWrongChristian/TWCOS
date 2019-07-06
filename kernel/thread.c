@@ -193,10 +193,33 @@ void thread_set_name(thread_t * thread, char * name)
 	thread->name = name;
 }
 
+static void thread_track(thread_t * thread, int add)
+{
+	static int lock = 0;
+	static map_t * allthreads = 0;
+
+	SPIN_AUTOLOCK(&lock) {
+		if (0 == allthreads) {
+			/* All threads */
+			allthreads = tree_new(0, TREE_TREAP);
+			thread_gc_root(allthreads);
+		}
+		if (add) {
+			if (map_putpp(allthreads, thread, thread)) {
+				kernel_panic("Adding existing thread!");
+			}
+		} else {
+			if (0 == map_removepp(allthreads, thread)) {
+				kernel_panic("Removing non-existent thread!");
+			}
+		}
+	}
+}
+
 thread_t * thread_fork()
 {
 	thread_t * this = arch_get_thread();
-	thread_t * thread = slab_alloc(threads);
+	thread_t * thread = slab_calloc(threads);
 
 	thread->priority = this->priority;
 	thread->process = this->process;
@@ -208,6 +231,7 @@ thread_t * thread_fork()
 		return 0;
 	}
 
+	thread_track(thread, 1);
 	thread_resume(thread);
 
 	return thread;
@@ -227,6 +251,9 @@ void thread_exit(void * retval)
 
 	/* Remove this thread from the set of process threads */
 	map_removepp(this->process->threads, this);
+
+	/* Remove this thread from the set of all threads */
+	thread_track(this, 0);
 
 	/* Schedule the next thread */
 	thread_schedule();
@@ -266,6 +293,7 @@ static void thread_gc_walk(void * p, void * key, void * d)
 
 void thread_gc()
 {
+#if 1
 	// thread_cleanlocks();
 	slab_gc_begin();
 	slab_gc_mark(arch_get_thread());
@@ -274,13 +302,14 @@ void thread_gc()
 	}
 	slab_gc_mark(roots);
 	slab_gc_end();
+#endif
 }
 
 void thread_gc_root(void * p)
 {
 	static int rootcount = 0;
 
-	roots = realloc(roots, sizeof(*roots)*rootcount+1);
+	roots = realloc(roots, sizeof(*roots)*(rootcount+1));
 	roots[rootcount++] = p;
 }
 
@@ -314,7 +343,7 @@ void thread_init()
 
 	/* Craft a new bootstrap thread to replace the static defined thread */
 	sync_init();
-	arch_thread_init(slab_alloc(threads));
+	arch_thread_init(slab_calloc(threads));
 }
 
 static void thread_test2();
