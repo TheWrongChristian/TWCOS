@@ -180,6 +180,7 @@ void arch_init()
 #endif
 	kernel_printk("Bootstrap end - %p\n", nextalloc);
 	sti();
+	kernel_startlogging(1);
 }
 
 #if INTERFACE

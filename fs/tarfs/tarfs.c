@@ -423,6 +423,10 @@ vnode_t * tarfs_open(dev_t * dev)
 
 vnode_t * tarfs_test()
 {
+#if 0
 	vnode_t * root = tarfs_open(dev_static(fs_tarfs_tarfs_tar, fs_tarfs_tarfs_tar_len));
 	return root;
+#else
+	return 0;
+#endif
 }

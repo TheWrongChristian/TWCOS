@@ -50,6 +50,7 @@ static slab_type_t * types;
 void slab_init()
 {
 	INIT_ONCE();
+	kernel_startlogging(1);
 }
 
 static slab_t * slab_new(slab_type_t * stype)

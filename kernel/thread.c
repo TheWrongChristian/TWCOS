@@ -309,7 +309,7 @@ void thread_gc_root(void * p)
 {
 	static int rootcount = 0;
 
-	roots = realloc(roots, sizeof(*roots)*rootcount+1);
+	roots = realloc(roots, sizeof(*roots)*(rootcount+1));
 	roots[rootcount++] = p;
 }
 

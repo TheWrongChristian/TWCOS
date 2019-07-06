@@ -158,11 +158,14 @@ PDCLIB_SRCS_C := \
   $(subdir)/platform/twcos/functions/stdio/remove.c\
   $(subdir)/platform/twcos/functions/stdio/tmpfile.c
 
-LIBC_SRCS_C += $(PDCLIB_SRCS_C) $(ARCH_USYSCALL_C)
+PDCLIB_TWCOS_SRCS_C := \
+  $(subdir)/platform/twcos/syscalls/syscall.c
+
+LIBC_SRCS_C += $(PDCLIB_SRCS_C) $(PDCLIB_TWCOS_SRCS_C) $(ARCH_USYSCALL_C)
 LIBC_OBJS_C = $(LIBC_SRCS_C:.c=.o)
 
 $(TOP)/lib/libc.a: $(LIBC_OBJS_C)
-	mkdir $(TOP)/lib
+	mkdir -p $(TOP)/lib
 	$(AR) rcs $@ $(LIBC_OBJS_C)
 
 $(TOP)/lib/libg.a: $(subdir)/dummy.o

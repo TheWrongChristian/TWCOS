@@ -76,7 +76,7 @@ void testshell_run()
 		extern char user_start[];
 		segment_t * s = vm_segment_direct((void*)0x100000, 0x1000, 0x1f, 0x100);
 		map_putpp(process_get()->as, (void*)0x100000, s);
-		arch_startuser(user_start);
+		arch_startuser(user_start, 0);
 	}
 
 	while(1) {

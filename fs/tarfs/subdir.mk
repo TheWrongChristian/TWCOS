@@ -1,4 +1,4 @@
-SRCS_C += $(subdir)/tarfs.c $(subdir)/tarfs.tar.c
+SRCS_C += $(subdir)/tarfs.c # $(subdir)/tarfs.tar.c
 
 SRCS_VT_FILES = # shell/aart
 # TARFS_FILES := $(SRCS_KERNEL_C) $(SRCS_LIBK_C) $(SRCS_VT_FILES) user/shell/init

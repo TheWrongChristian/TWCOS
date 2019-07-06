@@ -283,7 +283,7 @@ static stream_ops_t string_ops = {
         tell: string_tell
 };
 
-int snprintf(char * buf, int size, char * fmt, ...)
+int snprintf(char * buf, int size, const char * fmt, ...)
 {
 	int chars;
 	va_list ap;
@@ -294,7 +294,7 @@ int snprintf(char * buf, int size, char * fmt, ...)
 	return chars;
 }
 
-int vsnprintf(char * buf, int size, char * fmt, va_list ap)
+int vsnprintf(char * buf, int size, const char * fmt, va_list ap)
 {
 	stream_string_t sstring[1] = {
 		{ buf : buf, size: size, chars: 0 }

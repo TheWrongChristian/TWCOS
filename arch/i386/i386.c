@@ -574,12 +574,13 @@ void arch_spin_unlock(int * p)
 	sti();
 }
 
-void arch_startuser(void * start)
+void * arch_user_stack()
 {
-	asm("push %0; push $0; push $0 ; push %1; push %2; iret" : : "r" (0x23), "r" (0x1b), "r" (start));
 }
 
 #if INTERFACE
+
+void arch_startuser(void * start, void * tos);
 
 /*
  * Sizes

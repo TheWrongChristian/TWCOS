@@ -89,6 +89,7 @@ void page_cache_init()
 
 page_t vnode_get_page( vnode_t * vnode, off_t offset )
 {
+	offset = ARCH_PAGE_ALIGN(offset);
 	page_cache_key_t key[] = {{ vnode, offset }};
 
 	page_t page = map_getpi(page_cache, key);

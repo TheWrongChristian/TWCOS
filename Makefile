@@ -53,10 +53,10 @@ qemu: all .gdbinit
 	qemu-system-i386 -m 16 -s -S -kernel $(KERNEL) -initrd $(INITRD_TAR) &
 
 run: all
-	qemu-system-i386 -m 16 -s -kernel $(KERNEL) &
+	qemu-system-i386 -m 16 -s -kernel $(KERNEL) -initrd $(INITRD_TAR) &
 
 includes::
-	$(MAKEHEADERS) $(SRCS_C)
+	$(MAKEHEADERS) $(SRCS_C) $(PDCLIB_TWCOS_SRCS_C)
 
 cflow:
 	cflow -d 4 -m kernel_main $(SRCS_C)

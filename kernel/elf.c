@@ -125,3 +125,76 @@ int elf_check_supported(Elf32_Ehdr *hdr) {
 	}
 	return 1;
 }
+
+
+void elf_execve(vnode_t * f, process_t * p, char * argv[], char * envp)
+{
+	/* Create and switch to new address space */
+	p->as = tree_new(0, TREE_TREAP);
+	vmap_set_asid(p->as);
+
+	/* Map header temporarily to 0x00001000 */
+	struct Elf32_Ehdr * ehdr = (struct Elf32_Ehdr *)0x00001000;
+	segment_t * seg = vm_segment_vnode(ehdr, vnode_get_size(f), SEGMENT_U | SEGMENT_P, f, 0);
+	map_putpp(p->as, ehdr, seg);
+	int supported = elf_check_supported(ehdr);
+	if (!supported) {
+		KTHROW(Exception, "Unsupported executable format");
+	}
+
+	Elf32_Phdr * phdr = (Elf32_Phdr *)(((char*)ehdr) + ehdr->e_phoff);
+	if (sizeof(*phdr) != ehdr->e_phentsize) {
+		KTHROW(Exception, "Unsupported executable format");
+	}
+
+	/* Default user stack will be at 16MB */
+	void * stacktop = 0x1000000;
+	void * stackbot = ARCH_PAGE_SIZE;
+	for(int i=0; i<ehdr->e_phnum; i++) {
+		if (1 == phdr[i].type) {
+			void * vaddr = (void*)PTR_ALIGN(phdr[i].vaddr, phdr[i].align);
+			size_t msize = PTR_ALIGN_NEXT(phdr[i].msize, phdr[i].align);
+			size_t fsize = PTR_ALIGN_NEXT(phdr[i].fsize, phdr[i].align);
+			uintptr_t offset = PTR_ALIGN(phdr[i].offset, phdr[i].align);
+			int perms = SEGMENT_U | SEGMENT_P;
+			int isexec = phdr[i].flags & 1;
+			int iswr = phdr[i].flags & 2;
+			int isrd = phdr[i].flags & 4;
+
+			if (isrd) {
+				perms |= SEGMENT_R;
+			}
+			if (iswr) {
+				perms |= SEGMENT_W;
+			}
+			if (isexec) {
+				perms |= SEGMENT_X;
+			}
+
+			segment_t * seg = vm_segment_vnode(vaddr, msize, perms, f, offset);
+			map_putpp(p->as, vaddr, seg);
+
+			if (vaddr<stacktop) {
+				stacktop = vaddr;
+			}
+#if 0
+			if (iswr) {
+				uintptr_t zstart = phdr[i].vaddr+phdr[i].fsize;
+				uintptr_t zend = PTR_ALIGN_NEXT(phdr[i].vaddr+phdr[i].msize, phdr[i].align)-1;
+				memset((void*)(zstart), 0, zend-zstart);
+			}
+#endif
+		} else {
+			KTHROW(Exception, "Unsupported executable format");
+		}
+	}
+
+	/* Remove our temporary header - FIXME: Unmap segment */
+	map_removepp(p->as, ehdr);
+
+	/* Create a stack */
+	seg = vm_segment_anonymous(stackbot, stacktop-stackbot, SEGMENT_U | SEGMENT_R | SEGMENT_W);
+	map_putpp(p->as, stackbot, seg);
+
+	arch_startuser((void*)ehdr->e_entry, stacktop);
+}
