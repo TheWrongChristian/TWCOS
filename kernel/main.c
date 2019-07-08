@@ -96,7 +96,8 @@ void kernel_main() {
 			file_dup(0);
 		
 			process_execve("/user/shell/init", 0, 0);	
-			testshell_run();
+			kernel_panic("Unable to exec %s", "/user/shell/init");
+			/* testshell_run(); */
 		}
 
 		idle();

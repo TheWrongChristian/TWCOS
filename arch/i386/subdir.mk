@@ -1,5 +1,5 @@
 ARCH_SRCS_S := $(subdir)/asm.S $(subdir)/setjmp.S
-ARCH_SRCS_C := $(subdir)/console.c $(subdir)/multiboot.c $(subdir)/init.c $(subdir)/vmap.c $(subdir)/i386.c $(subdir)/pci.c $(subdir)/isa.c $(subdir)/syscall.c $(subdir)/usyscall.c
+ARCH_SRCS_C := $(subdir)/console.c $(subdir)/multiboot.c $(subdir)/init.c $(subdir)/vmap.c $(subdir)/i386.c $(subdir)/pci.c $(subdir)/isa.c $(subdir)/syscall.c # $(subdir)/usyscall.c
 ARCH_USYSCALL_C := $(subdir)/usyscall.c
 ARCH_CRT0_S := $(subdir)/crt0.S
 ARCH_CRT0_O := $(ARCH_CRT0_S:.S=.o)
