@@ -497,6 +497,15 @@ void arch_thread_switch(thread_t * thread)
 	if (old->state == THREAD_RUNNING) {
 		old->state = THREAD_RUNNABLE;
 	}
+
+	if (old->process != thread->process) {
+		if (thread->process) {
+			vmap_set_asid(thread->process->as);
+		} else {
+			vmap_set_asid(0);
+		}
+	}
+
 	if (0 == setjmp(old->context.state)) {
 		if (thread->state == THREAD_RUNNABLE) {
 			thread->state = THREAD_RUNNING;
@@ -574,9 +583,11 @@ void arch_spin_unlock(int * p)
 	sti();
 }
 
+#if 0
 void * arch_user_stack()
 {
 }
+#endif
 
 #if INTERFACE
 

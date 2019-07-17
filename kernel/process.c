@@ -68,7 +68,8 @@ static void process_duplicate_as_copy_seg(void * p, void * key, void * data)
 	map_t * as = (map_t*)p;
 	segment_t * seg = (segment_t *)data;
 
-	map_putpp(as, key, vm_segment_copy(seg, 1));
+	int private = (seg->clean != seg->dirty);
+	map_putpp(as, key, vm_segment_copy(seg, private));
 }
 
 static map_t * process_duplicate_as(process_t * from)

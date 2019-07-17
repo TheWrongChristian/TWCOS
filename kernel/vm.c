@@ -180,28 +180,54 @@ void vm_page_fault(void * p, int write, int user, int present)
 		map_t * as = info->as;
 
 		if (offset < seg->size) {
+			/* FIXME: This all needs review */
+
+			/* Check for invalid writes first */
+			if (write && !(SEGMENT_W & seg->perms)) {
+				vm_invalid_pointer(p, write, user, present);
+				return;
+			}
+
 			/* Adjust p to page boundary */
 			p = ARCH_PAGE_ALIGN(p);
-			if (!present) {
-				/* FIXME: This all needs review */
-				page_t page = vmobject_get_page(seg->dirty, offset);
+
+			/* If not present, load a page */
+			page_t page = 0;
+			if (1 || !present) {
+				page = vmobject_get_page(seg->dirty, offset);
 				if (0 == page) {
 					/* Handle case of page not in dirty pages */
 					page = vmobject_get_page(seg->clean, offset + seg->read_offset);
-					vmobject_put_page(seg->dirty, offset, page);
-					vmap_map(as, p, page, 0, SEGMENT_U & seg->perms);
+					if (write && seg->clean != seg->dirty) {
+						vm_vmpage_put_copy(page);
+						vmobject_put_page(seg->dirty, offset, page);
+					}
+#if 0
 				} else {
-					vmap_map(as, p, page, write && SEGMENT_W & seg->perms, SEGMENT_U & seg->perms);
+					page_t newpage = vm_vmpage_get_copy(page);
+					if (newpage != page) {
+						vmobject_put_page(seg->dirty, offset, newpage);
+						page = newpage;
+					}
+#endif
 				}
-				vm_vmpage_map(page, as, p);
-				vm_vmpage_setflags(page, VMPAGE_ACCESSED | ((write) ? VMPAGE_DIRTY : 0));
-			} else if (write && SEGMENT_W & seg->perms) {
-				page_t page = vmap_get_page(as, p);
-				vmap_map(as, p, page, write && SEGMENT_W & seg->perms, SEGMENT_U & seg->perms);
-				vm_vmpage_map(page, as, p);
+			}
+			/* By here, page is the page we want, and is present */
+			if (write && SEGMENT_W & seg->perms) {
+				page_t newpage = vm_vmpage_get_copy(page);
+				if (newpage != page) {
+					vmobject_put_page(seg->dirty, offset, newpage);
+					page = newpage;
+				}
+			}
+
+			/* By here, page is present, and a copy if COW */
+			vmap_map(as, p, page, write && SEGMENT_W & seg->perms, SEGMENT_U & seg->perms);
+			vm_vmpage_map(page, as, p);
+			if (write) {
 				vm_vmpage_setflags(page, VMPAGE_ACCESSED | VMPAGE_DIRTY);
 			} else {
-				vm_invalid_pointer(p, write, user, present);
+				vm_vmpage_setflags(page, VMPAGE_ACCESSED);
 			}
 
 			return;
@@ -220,6 +246,11 @@ page_t vmobject_get_page(vmobject_t * object, off_t offset)
 page_t vmobject_put_page(vmobject_t * object, off_t offset, page_t page)
 {
 	return object->ops->put_page(object, offset, page);
+}
+
+vmobject_t * vmobject_clone(vmobject_t * object)
+{
+	return object->ops->clone(object);
 }
 
 /*
@@ -283,6 +314,8 @@ static void vm_object_anon_copy_walk(void * p, map_key key, map_data data)
 {
 	vmobject_anon_t * anon = (vmobject_anon_t *)p;
 
+	/* Mark COW on now shared page */
+	vm_vmpage_put_copy(data);
 	map_put(anon->pages, key, data);
 }
 
@@ -370,7 +403,7 @@ static page_t vm_vnode_get_page(vmobject_t * object, off_t offset)
 }
 
 static vmobject_t * vm_object_vnode(vnode_t * vnode);
-static vmobject_t * vm_object_clone(vmobject_t * object)
+static vmobject_t * vm_vnode_clone(vmobject_t * object)
 {
 	vmobject_vnode_t * vno = container_of(object, vmobject_vnode_t, vmobject);
 
@@ -381,7 +414,7 @@ static vmobject_t * vm_object_vnode(vnode_t * vnode)
 {
 	static vmobject_ops_t vnode_ops = {
 		get_page: vm_vnode_get_page,
-		clone: vm_object_clone
+		clone: vm_vnode_clone
 	};
 
 	vmobject_vnode_t * ovnode = calloc(1, sizeof(*ovnode));
@@ -441,7 +474,7 @@ segment_t * vm_segment_copy(segment_t * from, int private)
 
 		if (from->clean != from->dirty) {
 			/* Initialize dirty from old segment dirty map */
-			seg->dirty = vm_object_clone(from->dirty);
+			seg->dirty = vmobject_clone(from->dirty);
 		} else {
 			/* Empty dirty object */
 			seg->dirty = vm_object_anon();
@@ -516,6 +549,7 @@ typedef struct vmpage_s {
 	int count;
 	int flags;
 	int age;
+	int copies;
 	struct {
 		asid as;
 		void * p;
@@ -526,7 +560,6 @@ void vm_vmpage_map( page_t page, asid as, void * p )
 {
 	MUTEX_AUTOLOCK(&vmpages_lock) {
 		vmpage_t * vmpage = map_getip(vmpages, page);
-		int count = 1;
 
 		if (vmpage) {
 			/* Check if we already have this mapping */
@@ -537,12 +570,14 @@ void vm_vmpage_map( page_t page, asid as, void * p )
 				}
 			}
 
-			count = vmpage->count + 1;
+			vmpage->count++;
+			vmpage = realloc(vmpage, sizeof(*vmpage) + vmpage->count*sizeof(vmpage->maps[0]));
+		} else {
+			vmpage = calloc(1, sizeof(*vmpage) + sizeof(vmpage->maps[0]));
+			vmpage->count=1;
 		}
-		vmpage = realloc(vmpage, sizeof(*vmpage) + count*sizeof(vmpage->maps[0]));
-		vmpage->count = count;
-		vmpage->maps[count-1].as = as;
-		vmpage->maps[count-1].p = p;
+		vmpage->maps[vmpage->count-1].as = as;
+		vmpage->maps[vmpage->count-1].p = p;
 
 		/* vmpage might have changed in realloc, update it */
 		map_putip(vmpages, page, vmpage);
@@ -601,13 +636,52 @@ void vm_vmpage_trapwrites(page_t page)
 
 				/* Mark each mapping as read only */
 				if (vmap_ismapped(as, p)) {
-					//int user = vmap_isuser(as, p);
-					//vmap_map(as, p, page, 0, user);
-					vmap_unmap(as, p);
+					int user = vmap_isuser(as, p);
+					vmap_map(as, p, page, 0, user);
+					//vmap_unmap(as, p);
 				}
 			}
 		}
 	}
+}
+
+void vm_vmpage_put_copy(page_t page)
+{
+	MUTEX_AUTOLOCK(&vmpages_lock) {
+		vmpage_t * vmpage = map_getip(vmpages, page);
+		if (vmpage) {
+			vm_vmpage_trapwrites(page);
+			vmpage->copies++;
+		}
+	}
+}
+
+int vm_vmpage_get_copy(page_t page)
+{
+	MUTEX_AUTOLOCK(&vmpages_lock) {
+		vmpage_t * vmpage = map_getip(vmpages, page);
+		if (vmpage && vmpage->copies)  {
+			static void * src = 0;
+			static void * dest = 0;
+			if (0 == src) {
+				src = vm_kas_get_aligned(ARCH_PAGE_SIZE, ARCH_PAGE_SIZE);
+				dest = vm_kas_get_aligned(ARCH_PAGE_SIZE, ARCH_PAGE_SIZE);
+			}
+
+			/* Copy the old page to the new page */
+			vmap_map(kas, src, page, 0, 0);
+			page_t newpage = page_alloc();
+			vmap_map(kas, dest, newpage, 1, 0);
+			memcpy(dest, src, ARCH_PAGE_SIZE);
+
+			/* Remove a copy */
+			vmpage->copies--;
+
+			page=newpage;
+		}
+	}
+
+	return page;
 }
 
 void vm_vmpage_trapaccess(page_t page)

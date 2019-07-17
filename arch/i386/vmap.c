@@ -3,10 +3,11 @@
 #include "vmap.h"
 
 /*
- * Reserve 8 address spaces
+ * Reserve address spaces
  */
-#define ASID_COUNT_LOG2 3
+#define ASID_COUNT_LOG2 0
 #define ASID_COUNT (1<<ASID_COUNT_LOG2)
+typedef pte_t pgtbls_t[1<<ARCH_PAGE_TABLE_SIZE_LOG2];
 
 extern char _kernel_offset_bootstrap[0];
 extern char _kernel_offset[0];
@@ -15,18 +16,75 @@ extern uint32_t pt_00000000[1024];
 static __attribute__((section(".aligned"))) pte_t pgdirs[ASID_COUNT][1024];
 static __attribute__((section(".aligned"))) pte_t pgktbl[1024];
 
-#define VMAP_PAGE(add) ((page_t)add-(_kernel_offset-_kernel_offset_bootstrap) >> ARCH_PAGE_SIZE_LOG2)
+#define VMAP_PAGE(add) ((page_t)(add)-(_kernel_offset-_kernel_offset_bootstrap) >> ARCH_PAGE_SIZE_LOG2)
 
 /*
  * Page dirs are at the top of the address space
  */
-static pte_t * pgtbls = (void *)(0xffffffff << (2 + ARCH_PAGE_TABLE_SIZE_LOG2 + ASID_COUNT_LOG2));
+#if 0
+static pgtbls_t * pgtbls = (void *)(0xffffffff << (2 + ARCH_PAGE_TABLE_SIZE_LOG2 + ASID_COUNT_LOG2));
+#endif
+static pgtbls_t * pgtbls = (void *)((intptr_t)(-ASID_COUNT*sizeof(pgtbls_t)));
+
 
 static struct {
 	asid vid;
 	int seq;
 } asids[1 << ASID_COUNT_LOG2];
 
+static void vmap_pgtbl_init(int ptid)
+{
+	ptrdiff_t poffset = (uint32_t)(_bootstrap_nextalloc - _bootstrap_end) >> ARCH_PAGE_SIZE_LOG2;
+	pte_t * pgtbl=pgtbls[ptid];
+	pte_t * pgdir=pgtbls[ptid] + (ARCH_PAGE_TABLE_SIZE-1024*(ASID_COUNT+ptid));
+	for(int i=0; i<poffset; i+=1024) {
+		if (pgdir[i>>(ARCH_PAGE_SIZE_LOG2-2)]) {
+			for(int j=0; j<1024; j++) {
+				pgtbl[i+j] = 0;
+			}
+		}
+	}
+}
+
+static int vmap_get_ptid(asid vid)
+{
+	if (0 == vid || kas == vid) {
+		return 0;
+	}
+
+	static int seq = 0;
+	for(int i=0; i<ASID_COUNT; i++) {
+		if (vid == asids[i].vid) {
+			asids[i].seq = seq;
+			return i;
+		}
+	}
+
+	/* Not found - Allocate a new asid */
+	int lowseq = INT32_MAX;
+	int ptid = 0;
+	for(int i=0; i<ASID_COUNT; i++) {
+		if (lowseq > asids[i].seq) {
+			lowseq = asids[i].seq;
+			ptid = i;
+		}
+	}
+
+	asids[ptid].vid = vid;
+	asids[ptid].seq = ++seq;
+	vmap_pgtbl_init(ptid);
+
+	return ptid;
+}
+
+static pte_t * vmap_get_pgtable(asid vid)
+{
+	int ptid = vmap_get_ptid(vid);
+
+	return pgtbls[ptid];
+}
+
+#if 0
 static pte_t * vmap_get_pgtable(asid vid)
 {
 	int i;
@@ -35,13 +93,13 @@ static pte_t * vmap_get_pgtable(asid vid)
 	static int seq = 0;
 
 	if (0 == vid) {
-		return pgtbls;
+		return pgtbls[0];
 	}
 
 	for(i=0; i<ASID_COUNT; i++) {
 		if (vid == asids[i].vid) {
 			asids[i].seq = seq;
-			return pgtbls+ARCH_PAGE_TABLE_SIZE*i;
+			return pgtbls[i];
 		}
 	}
 
@@ -55,26 +113,53 @@ static pte_t * vmap_get_pgtable(asid vid)
 
 	asids[lowi].vid = vid;
 	asids[lowi].seq = ++seq;
+#if 0
+	/* Clear user portion of page table */
+	pte_t * pgdir = vmap_get_pgdir(vid);
+	pte_t * pgtbl = pgtbls+ARCH_PAGE_TABLE_SIZE*lowi;
 
+	extern char _bootstrap_end[];
+	extern char _bootstrap_nextalloc[];
+	ptrdiff_t koffset = _bootstrap_nextalloc - _bootstrap_end;
+
+	for(int i=0; i<koffset >> ARCH_PAGE_TABLE_SIZE_LOG2; i++) {
+		if (pgdir[i]) {
+			/* Clear page table pointed to by pgdir[i] */
+			for(int p=0; p<1<<(ARCH_PAGE_TABLE_SIZE_LOG2>>1);p++) {
+				pgtbl[p + i<<(ARCH_PAGE_TABLE_SIZE_LOG2>>1)] = 0;
+			}
+		}
+	}
+#endif
 	return pgtbls+ARCH_PAGE_TABLE_SIZE*lowi;
 }
 
 pte_t * vmap_get_pgdir(asid vid)
 {
-	pte_t * pgdir = vmap_get_pgtable(vid);
+	pte_t * pgtbl = vmap_get_pgtable(vid);
+}
+
+pte_t * vmap_get_pgdir(asid vid)
+{
 	if (0 == vid) {
 		return &pgdir[ARCH_PAGE_TABLE_SIZE-ASID_COUNT];
 	}
-	int i = (pgdir-pgtbls) >> ARCH_PAGE_TABLE_SIZE_LOG2;
+	pte_t * pgdir = vmap_get_pgtable(vid);
+	int pid = (pgdir-pgtbls) >> ARCH_PAGE_TABLE_SIZE_LOG2;
 
-	return &pgdir[ARCH_PAGE_TABLE_SIZE-ASID_COUNT+i];
+	return &pgdir[ARCH_PAGE_TABLE_SIZE-ASID_COUNT+pid];
 }
+#endif
 
 void vmap_set_asid(asid vid)
 {
+	int ptid = vmap_get_ptid(vid);
+#if 0
 	pte_t * pgdir = vmap_get_pgdir(vid);
 	page_t pageno = *pgdir >> ARCH_PAGE_SIZE_LOG2;
 	set_page_dir(pageno);
+#endif
+	set_page_dir(VMAP_PAGE(pgdirs[ptid]));
 }
 
 page_t vmap_get_page(asid vid, void * vaddress)
@@ -108,10 +193,10 @@ static void vmap_set_pte(asid vid, void * vaddress, pte_t pte)
 
 	if (0 == vmap_get_page(vid, pgtbl+vpage)) {
 		/* No page table, create a new one */
-		pte_t * pgtbl = pgtbls;
 		page_t page = page_alloc();
 
-		for(int i=0; i<ASID_COUNT; i++, pgtbl += ARCH_PAGE_TABLE_SIZE) {
+		for(int i=0; i<ASID_COUNT; i++) {
+			pte_t * pgtbl = pgtbls[i];
 			vmap_map(0, pgtbl+vpage, page, 1, pte & 0x4);
 		}
 
