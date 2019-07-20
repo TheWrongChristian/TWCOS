@@ -152,6 +152,18 @@ static void process_exit_reparent(void * p, map_key key, void * data)
 	current->parent = p;
 }
 
+pid_t process_getpid()
+{
+	process_t * current = process_get();
+
+	if (current) {
+		return current->pid;
+	}
+
+	kernel_panic("No process!");
+	return 0;
+}
+
 void process_exit(int code)
 {
 	process_t * current = process_get();

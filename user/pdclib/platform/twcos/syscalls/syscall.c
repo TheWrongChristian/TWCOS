@@ -55,6 +55,16 @@ pid_t waitpid(pid_t pid, int * wstatus, int options)
 	return syscall_ipi(sc_waitpid, pid, wstatus, options);
 }
 
+pid_t getpid()
+{
+	return syscall_v(sc_getpid);
+}
+
+int execve(char * filename, char * argc[], char * envp[])
+{
+	return syscall_ppp(sc_execve, filename, argc, envp);
+}
+
 ssize_t read(int fd, void *buf, size_t count)
 {
 	return syscall_ipi(sc_read, fd, buf, count);

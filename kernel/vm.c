@@ -636,11 +636,12 @@ void vm_vmpage_trapwrites(page_t page)
 
 				/* Mark each mapping as read only */
 				if (vmap_ismapped(as, p)) {
-					int user = vmap_isuser(as, p);
-					vmap_map(as, p, page, 0, user);
-					//vmap_unmap(as, p);
+					//int user = vmap_isuser(as, p);
+					//vmap_map(as, p, page, 0, user);
+					vmap_unmap(as, p);
 				}
 			}
+			vmpage->count=0;
 		}
 	}
 }
