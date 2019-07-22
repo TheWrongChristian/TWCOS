@@ -5,7 +5,7 @@ int main(void)
 	printf("Hello world\n");
 	if (fork()) {
 		int status;
-		while(1) {
+		while(1 == getpid()) {
 			waitpid(0, &status, 0);
 		}
 	} else {

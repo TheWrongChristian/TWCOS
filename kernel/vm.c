@@ -51,28 +51,12 @@ enum object_type_e { OBJECT_DIRECT, OBJECT_ANON, OBJECT_VNODE };
 struct vmobject_ops_t {
 	page_t (*get_page)(vmobject_t * object, off_t offset);
 	page_t (*put_page)(vmobject_t * object, off_t offset, page_t page);
+	void (*release)(vmobject_t * object);
 	vmobject_t * (*clone)(vmobject_t * object);
 };
 
 struct vmobject_t {
 	vmobject_ops_t * ops;
-#if 0
-	/* Per object type data */
-	int type;
-	union {
-		struct {
-			page_t base;
-			size_t size;
-		} direct;
-		struct {
-			map_t * pages;
-			vmobject_t * clean;
-		} anon;
-		struct {
-			vnode_t * vnode;
-		} vnode;
-	};
-#endif
 };
 
 typedef uint64_t off_t;
@@ -240,17 +224,59 @@ void vm_page_fault(void * p, int write, int user, int present)
 
 page_t vmobject_get_page(vmobject_t * object, off_t offset)
 {
-	return object->ops->get_page(object, offset);
+	if (object->ops->get_page) {
+		return object->ops->get_page(object, offset);
+	}
+
+	KTHROWF(RuntimeException, "Unimplemented vmobject_get_page: %p", object);
+
+	return 0;
 }
 
 page_t vmobject_put_page(vmobject_t * object, off_t offset, page_t page)
 {
-	return object->ops->put_page(object, offset, page);
+	if (object->ops->put_page) {
+		return object->ops->put_page(object, offset, page);
+	}
+
+	KTHROWF(RuntimeException, "Unimplemented vmobject_put_page: %p", object);
+
+	return 0;
 }
 
 vmobject_t * vmobject_clone(vmobject_t * object)
 {
-	return object->ops->clone(object);
+	if (object->ops->clone) {
+		return object->ops->clone(object);
+	}
+
+	KTHROWF(RuntimeException, "Unimplemented vmobject_clone: %p", object);
+
+	return 0;
+}
+
+void vmobject_release(vmobject_t * object)
+{
+	if (object->ops->release) {
+		object->ops->release(object);
+	}
+	/* Do nothing if not defined */
+}
+
+static void vm_as_release_walk(void * p, void * key, void * data)
+{
+	segment_t * seg = (segment_t *)data;
+
+	if (seg->dirty && seg->dirty != seg->clean) {
+		/* Clean dirty segment */
+		vmobject_release(seg->dirty);
+	}
+	vmobject_release(seg->clean);
+}
+
+void vm_as_release(map_t * as)
+{
+	map_walkpp(as, vm_as_release_walk, as);
 }
 
 /*
@@ -294,13 +320,6 @@ static page_t vm_anon_get_page(vmobject_t * object, off_t offset)
 	vmobject_anon_t * anon = container_of(object, vmobject_anon_t, vmobject);
 	page_t page = map_get(anon->pages, offset >> ARCH_PAGE_SIZE_LOG2);
 
-#if 0
-	if (!page) {
-		page = page_calloc();
-		map_put(anon->pages, offset >> ARCH_PAGE_SIZE_LOG2, page);
-	}
-#endif
-
 	return page;
 }
 
@@ -308,6 +327,17 @@ static page_t vm_anon_put_page(vmobject_t * object, off_t offset, page_t page)
 {
 	vmobject_anon_t * anon = container_of(object, vmobject_anon_t, vmobject);
 	return map_put(anon->pages, offset >> ARCH_PAGE_SIZE_LOG2, page);
+}
+
+static void vm_anon_release_walk(void * p, map_key key, map_data data)
+{
+	vm_vmpage_release(data);
+}
+
+static void vm_anon_release(vmobject_t * object)
+{
+	vmobject_anon_t * anon = container_of(object, vmobject_anon_t, vmobject);
+	map_walk(anon->pages, vm_anon_release_walk, anon);
 }
 
 static void vm_object_anon_copy_walk(void * p, map_key key, map_data data)
@@ -325,6 +355,7 @@ static vmobject_t * vm_object_anon()
 	static vmobject_ops_t anon_ops = {
 		get_page: vm_anon_get_page,
 		put_page: vm_anon_put_page,
+		release: vm_anon_release,
 		clone: vm_anon_clone
 	};
 
@@ -545,7 +576,7 @@ void * vm_kas_get( size_t size )
 
 static mutex_t vmpages_lock;
 
-typedef struct vmpage_s {
+typedef struct {
 	int count;
 	int flags;
 	int age;
@@ -565,6 +596,16 @@ void vm_vmpage_map( page_t page, asid as, void * p )
 			/* Check if we already have this mapping */
 			for(int i=0; i<vmpage->count; i++) {
 				if (vmpage->maps[i].as == as && vmpage->maps[i].p == p) {
+					mutex_unlock(&vmpages_lock);
+					return;
+				}
+			}
+
+			/* Replace a defunct mapping, if possible */
+			for(int i=0; i<vmpage->count; i++) {
+				if (!vmap_ismapped(vmpage->maps[i].as, vmpage->maps[i].p)) {
+					vmpage->maps[i].as = as;
+					vmpage->maps[i].p = p;
 					mutex_unlock(&vmpages_lock);
 					return;
 				}
@@ -657,7 +698,7 @@ void vm_vmpage_put_copy(page_t page)
 	}
 }
 
-int vm_vmpage_get_copy(page_t page)
+page_t vm_vmpage_get_copy(page_t page)
 {
 	MUTEX_AUTOLOCK(&vmpages_lock) {
 		vmpage_t * vmpage = map_getip(vmpages, page);
@@ -685,6 +726,22 @@ int vm_vmpage_get_copy(page_t page)
 	return page;
 }
 
+void vm_vmpage_release(page_t page)
+{
+	MUTEX_AUTOLOCK(&vmpages_lock) {
+		vmpage_t * vmpage = map_getip(vmpages, page);
+		if (vmpage) {
+			if (vmpage->copies)  {
+				vmpage->copies--;
+			} else {
+				/* No copies, release this page */
+				map_putip(vmpages, page, 0);
+				page_free(page);
+			}
+		}
+	}
+}
+
 void vm_vmpage_trapaccess(page_t page)
 {
 	MUTEX_AUTOLOCK(&vmpages_lock) {
@@ -699,6 +756,7 @@ void vm_vmpage_trapaccess(page_t page)
 					vmap_unmap(as, p);
 				}
 			}
+			vmpage->count=0;
 		}
 	}
 }

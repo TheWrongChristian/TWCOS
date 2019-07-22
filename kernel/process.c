@@ -191,6 +191,10 @@ void process_exit(int code)
 	}
 
 	/* FIXME: Clean up address space, files, other threads etc. */
+	if (current->as) {
+		vm_as_release(current->as);
+		current->as = 0;
+	}
 	thread_exit(0);
 }
 
