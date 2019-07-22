@@ -50,10 +50,10 @@ clean::
 	echo break kernel_main | tee -a .gdbinit
 
 qemu: all .gdbinit
-	qemu-system-i386 -m 16 -s -S -kernel $(KERNEL) -initrd $(INITRD_TAR) &
+	qemu-system-i386 -m 4 -s -S -kernel $(KERNEL) -initrd $(INITRD_TAR) &
 
 run: all
-	qemu-system-i386 -m 16 -s -kernel $(KERNEL) -initrd $(INITRD_TAR) &
+	qemu-system-i386 -m 4 -s -kernel $(KERNEL) -initrd $(INITRD_TAR) &
 
 includes::
 	$(MAKEHEADERS) $(SRCS_C) $(ARCH_USYSCALL_C) $(PDCLIB_TWCOS_SRCS_C)
