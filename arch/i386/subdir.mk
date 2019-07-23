@@ -18,6 +18,8 @@ $(subdir)/kernel: $(OBJS) $(LD_SCRIPT)
 # all:: $(TOP)/lib/libsyscall.a $(TOP)/lib/crt0.o
 all:: $(TOP)/lib/crt0.o
 
+USERLIBS += $(TOP)/lib/crt0.o
+
 # $(TOP)/lib/libsyscall.a: $(USYSCALL_SRCS_O)
 # 	$(AR) rcs $@ $(USYSCALL_SRCS_O)
 
@@ -25,4 +27,4 @@ $(TOP)/lib/crt0.o: $(ARCH_CRT0_O)
 	$(CP) $< $@
 
 clean::
-	$(RM) $(TOP)/lib/libsyscall.a $(LIBC_OBJS_C)
+	$(RM) $(TOP)/lib/libsyscall.a $(TOP)/lib/crt0.o $(LIBC_OBJS_C)

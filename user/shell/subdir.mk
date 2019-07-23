@@ -5,7 +5,7 @@ INIT=$(subdir)/init
 
 all:: $(INIT)
 
-$(INIT): $(INIT_OBJS_C)
+$(INIT): $(USERLIBS) $(INIT_OBJS_C)
 	$(CC) $(CFLAGS) -o $@ $(INIT_OBJS_C)
 
 clean::

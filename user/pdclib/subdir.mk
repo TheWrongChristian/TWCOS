@@ -164,6 +164,8 @@ PDCLIB_TWCOS_SRCS_C := \
 LIBC_SRCS_C += $(PDCLIB_SRCS_C) $(PDCLIB_TWCOS_SRCS_C) $(ARCH_USYSCALL_C)
 LIBC_OBJS_C = $(LIBC_SRCS_C:.c=.o)
 
+USERLIBS += $(TOP)/lib/libc.a $(TOP)/lib/libg.a
+
 $(TOP)/lib/libc.a: $(LIBC_OBJS_C)
 	mkdir -p $(TOP)/lib
 	$(AR) rcs $@ $(LIBC_OBJS_C)
@@ -172,5 +174,5 @@ $(TOP)/lib/libg.a: $(subdir)/dummy.o
 	$(AR) rcs $@ $<
 
 clean::
-	$(RM) $(TOP)/lib/libc.a $(LIBC_OBJS_C)
+	$(RM) $(TOP)/lib/libc.a $(TOP)/lib/libg.a $(LIBC_OBJS_C)
 

@@ -4,6 +4,9 @@ ARCH=i386
 
 all::
 
+.PHONY: userlibs
+.PHONY: clean
+
 OBJS=$(SRCS_S:.S=.o) $(SRCS_C:.c=.o)
 SRCS_C :=
 SRCS_S :=
@@ -40,7 +43,6 @@ boot.iso: grub.cfg $(KERNEL) $(INITRD_TAR)
 	cp -f grub.cfg isodir/boot/grub/grub.cfg
 	grub-mkrescue -o boot.iso isodir
 
-.PHONY: clean
 clean::
 	rm -rf $(OBJS) $(SRCS_C:.c=.h) boot.iso
 
@@ -56,6 +58,7 @@ run: all
 	qemu-system-i386 -m 4 -s -kernel $(KERNEL) -initrd $(INITRD_TAR) &
 
 includes::
+	mkdir -p lib
 	$(MAKEHEADERS) $(SRCS_C) $(ARCH_USYSCALL_C) $(PDCLIB_TWCOS_SRCS_C)
 
 cflow:
