@@ -52,10 +52,10 @@ clean::
 	echo break kernel_main | tee -a .gdbinit
 
 qemu: all .gdbinit
-	qemu-system-i386 -m 4 -s -S -kernel $(KERNEL) -initrd $(INITRD_TAR) &
+	qemu-system-i386 -m 1536k -s -S -kernel $(KERNEL) -initrd $(INITRD_TAR) &
 
 run: all
-	qemu-system-i386 -m 4 -s -kernel $(KERNEL) -initrd $(INITRD_TAR) &
+	qemu-system-i386 -m 1536k -s -kernel $(KERNEL) -initrd $(INITRD_TAR) &
 
 includes::
 	mkdir -p lib
