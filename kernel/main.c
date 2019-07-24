@@ -78,8 +78,8 @@ void kernel_main() {
 		if (0 == testshell) {
 			testshell_run(terminal);
 		}
-#endif
 		char ** strs = ssplit("/a/path/file/name", '/');
+#endif
 		static vnode_t * root = 0;
 		if (initrd) {
 			process_t * p = process_get();

@@ -81,7 +81,6 @@ int strlen(const char * s)
 	return l;
 }
 
-#if 0
 char * strdup( const char * s)
 {
 	int len = strlen(s);
@@ -90,7 +89,6 @@ char * strdup( const char * s)
 	ret[len] = 0;
 	return memcpy(ret, s, len);
 }
-#endif
 
 char * strndup( const char * s, int len)
 {

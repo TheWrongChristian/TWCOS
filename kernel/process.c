@@ -254,17 +254,5 @@ void process_execve(char * filename, char * argv[], char * envp[])
 	vnode_t * f = file_namev(filename);
 	process_t * p = arch_get_thread()->process;
 
-	/* Save old AS */
-	map_t * oldas = p->as;
-
-	KTRY {
-		elf_execve(f, p, argv, envp);
-	} KCATCH(Exception) {
-		/* Restore old AS */
-		p->as = oldas;
-		vmap_set_asid(p->as);
-
-		/* Propagate original exception */
-		KRETHROW();
-	}
+	elf_execve(f, p, argv, envp);
 }
