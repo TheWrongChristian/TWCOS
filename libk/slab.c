@@ -202,6 +202,11 @@ static void slab_mark_available_all(slab_t * slab)
 
 }
 
+void slab_nomark(void * p)
+{
+	/* Does nothing */
+}
+
 static struct
 {
 	size_t inuse;
@@ -253,6 +258,8 @@ static void slab_debug()
 
 void slab_gc_mark(void * root)
 {
+	arch_check_stack();
+
 	slab_t * slab = slab_get(root);
 
 	if (slab) {

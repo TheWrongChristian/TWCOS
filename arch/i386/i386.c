@@ -297,12 +297,24 @@ static void i386_sx(uint32_t num, uint32_t * state)
 typedef void (*irq_func)();
 #define ARCH_PAGE_ALIGN(p) ((void*)((uint32_t)(p) & (0xffffffff << ARCH_PAGE_SIZE_LOG2)))
 
-typedef struct {
+struct arch_context_t {
 	void * stack;
 	jmp_buf state;
-} arch_context_t;
+};
 
 #endif
+
+static thread_t initial;
+static thread_t * current;
+
+void arch_check_stack()
+{
+	char var;
+
+	if ((&var - (char*)current->context.stack) < 32) {
+		kernel_panic("Stack overflow");
+	}
+}
 
 void arch_thread_mark(thread_t * thread)
 {
@@ -348,9 +360,6 @@ static isr_t itable[256] = {
 	i386_irq, i386_irq, i386_irq, i386_irq,
 	[0x80]=i386_syscall
 };
-
-static thread_t initial;
-static thread_t * current;
 
 #define PIC_IRQ_BASE    0x20
 void i386_init()
