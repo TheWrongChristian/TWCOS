@@ -61,7 +61,7 @@ static slab_t * slab_new(slab_type_t * stype)
 	if (0 == stype->magic) {
 		/* Initialize type */
 		stype->first = 0;
-		stype->magic = 997 * 0xaf653de9 * (uint32_t)stype;
+		stype->magic = 997 * (uint32_t)stype;
 
 		/*           <-----------------d------------------>
 		 * | slab_t |a|f|              data                |
@@ -248,12 +248,6 @@ static slab_t * slab_get(void * p)
 	}
 
 	return 0;
-}
-
-static void slab_debug()
-{
-	int i = 0;
-	i++;
 }
 
 void slab_gc_mark(void * root)
