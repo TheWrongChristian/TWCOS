@@ -10,8 +10,8 @@ typedef int64_t inode_t;
 
 struct vfs_ops_t {
 	/* vnode operations */
-	page_t (*get_page)(vnode_t * vnode, off_t offset);
-	void (*put_page)(vnode_t * vnode, off_t offset, page_t page);
+	vmpage_t * (*get_page)(vnode_t * vnode, off_t offset);
+	void (*put_page)(vnode_t * vnode, off_t offset, vmpage_t * page);
 	void (*close)(vnode_t * vnode);
 	size_t (*get_size)(vnode_t * vnode);
 
@@ -87,28 +87,28 @@ void page_cache_init()
 
 
 
-page_t vnode_get_page( vnode_t * vnode, off_t offset )
+vmpage_t * vnode_get_page( vnode_t * vnode, off_t offset )
 {
 	offset = ARCH_PAGE_ALIGN(offset);
 	page_cache_key_t key[] = {{ vnode, offset }};
 
-	page_t page = map_getpi(page_cache, key);
+	vmpage_t * vmpage = map_getpp(page_cache, key);
 
-	if (0 == page) {
+	if (0 == vmpage) {
 		/* Not already in the cache, read it in from the FS */
 		page_cache_key_t * newkey = malloc(sizeof(*newkey));
 		newkey->vnode = vnode;
 		newkey->offset = offset;
-		page = vnode->fs->fsops->get_page(vnode, offset);
-		map_putpi(page_cache, newkey, page);
+		vmpage = vnode->fs->fsops->get_page(vnode, offset);
+		map_putpp(page_cache, newkey, vmpage);
 	}
 
-	return page;
+	return vmpage;
 }
 
-void vnode_put_page( vnode_t * vnode, off_t offset, page_t page )
+void vnode_put_page( vnode_t * vnode, off_t offset, vmpage_t * vmpage )
 {
-	vnode->fs->fsops->put_page(vnode, offset, page);
+	vnode->fs->fsops->put_page(vnode, offset, vmpage);
 }
 
 size_t vnode_get_size(vnode_t * vnode)

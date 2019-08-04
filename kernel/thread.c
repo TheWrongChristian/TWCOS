@@ -255,6 +255,8 @@ void thread_exit(void * retval)
 	/* Remove this thread from the set of all threads */
 	thread_track(this, 0);
 
+	thread_gc();
+
 	/* Schedule the next thread */
 	thread_schedule();
 }

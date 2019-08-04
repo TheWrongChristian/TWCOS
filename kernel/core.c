@@ -38,6 +38,7 @@ void page_add_range(page_t base, uint32_t count)
 	mmap_count++;
 }
 
+monitor_t freesignal[] = {0};
 static int mmap_lock[] = {0};
 void page_free(page_t page)
 {
@@ -57,14 +58,18 @@ void page_free(page_t page)
 			 */
 			mmap[i].available[p/32] |= (0x80000000 >> p%32);
 			mmap[i].free++;
-			spin_unlock(mmap_lock);
-			return;
+			break;
 		}
 	}
-	kernel_panic("Unable to free page %d\n", page);
+	spin_unlock(mmap_lock);
+#if 0
+	MONITOR_AUTOLOCK(freesignal) {
+		monitor_broadcast(freesignal);
+	}
+#endif
 }
 
-page_t page_alloc()
+static page_t page_alloc_internal()
 {
 	int m = mmap_count - 1;
 
@@ -84,15 +89,30 @@ page_t page_alloc()
 							return mmap[m].base + p;
 						}
 					}
-					kernel_panic("Couldn't find available page\n");
 				}
 			}
-			kernel_panic("Couldn't find free page\n");
 		}
 	}
-	/* FIXME: Out of memory panic or exception */
-	kernel_panic("Out of free pages\n");
+	spin_unlock(mmap_lock);
+
 	return 0;
+}
+
+page_t page_alloc()
+{
+	page_t page;
+
+	while(0 == (page = page_alloc_internal())) {
+#if 0
+		MONITOR_AUTOLOCK(freesignal) {
+			monitor_wait(freesignal);
+		}
+#else
+		thread_gc();
+#endif
+	}
+
+	return page;
 }
 
 page_t page_calloc()

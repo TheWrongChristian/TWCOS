@@ -5,7 +5,7 @@
 /*
  * Reserve address spaces
  */
-#define ASID_COUNT_LOG2 2
+#define ASID_COUNT_LOG2 4
 #define ASID_COUNT (1<<ASID_COUNT_LOG2)
 typedef pte_t pgtbls_t[1<<ARCH_PAGE_TABLE_SIZE_LOG2];
 
@@ -102,6 +102,15 @@ void vmap_set_asid(asid vid)
 	set_page_dir(VMAP_PAGE(pgdirs[ptid]));
 }
 
+void vmap_release_asid(asid vid)
+{
+	int ptid = vmap_probe_ptid(vid);
+
+	if (ptid>=0) {
+		asids[ptid].vid = 0;
+	}
+}
+
 page_t vmap_get_page(asid vid, void * vaddress)
 {
 	page_t vpage = (uint32_t)vaddress >> ARCH_PAGE_SIZE_LOG2;
@@ -193,21 +202,21 @@ int vmap_ismapped(asid vid, void * vaddress)
 	return pte & 0x1;
 }
 
-#if 0
 int vmap_iswriteable(asid vid, void * vaddress)
 {
-	pte_t pte = vmap_get_pte(vid, vaddress);
+	int ptid = vmap_get_ptid(vid);
+	pte_t pte = vmap_get_pte(ptid, vaddress);
 
 	return pte & 0x2;
 }
 
 int vmap_isuser(asid vid, void * vaddress)
 {
-	pte_t pte = vmap_get_pte(vid, vaddress);
+	int ptid = vmap_get_ptid(vid);
+	pte_t pte = vmap_get_pte(ptid, vaddress);
 
 	return pte & 0x4;
 }
-#endif
 
 void vmap_unmap(asid vid, void * vaddress)
 {

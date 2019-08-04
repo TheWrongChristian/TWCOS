@@ -32,7 +32,6 @@ struct process_t {
 	 * Threads
 	 */
 	map_t * threads;
-
 	/*
 	 * process hierarchy
 	 */
@@ -187,6 +186,7 @@ void process_exit(int code)
 				map_walkip(current->zombies, process_exit_reparent, init);
 				map_put_all(init->zombies, current->zombies);
 			}
+			current->children = current->zombies = 0;
 		}
 	}
 
@@ -195,6 +195,7 @@ void process_exit(int code)
 		vm_as_release(current->as);
 		current->as = 0;
 	}
+
 	thread_exit(0);
 }
 

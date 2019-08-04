@@ -80,7 +80,6 @@ void kernel_main() {
 		}
 		char ** strs = ssplit("/a/path/file/name", '/');
 #endif
-		static vnode_t * root = 0;
 		if (initrd) {
 			process_t * p = process_get();
 			p->root = p->cwd = tarfs_open(dev_static(initrd, initrdsize));
