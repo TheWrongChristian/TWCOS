@@ -28,3 +28,5 @@ $(TOP)/lib/crt0.o: $(ARCH_CRT0_O)
 
 clean::
 	$(RM) $(TOP)/lib/libsyscall.a $(TOP)/lib/crt0.o $(LIBC_OBJS_C)
+
+QEMU=qemu-system-i386
