@@ -601,6 +601,7 @@ void * arch_user_stack()
 #if INTERFACE
 
 void arch_startuser(void * start, void * tos);
+void arch_altstack(void (*f)(void), void * s);
 
 /*
  * Sizes

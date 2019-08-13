@@ -210,6 +210,22 @@ arch_startuser:
 
 	# Jump to user mode
 	iret
-	
+
+.global arch_altstack
+.type arch_altstack, @function
+arch_altstack:
+	push %ebp
+	mov %esp,%ebp
+
+	# called pc
+	mov 8(%ebp), %edx
+
+	# stack pointer
+	mov 12(%ebp),%esp
+	push %ebp
+	call %edx
+	pop %esp
+	pop %ebp
+	ret
 
 #include "isr.inc"
