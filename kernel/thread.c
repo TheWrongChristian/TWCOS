@@ -255,7 +255,12 @@ void thread_exit(void * retval)
 	/* Remove this thread from the set of all threads */
 	thread_track(this, 0);
 
-	thread_gc();
+#if 0
+	// thread_gc();
+	MONITOR_AUTOLOCK(cleansignal) {
+		monitor_broadcast(cleansignal);
+	}
+#endif
 
 	/* Schedule the next thread */
 	thread_schedule();
@@ -295,7 +300,6 @@ static void thread_gc_walk(void * p, void * key, void * d)
 
 void thread_gc()
 {
-#if 1
 	// thread_cleanlocks();
 	slab_gc_begin();
 	slab_gc_mark(arch_get_thread());
@@ -304,7 +308,6 @@ void thread_gc()
 	}
 	slab_gc_mark(roots);
 	slab_gc_end();
-#endif
 }
 
 void thread_gc_root(void * p)
@@ -319,13 +322,13 @@ static void thread_mark(void * p)
 {
 	thread_t * thread = (thread_t *)p;
 
+	arch_thread_mark(thread);
+
 	for(int i=0; i<sizeof(thread->tls)/sizeof(thread->tls[0]); i++) {
 		slab_gc_mark(thread->tls[i]);
 	}
 	slab_gc_mark(thread->next);
 	slab_gc_mark(thread->retval);
-
-	arch_thread_mark(thread);
 }
 
 static void thread_finalize(void * p)

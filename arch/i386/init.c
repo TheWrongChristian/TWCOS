@@ -66,6 +66,7 @@ static void bootstrap_finish()
 
 void * arch_heap_page()
 {
+	/* FIXME: check against heap limits */
 	void * p = nextalloc;
 	nextalloc += ARCH_PAGE_SIZE;
 	return p;
@@ -125,7 +126,7 @@ void arch_init()
 		}
 	}
 
-	/* 64MB heap by default */
+	/* 64MB max heap by default */
 	heapend = data_start + 0x4000000;
 	vm_kas_start(heapend);
 
@@ -155,14 +156,17 @@ void arch_init()
 		}
 	}
 	i386_init();
+	int heapsize = page_count_free() << ARCH_PAGE_SIZE_LOG2;
+	vmobject_t * heapobject = vm_object_heap(page_count_free());
 	vmap_init();
 	bootstrap_finish();
+	heap = vm_segment_heap(nextalloc, heapobject);
 	vm_init();
 	page_t code_page = ((uintptr_t)code_start - koffset) >> ARCH_PAGE_SIZE_LOG2;
 	page_t data_page = ((uintptr_t)data_start - koffset) >> ARCH_PAGE_SIZE_LOG2;
 	map_putpp(kas, code_start, vm_segment_direct(code_start, data_start - code_start, SEGMENT_R | SEGMENT_X, code_page ));
 	map_putpp(kas, data_start, vm_segment_direct(data_start, nextalloc - data_start, SEGMENT_R | SEGMENT_W, data_page ));
-	map_putpp(kas, nextalloc, heap = vm_segment_anonymous(nextalloc, heapend - nextalloc, SEGMENT_R | SEGMENT_W ));
+	map_putpp(kas, nextalloc, heap);
 	pci_scan();
 
 #if 0

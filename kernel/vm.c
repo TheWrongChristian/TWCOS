@@ -104,6 +104,9 @@ struct segment_anonymous_s {
 	segment_t segment;
 };
 
+static void vmpage_finalize(void * p);
+static slab_type_t slabvmpages[] = { SLAB_TYPE(sizeof(vmpage_t), slab_nomark, vmpage_finalize) };
+
 static map_t * vmpages;
 map_t * kas;
 
@@ -170,6 +173,9 @@ void vm_page_fault(void * p, int write, int user, int present)
 
 		if (offset < seg->size) {
 			/* FIXME: This all needs review */
+			if (seg == heap) {
+				write=1;
+			}
 
 			/* Check for invalid writes first */
 			if (write && !(SEGMENT_W & seg->perms)) {
@@ -207,6 +213,16 @@ void vm_page_fault(void * p, int write, int user, int present)
 				vmpage_setflags(vmpage, VMPAGE_ACCESSED | VMPAGE_DIRTY);
 			} else {
 				vmpage_setflags(vmpage, VMPAGE_ACCESSED);
+			}
+
+			/*
+			 * Don't persist the vmpage_t structs for heap pages.
+			 * We must ensure we unreference the page backing the
+			 * heap vmpage_t, otherwise the page will be released
+			 * once the vmpage_t is GCed.
+			 */
+			if (seg == heap) {
+				memset(vmpage, 0, sizeof(*vmpage));
 			}
 
 			return;
@@ -373,6 +389,65 @@ static vmobject_t * vm_object_anon()
 }
 
 /*
+ * Special singleton kernel heap object
+ */
+typedef struct vmobject_heap_t vmobject_heap_t;
+struct vmobject_heap_t {
+	vmobject_t vmobject;
+	int pcount;
+	page_t * pages;
+};
+
+static vmpage_t * vm_heap_get_page(vmobject_t * object, off_t offset)
+{
+	vmobject_heap_t * heap = container_of(object, vmobject_heap_t, vmobject);
+	int pageno = offset >> ARCH_PAGE_SIZE_LOG2;
+
+	if (pageno<heap->pcount) {
+		page_t page = heap->pages[pageno];
+		if (0 == page) {
+			page = page_alloc();
+			heap->pages[pageno] = page;
+		}
+		return vmpage_alloc(0, page);
+	}
+
+	kernel_panic("Get page beyond end of heap");
+	return 0;
+}
+
+static void vm_heap_put_page(vmobject_t * object, off_t offset, vmpage_t * vmpage)
+{
+	vmobject_heap_t * heap = container_of(object, vmobject_heap_t, vmobject);
+	int pageno = offset >> ARCH_PAGE_SIZE_LOG2;
+
+	if (pageno<heap->pcount) {
+		heap->pages[pageno] = vmpage->page;
+		vmpage->page = 0;
+		return;
+	}
+
+	kernel_panic("Put page beyond end of heap");
+}
+
+vmobject_t * vm_object_heap(int pcount)
+{
+	static vmobject_ops_t heap_ops = {
+		get_page: vm_heap_get_page,
+		put_page: vm_heap_put_page,
+	};
+	static vmobject_heap_t heap = {vmobject: {&heap_ops}};
+	if (!heap.pages) {
+		heap.pcount = pcount;
+		heap.pages = bootstrap_alloc(sizeof(*heap.pages)*pcount);
+		for(int i=0; i<pcount; i++) {
+			heap.pages[i] = 0;
+		}
+	}
+	return &heap.vmobject;
+}
+
+/*
  * Direct mapped (eg - device) memory
  */
 typedef struct vmobject_direct_t vmobject_direct_t;
@@ -390,7 +465,7 @@ static vmpage_t * vm_direct_get_page(vmobject_t * object, off_t offset)
 		int pageno = offset >> ARCH_PAGE_SIZE_LOG2;
 		vmpage_t * vmpage = map_getip(direct->pages, pageno);
 		if (0 == vmpage) {
-			vmpage = vmpage_alloc(direct->base + pageno);
+			vmpage = vmpage_alloc(0, direct->base + pageno);
 			map_putip(direct->pages, pageno, vmpage);
 		}
 		return vmpage;
@@ -489,10 +564,30 @@ segment_t * vm_segment_vnode(void * p, size_t size, int perms, vnode_t * vnode, 
 segment_t * vm_segment_anonymous(void * p, size_t size, int perms)
 {
 	segment_t * seg = vm_segment_base(p, size, perms | SEGMENT_P, vm_object_zero(), 0);
-	seg->dirty = vm_object_anon(0);
+	seg->dirty = vm_object_anon();
 
 	return seg;
 }
+
+#if 1
+segment_t * vm_segment_heap(void * p, vmobject_t * object)
+{
+	vmobject_heap_t * heapobject = container_of(object, vmobject_heap_t, vmobject);
+	static segment_t heap = {0};
+	static segment_t * seg = &heap;
+
+	if (0 == seg->base) {
+		seg->base = p;
+		seg->size = heapobject->pcount << ARCH_PAGE_SIZE_LOG2;
+		seg->perms = SEGMENT_P | SEGMENT_R | SEGMENT_W;
+		seg->clean = 0;
+		seg->read_offset = 0;
+		seg->dirty = object;
+	}
+
+	return seg;
+}
+#endif
 
 segment_t * vm_segment_direct(void * p, size_t size, int perms, page_t base)
 {
@@ -579,9 +674,6 @@ void * vm_kas_get( size_t size )
 
 static mutex_t vmpages_lock;
 
-static void vmpage_finalize(void * p);
-static slab_type_t slabvmpages[] = { SLAB_TYPE(sizeof(vmpage_t), slab_nomark, vmpage_finalize) };
-
 static void vmpage_finalize(void * p)
 {
 	vmpage_t * vmpage = p;
@@ -589,6 +681,7 @@ static void vmpage_finalize(void * p)
 	for(int i=0; i<VMPAGE_MAPS; i++) {
 		/* Clear any mappings for dead page */
 		if (vmpage->maps[i].as && vmap_ismapped(vmpage->maps[i].as, vmpage->maps[i].p)) {
+			assert(vmpage->maps[i].p != arch_get_thread()->context.stack);
 			vmap_unmap(vmpage->maps[i].as, vmpage->maps[i].p);
 		}
 	}
@@ -598,9 +691,11 @@ static void vmpage_finalize(void * p)
 	}
 }
 
-vmpage_t * vmpage_alloc(page_t page)
+vmpage_t * vmpage_alloc(vmpage_t * vmpage, page_t page)
 {
-	vmpage_t * vmpage = slab_calloc(slabvmpages);
+	if (0 == vmpage) {
+		vmpage = slab_calloc(slabvmpages);
+	}
 	if (page) {
 		vmpage->page = page;
 	} else {
@@ -702,9 +797,11 @@ vmpage_t * vmpage_get_copy(vmpage_t * vmpage)
 			dest = vm_kas_get_aligned(ARCH_PAGE_SIZE, ARCH_PAGE_SIZE);
 		}
 
+		/* Get a new page to copy into */
+		vmpage_t * newpage = vmpage_alloc(0, 0);
+
 		/* Copy the old page to the new page */
 		vmap_map(kas, src, vmpage->page, 0, 0);
-		vmpage_t * newpage = vmpage_alloc(0);
 		vmap_map(kas, dest, newpage->page, 1, 0);
 		memcpy(dest, src, ARCH_PAGE_SIZE);
 

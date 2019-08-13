@@ -13,6 +13,7 @@ typedef struct slab_type {
 	void (*mark)(void *);
 	void (*finalize)(void *);
 	mutex_t lock[1];
+	vmpage_t vmpage[1];
 } slab_type_t;
 
 #define SLAB_TYPE(s, m, f) {.magic=0, .esize=s, .mark=m, .finalize=f}
@@ -47,10 +48,38 @@ typedef struct slab {
 
 static slab_type_t * types;
 
+static thread_t * cleaner_thread;
+int is_cleaner()
+{
+	return arch_get_thread() == cleaner_thread;
+}
+
+static void cleaner()
+{
+	cleaner_thread = arch_get_thread();
+	int pages = page_count();
+	while(1) {
+		MONITOR_AUTOLOCK(cleansignal) {
+			monitor_wait(cleansignal);
+		}
+		int prefree = page_count_free();
+		thread_gc();
+		int postfree = page_count_free();
+		MONITOR_AUTOLOCK(freesignal) {
+			monitor_broadcast(freesignal);
+		}
+	}
+}
+
 void slab_init()
 {
 	INIT_ONCE();
 	kernel_startlogging(1);
+#if 0
+	if (0 == thread_fork()) {
+		cleaner();
+	}
+#endif
 }
 
 static slab_t * slab_new(slab_type_t * stype)
@@ -91,22 +120,24 @@ static slab_t * slab_new(slab_type_t * stype)
 		slab->available[i/32] = mask;
 	}
 
+	assert(slab->type);
+
 	return slab;
 }
 
-static rwlock_t slablock[1];
+static mutex_t slablock[1];
 static void slab_lock(int gc)
 {
 	if (gc) {
-		rwlock_write(slablock);
+		mutex_lock(slablock);
 	} else {
-		rwlock_read(slablock);
+		mutex_lock(slablock);
 	}
 }
 
 static void slab_unlock()
 {
-	rwlock_unlock(slablock);
+	mutex_unlock(slablock);
 }
 
 static void debug_fillbuf(void * p, size_t l, int c)
@@ -130,10 +161,10 @@ static void debug_checkbuf(void * p, size_t l)
 
 void * slab_alloc_p(slab_type_t * stype)
 {
-	slab_lock(0);
 	mutex_lock(stype->lock);
 	slab_t * slab = stype->first ? stype->first : slab_new(stype);
 
+	slab_lock(0);
 	while(slab) {
 		assert(stype == slab->type);
 		for(int i=0; i<slab->type->count; i+=32) {
@@ -159,8 +190,8 @@ void * slab_alloc_p(slab_type_t * stype)
 
 				slab->available[i/32] &= ~mask;
 				slab->finalize[i/32] &= ~mask;
-				mutex_unlock(stype->lock);
 				slab_unlock();
+				mutex_unlock(stype->lock);
 				debug_checkbuf(slab->data + slab->type->esize*slot, slab->type->esize);
 				debug_fillbuf(slab->data + slab->type->esize*slot, slab->type->esize, 0x0a);
 				return slab->data + slab->type->esize*slot;
@@ -173,8 +204,8 @@ void * slab_alloc_p(slab_type_t * stype)
 		}
 	}
 
-	mutex_unlock(stype->lock);
 	slab_unlock();
+	mutex_unlock(stype->lock);
 
 	KTHROW(OutOfMemoryException, "Out of memory");
 	/* Shouldn't get here */
@@ -200,6 +231,21 @@ static void slab_mark_available_all(slab_t * slab)
                 slab->available[i/32] = mask;
         }
 
+}
+
+static int slab_all_free(slab_t * slab)
+{
+        for(int i=0; i<slab->type->count; i+=32) {
+                uint32_t mask = ~0 ;
+                if (slab->type->count-i < 32) {
+                        mask = ~(mask >> (slab->type->count-i));
+                }
+		if (mask ^ slab->available[i/32]) {
+			return 0;
+		}
+	}
+
+	return 1;
 }
 
 void slab_nomark(void * p)
@@ -263,9 +309,6 @@ void slab_gc_mark(void * root)
 		uint32_t mask = (0x80000000u >> i%32);
 		if (slab->available[i/32] & mask) {
 			gc_stats.inuse += slab->type->esize;
-			if (gc_stats.inuse >= gc_stats.peak) {
-				gc_stats.peak = gc_stats.inuse;
-			}
 
 			/* Marked as available, clear the mark */
 			slab->available[i/32] &= ~mask;
@@ -305,12 +348,6 @@ static void slab_finalize_clear_param(void * param)
 	param = 0;
 }
 
-int finalizer_debug_val;
-static void debug_finalizer(slab_t * slab)
-{
-	finalizer_debug_val=1;
-}
-
 static void slab_finalize(slab_t * slab)
 {
         for(int i=0; i<slab->type->count; i+=32) {
@@ -318,7 +355,6 @@ static void slab_finalize(slab_t * slab)
 	}
         for(int i=0; i<slab->type->count; ) {
 		if (slab->finalize[i/32]) {
-			debug_finalizer(slab);
 			uint32_t finalize = slab->finalize[i/32];
 			uint32_t mask = 0x80000000;
 			slab->finalize[i/32] = 0;
@@ -332,21 +368,36 @@ static void slab_finalize(slab_t * slab)
 			i+=32;
 		}
 	}
+
 	/* Clear parameter values left on stack */
 	slab_finalize_clear_param(0);
 }
 
 void slab_gc_end()
 {
-	slab_type_t * stype = types;
+	if (gc_stats.inuse >= gc_stats.peak) {
+		gc_stats.peak = gc_stats.inuse;
+	}
 
 	/* Finalize elements now available */
+	slab_type_t * stype = types;
 	while(stype) {
 		slab_t * slab = stype->first;
 
-		while(slab && stype->finalize) {
-			slab_finalize(slab);
-			LIST_NEXT(stype->first, slab);
+		while(slab) {
+			if (stype->finalize) {
+				slab_finalize(slab);
+			}
+
+			/* Release page if now empty */
+			if (slab_all_free(slab)) {
+				slab_t * empty = slab;
+				LIST_NEXT(stype->first, slab);
+				LIST_DELETE(stype->first, empty);
+				page_heap_free(empty);
+			} else {
+				LIST_NEXT(stype->first, slab);
+			}
 		}
 
 		LIST_NEXT(types, stype);

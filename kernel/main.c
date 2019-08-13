@@ -104,3 +104,7 @@ void kernel_main() {
 		kernel_panic("Error in initialization: %s\n", exception_message());
 	}
 }
+
+void kernel_break()
+{
+}
