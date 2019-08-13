@@ -43,7 +43,7 @@ int kernel_vprintk(const char * fmt, va_list ap)
 
 	len = vsnprintf(msg_ring[msg_next], countof(msg_ring[msg_next]), fmt, ap);
 	for(int i=0; i<countof(msgs); i++) {
-		msgs[i]=msg_ring[(i+msg_next)%countof(msg_ring)];
+		msgs[i]=msg_ring[(1+i+msg_next)%countof(msg_ring)];
 	}
 	if (++msg_next == countof(msg_ring)) {
 		msg_next=0;
