@@ -95,27 +95,37 @@ static pte_t * vmap_get_pgtable(asid vid)
 	return pgtbls[ptid];
 }
 
+static int lock[] = {0};
+
 void vmap_set_asid(asid vid)
 {
-	int ptid = vmap_get_ptid(vid);
+	SPIN_AUTOLOCK(lock) {
+		int ptid = vmap_get_ptid(vid);
 
-	set_page_dir(VMAP_PAGE(pgdirs[ptid]));
+		set_page_dir(VMAP_PAGE(pgdirs[ptid]));
+	}
 }
 
 void vmap_release_asid(asid vid)
 {
-	int ptid = vmap_probe_ptid(vid);
+	SPIN_AUTOLOCK(lock) {
+		int ptid = vmap_probe_ptid(vid);
 
-	if (ptid>=0) {
-		asids[ptid].vid = 0;
+		if (ptid>=0) {
+			asids[ptid].vid = 0;
+		}
 	}
 }
 
 page_t vmap_get_page(asid vid, void * vaddress)
 {
-	page_t vpage = (uint32_t)vaddress >> ARCH_PAGE_SIZE_LOG2;
-	pte_t * pgtbl = vmap_get_pgtable(vid);
-	uint32_t pte = pgtbl[vpage];
+	uint32_t pte = 0;
+
+	SPIN_AUTOLOCK(lock) {
+		page_t vpage = (uint32_t)vaddress >> ARCH_PAGE_SIZE_LOG2;
+		pte_t * pgtbl = vmap_get_pgtable(vid);
+		pte = pgtbl[vpage];
+	}
 
 	if (pte & 0x1) {
 		return pte >> ARCH_PAGE_SIZE_LOG2;
@@ -123,51 +133,68 @@ page_t vmap_get_page(asid vid, void * vaddress)
 	return 0;
 }
 
-static pte_t vmap_get_pte(int ptid, void * vaddress)
+static pte_t vmap_get_pte(asid vid, void * vaddress)
 {
-	page_t vpage = (uint32_t)vaddress >> ARCH_PAGE_SIZE_LOG2;
-	pte_t * pgtbl = pgtbls[ptid];
-	int pgdirnum = vpage >> 10;
+	pte_t pte = 0;
 
-	if (0 == (pgdirs[ptid][pgdirnum] & 1)){
-		return 0;
-	}
+	SPIN_AUTOLOCK(lock) {
+		int ptid = vmap_probe_ptid(vid);
+		if (ptid>=0) {
+			page_t vpage = (uint32_t)vaddress >> ARCH_PAGE_SIZE_LOG2;
+			pte_t * pgtbl = pgtbls[ptid];
+			int pgdirnum = vpage >> 10;
 
-	return pgtbl[vpage];
-}
-
-static void vmap_set_pte(int ptid, void * vaddress, pte_t pte)
-{
-	page_t vpage = (uint32_t)vaddress >> ARCH_PAGE_SIZE_LOG2;
-	pte_t * pgtbl = pgtbls[ptid];
-	int pgdirnum = vpage >> 10;
-
-	if (0 == (pgdirs[ptid][pgdirnum] & 1)){
-		/* No page table, create a new one */
-		ptrdiff_t koffset = (uint32_t)(_bootstrap_nextalloc - _bootstrap_end);
-		page_t page = page_alloc();
-
-		if (((uintptr_t)vaddress)<koffset) {
-			/* User mapping, just this ASID */
-			pgdirs[ptid][pgdirnum] = (page << ARCH_PAGE_SIZE_LOG2) | 7;
-		} else {
-			/* Kernel mapping, reflect across all ASID */
-			for(int i=0; i<ASID_COUNT; i++) {
-				pgdirs[i][pgdirnum] = (page << ARCH_PAGE_SIZE_LOG2) | 3;
+			/* Check if we have a page directory */
+			if (pgdirs[ptid][pgdirnum] & 1){
+				/* Get the page table entry */
+				pte = pgtbl[vpage];
 			}
 		}
-
-		page_clean(page);
 	}
-	pgtbl[vpage] = pte;
-	/* FIXME: Only need this if vid is current or kernel as */
-	invlpg(vaddress);
+
+	return pte;
+}
+
+static void vmap_set_pte(asid vid, void * vaddress, pte_t pte)
+{
+	SPIN_AUTOLOCK(lock) {
+		int ptid = vmap_get_ptid(vid);
+		page_t vpage = (uint32_t)vaddress >> ARCH_PAGE_SIZE_LOG2;
+		pte_t * pgtbl = pgtbls[ptid];
+		int pgdirnum = vpage >> 10;
+
+		if (0 == (pgdirs[ptid][pgdirnum] & 1)){
+			/* No page table, create a new one */
+			ptrdiff_t koffset = (uint32_t)(_bootstrap_nextalloc - _bootstrap_end);
+			page_t page = page_alloc();
+
+			if (((uintptr_t)vaddress)<koffset) {
+				/* User mapping, just this ASID */
+				pgdirs[ptid][pgdirnum] = (page << ARCH_PAGE_SIZE_LOG2) | 7;
+			} else {
+				/* Kernel mapping, reflect across all ASID */
+				for(int i=0; i<ASID_COUNT; i++) {
+					pgdirs[i][pgdirnum] = (page << ARCH_PAGE_SIZE_LOG2) | 3;
+				}
+			}
+
+			/* Clean directory */
+			memset(pgtbl + (vpage&~0x3ff), 0, ARCH_PAGE_SIZE);
+#if 0
+			for(i=0; i<1024; i++) {
+				pgtbl[vpage & 0x3ff + i] = 0;
+			}
+			page_clean(page);
+#endif
+		}
+		pgtbl[vpage] = pte;
+		/* FIXME: Only need this if vid is current or kernel as */
+		invlpg(vaddress);
+	}
 }
 
 void vmap_map(asid vid, void * vaddress, page_t page, int rw, int user)
 {
-	int ptid = vmap_get_ptid(vid);
-
 	/* Map the new page table entry */
 	pte_t pte = page << ARCH_PAGE_SIZE_LOG2 | 0x1;
 	if (rw) {
@@ -176,7 +203,7 @@ void vmap_map(asid vid, void * vaddress, page_t page, int rw, int user)
 	if (user) {
 		pte |= 0x4;
 	}
-	vmap_set_pte(ptid, vaddress, pte);
+	vmap_set_pte(vid, vaddress, pte);
 
 	kernel_printk("[%x,%p] -> %d %s%s\n", (int)vid, vaddress, (int)page, user ? "u" : "", rw ? "rw" : "ro");
 }
@@ -193,52 +220,22 @@ void vmap_mapn(asid vid, int n, void * vaddress, page_t page, int rw, int user)
 
 int vmap_ismapped(asid vid, void * vaddress)
 {
-	int ptid = vmap_probe_ptid(vid);
-	if (ptid<0) {
-		return 0;
-	}
-	pte_t pte = vmap_get_pte(ptid, vaddress);
-
-	return pte & 0x1;
+	return vmap_get_pte(vid, vaddress) & 0x1;
 }
 
 int vmap_iswriteable(asid vid, void * vaddress)
 {
-	int ptid = vmap_get_ptid(vid);
-	pte_t pte = vmap_get_pte(ptid, vaddress);
-
-	return pte & 0x2;
+	return 0x3 == (vmap_get_pte(vid, vaddress) & 0x3);
 }
 
 int vmap_isuser(asid vid, void * vaddress)
 {
-	int ptid = vmap_get_ptid(vid);
-	pte_t pte = vmap_get_pte(ptid, vaddress);
-
-	return pte & 0x4;
+	return 0x5 == (vmap_get_pte(vid, vaddress) & 0x5);
 }
 
 void vmap_unmap(asid vid, void * vaddress)
 {
-	int ptid = vmap_get_ptid(vid);
-	vmap_set_pte(ptid, vaddress, 0);
-}
-
-/*
- * Page fault handler
- */
-void vmap_fault(void * p, int write, int user, int present)
-{
-	if ((char*)p > (char*)pgtbls) {
-		/* Handle page tables specially */
-	} else {
-		/* Hand off to VM to resolve */
-		vm_page_fault(p, write, user, present);
-	}
-}
-
-static void vmap_test()
-{
+	vmap_set_pte(vid, vaddress, 0);
 }
 
 extern char code_start[];
@@ -288,7 +285,6 @@ void vmap_init()
 	for(; p<end; p+=ARCH_PAGE_SIZE) {
 		vmap_map(0, p, (uint32_t)(p-offset) >> ARCH_PAGE_SIZE_LOG2, 1, 0);
 	}
-	vmap_test();
 }
 
 
