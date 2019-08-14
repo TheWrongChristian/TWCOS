@@ -68,11 +68,17 @@ void * arena_palloc(arena_t * arena, int pages)
 
 arena_state arena_getstate(arena_t * arena)
 {
+	if (0 == arena) {
+		arena = arena_thread_get();
+	}
 	return (arena_state)arena->state;
 }
 
 void arena_setstate(arena_t * arena, arena_state state)
 {
+	if (0 == arena) {
+		arena = arena_thread_get();
+	}
 	check_ptr_bounds(state, arena->base, arena->top, "Arena state pointer out of arena bounds");
 	arena->state = (char*)state;
 }
