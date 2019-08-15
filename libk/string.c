@@ -102,6 +102,7 @@ char ** ssplit( const char * str, int sep )
 {
 	int i = 0;
 	int max = 8;
+	arena_state state = arena_getstate(NULL);
 	char ** strs = tmalloc(max * sizeof(*strs));
 	const char * s = str;
 	strs[0] = 0;
@@ -138,12 +139,14 @@ char ** ssplit( const char * str, int sep )
 			for(int n = 0; n<i; n++) {
 				ret[n] = strs[n];
 			}
+			arena_setstate(NULL, state);
 			return ret;
 		} else {
 			s++;
 		}
 	}
 	/* Not reached */
+	arena_setstate(NULL, state);
 	return 0;
 }
 
