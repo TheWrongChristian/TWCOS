@@ -142,9 +142,7 @@ void thread_schedule()
 		int i;
 		scheduler_lock();
 		for(i=0; i<THREAD_PRIORITIES; i++) {
-			if (0 == queue[i]) {
-				continue;
-			} else {
+			if (queue[i]) {
 				thread_t * current = arch_get_thread();
 				thread_t * next = queue[i];
 				LIST_DELETE(queue[i], next);
@@ -327,7 +325,7 @@ static void thread_mark(void * p)
 	for(int i=0; i<sizeof(thread->tls)/sizeof(thread->tls[0]); i++) {
 		slab_gc_mark(thread->tls[i]);
 	}
-	slab_gc_mark(thread->next);
+	// slab_gc_mark(thread->next);
 	slab_gc_mark(thread->retval);
 }
 
