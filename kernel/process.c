@@ -136,6 +136,7 @@ pid_t process_fork()
 	thread_t * thread = thread_fork();
 	if (0 == thread) {
 		/* Child thread */
+		timer_sleep(100);
 		return 0;
 	} else {
 		thread->process = new;
