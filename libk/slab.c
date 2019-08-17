@@ -280,6 +280,7 @@ void slab_gc_begin()
 
 		LIST_NEXT(types, stype);
 	}
+	gcarena = arena_thread_get();
 }
 
 static slab_t * slab_get(void * p)
@@ -296,6 +297,89 @@ static slab_t * slab_get(void * p)
 	return 0;
 }
 
+#if 1
+struct gccontext {
+	/* The block to be scanned */
+	void ** from;
+	void ** to;
+
+	/* Previous context */
+	arena_state state;
+	struct gccontext * prev;
+} * context = 0;
+arena_t * gcarena;
+int gclevel = 0;
+
+void slab_gc_mark(void * root)
+{
+	slab_t * slab = slab_get(root);
+	if (slab) {
+		/* Entry within the slab */
+		int entry = ((char*)root - slab->data) / slab->type->esize;
+
+		/* Adjust root to point to the start of the slab entry */
+		root = slab->data + slab->type->esize*entry;
+
+		uint32_t mask = (0x80000000u >> entry%32);
+		if (slab->available[entry/32] & mask) {
+			/* Marked as available, clear the mark */
+			slab->available[entry/32] &= ~mask;
+			gc_stats.inuse += slab->type->esize;
+
+			if (slab->type->mark) {
+				/* Call type specific mark */
+				slab->type->mark(root);
+			} else {
+				/* Generic mark */
+				struct gccontext * new = arena_calloc(gcarena, sizeof(*new));
+				new->state = arena_getstate(gcarena);
+				new->from = root;
+				new->to = new->from + slab->type->esize/sizeof(*new->to);
+				new->prev = context;
+				context = new;
+				gclevel++;
+			}
+		}
+	}
+}
+
+void slab_gc_mark_range(void * from, void * to)
+{
+	struct gccontext * new = arena_calloc(gcarena, sizeof(*new));
+	new->from = from;
+	new->to = to;
+	new->state = arena_getstate(gcarena);
+	new->prev = context;
+	context = new;
+	gclevel++;
+}
+
+void slab_gc()
+{
+	mutex_t lock[1] = {0};
+
+	MUTEX_AUTOLOCK(lock) {
+		arena_state state = arena_getstate(gcarena);
+
+		while(context) {
+			/* Check the next pointer in the block */
+			if (context->from && context->from < context->to) {
+				slab_gc_mark(*context->from++);
+			} else {
+				arena_setstate(gcarena, context->state);
+				context = context->prev;
+				gclevel--;
+			}
+		}
+	}
+}
+
+void slab_gc_mark_block(void ** block, size_t size)
+{
+	slab_gc_mark_range(block, block + size/sizeof(*block));
+}
+
+#else
 void slab_gc_mark(void * root)
 {
 	arch_check_stack();
@@ -342,6 +426,7 @@ void slab_gc_mark_range(void * from, void * to)
 		slab_gc_mark(*mark++);
 	}
 }
+#endif
 
 static void slab_finalize_clear_param(void * param)
 {
@@ -375,6 +460,8 @@ static void slab_finalize(slab_t * slab)
 
 void slab_gc_end()
 {
+	slab_gc();
+
 	if (gc_stats.inuse >= gc_stats.peak) {
 		gc_stats.peak = gc_stats.inuse;
 	}

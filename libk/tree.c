@@ -57,8 +57,8 @@ static void node_mark(void * p)
 #endif
 }
 
-static slab_type_t nodes[1] = { SLAB_TYPE(sizeof(node_t), node_mark, 0)};
-static slab_type_t trees[1] = { SLAB_TYPE(sizeof(tree_t), tree_mark, 0)};
+static slab_type_t nodes[1] = { SLAB_TYPE(sizeof(node_t), 0, 0)};
+static slab_type_t trees[1] = { SLAB_TYPE(sizeof(tree_t), 0, 0)};
 
 /*
  * Rotate left:

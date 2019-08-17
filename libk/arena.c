@@ -35,6 +35,7 @@ static void arena_mark(void * p)
 {
 	arena_t * arena = (arena_t *)p;
 
+	slab_gc_mark(arena->seg);
 	slab_gc_mark_range(arena->base, arena->state);
 }
 
@@ -46,6 +47,12 @@ void * arena_alloc(arena_t * arena, size_t size)
 	arena->state += size;
 
 	return p;
+}
+
+void * arena_calloc(arena_t * arena, size_t size)
+{
+	void * p = arena_alloc(arena, size);
+	return memset(p, 0, size);
 }
 
 void * arena_palloc(arena_t * arena, int pages)

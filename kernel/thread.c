@@ -300,11 +300,15 @@ void thread_gc()
 {
 	// thread_cleanlocks();
 	slab_gc_begin();
+#if 0
 	slab_gc_mark(arch_get_thread());
 	for(int i=0; i<sizeof(queue)/sizeof(queue[0]); i++) {
 		slab_gc_mark(queue[i]);
 	}
 	slab_gc_mark(roots);
+#else
+	slab_gc_mark(roots);
+#endif
 	slab_gc_end();
 }
 
@@ -322,10 +326,13 @@ static void thread_mark(void * p)
 
 	arch_thread_mark(thread);
 
+#if 0
 	for(int i=0; i<sizeof(thread->tls)/sizeof(thread->tls[0]); i++) {
 		slab_gc_mark(thread->tls[i]);
 	}
-	// slab_gc_mark(thread->next);
+	slab_gc_mark(thread->next);
+#endif
+	slab_gc_mark_block(thread->tls, sizeof(thread->tls));
 	slab_gc_mark(thread->retval);
 }
 

@@ -124,6 +124,7 @@ page_t page_alloc()
 {
 	page_t page;
 	static int reserve = 8;
+	int reservesave = reserve;
 
 	while(0 == (page = page_alloc_internal(reserve))) {
 		static monitor_t cleanlock[1] = {0};
@@ -137,7 +138,7 @@ page_t page_alloc()
 			}
 		}
 	}
-	reserve = 8;
+	reserve = reservesave;
 
 	return page;
 }
