@@ -311,7 +311,7 @@ void arch_check_stack()
 {
 	char var;
 
-	if ((&var - (char*)current->context.stack) < 32) {
+	if ((&var - (char*)current->context.stack) < 128) {
 		kernel_panic("Stack overflow");
 	}
 }
