@@ -324,16 +324,15 @@ static void thread_mark(void * p)
 {
 	thread_t * thread = (thread_t *)p;
 
-	arch_thread_mark(thread);
-
-#if 0
-	for(int i=0; i<sizeof(thread->tls)/sizeof(thread->tls[0]); i++) {
-		slab_gc_mark(thread->tls[i]);
+	if (thread->state != THREAD_TERMINATED) {
+		/* Mark live state only */
+		arch_thread_mark(thread);
+		slab_gc_mark_block(thread->tls, sizeof(thread->tls));
+		slab_gc_mark(thread->process);
+	} else {
+		/* Mark dead state only */
+		slab_gc_mark(thread->retval);
 	}
-#endif
-	slab_gc_mark(thread->next);
-	slab_gc_mark_block(thread->tls, sizeof(thread->tls));
-	slab_gc_mark(thread->retval);
 }
 
 static void thread_finalize(void * p)
@@ -356,6 +355,7 @@ void thread_init()
 	/* Craft a new bootstrap thread to replace the static defined thread */
 	sync_init();
 	arch_thread_init(slab_calloc(threads));
+	thread_track(arch_get_thread(), 1);
 }
 
 static void thread_test2();
