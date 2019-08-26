@@ -636,8 +636,6 @@ static map_data tree_remove( map_t * map, map_key key )
                                 parent = parent->parent;
                         }
 
-                        slab_free(node);
-
                         tree_verify(tree, NULL);
 
                         return data;

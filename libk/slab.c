@@ -110,9 +110,9 @@ static slab_t * slab_new(slab_type_t * stype)
 	slab->available = (uint32_t*)(slab+1);
 	slab->finalize = slab->available + (slab->type->count+32)/32;
 	slab->data = (char*)(slab->finalize + (slab->type->count+32)/32);
-	LIST_PREPEND(stype->first, slab);
-
 	bitarray_setall(slab->available, stype->count, 1);
+
+	LIST_PREPEND(stype->first, slab);
 
 	assert(slab->type);
 
@@ -417,25 +417,6 @@ void slab_gc_end()
 	}
 	arena_free(gcarena);
 	slab_unlock();
-}
-
-void slab_free(void * p)
-{
-#if 0
-	slab_t * slab = slab_get(p);
-
-	if (slab) {
-		slab_lock();
-		char * cp = p;
-		int i = (cp - slab->data) / slab->type->esize;
-		slab->available[i/32] |= (0x80000000 >> i%32);
-		if (slab->type->finalize) {
-			slab->type->finalize(p);
-		}
-		p = 0;
-		slab_unlock();
-	}
-#endif
 }
 
 static void slab_test_finalize(void * p)
