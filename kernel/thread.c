@@ -248,17 +248,16 @@ void thread_exit(void * retval)
 	}
 
 	/* Remove this thread from the set of process threads */
-	map_removepp(this->process->threads, this);
+	if (this->process) {
+		MONITOR_AUTOLOCK(&this->process->lock) {
+			map_removepp(this->process->threads, this);
+		}
+	}
+
+	this->process = 0;
 
 	/* Remove this thread from the set of all threads */
 	thread_track(this, 0);
-
-#if 0
-	// thread_gc();
-	MONITOR_AUTOLOCK(cleansignal) {
-		monitor_broadcast(cleansignal);
-	}
-#endif
 
 	/* Schedule the next thread */
 	thread_schedule();

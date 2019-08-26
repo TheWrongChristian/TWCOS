@@ -193,6 +193,8 @@ static void timer_sleep_cb(void * p)
 {
 	struct sleepvar * sleep = p;
 
+	assert(sleep->waiting);
+
 	SPIN_AUTOLOCK(sleep->lock) {
 		sleep->done = 1;
 		thread_t * resume = sleep->waiting;

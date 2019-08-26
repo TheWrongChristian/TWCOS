@@ -135,10 +135,16 @@ pid_t process_fork()
 	/* Finally, new thread */
 	thread_t * thread = thread_fork();
 	if (0 == thread) {
+#if 0
 		static timerspec_t next = 0;
 		/* Child thread */
-		next += 100000;
-		timer_sleep(next - timer_uptime());
+		next += 10000;
+		timerspec_t usec = next - timer_uptime();
+		if (usec>0) {
+			timer_sleep(usec);
+		}
+#endif
+		/* FIXME: Wait for go-ahead from parent */
 		return 0;
 	} else {
 		thread->process = new;
