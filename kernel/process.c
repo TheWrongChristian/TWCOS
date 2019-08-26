@@ -135,8 +135,10 @@ pid_t process_fork()
 	/* Finally, new thread */
 	thread_t * thread = thread_fork();
 	if (0 == thread) {
+		static timerspec_t next = 0;
 		/* Child thread */
-		timer_sleep(100);
+		next += 100000;
+		timer_sleep(next - timer_uptime());
 		return 0;
 	} else {
 		thread->process = new;

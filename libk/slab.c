@@ -112,13 +112,7 @@ static slab_t * slab_new(slab_type_t * stype)
 	slab->data = (char*)(slab->finalize + (slab->type->count+32)/32);
 	LIST_PREPEND(stype->first, slab);
 
-	for(int i=0; i<stype->count; i+=32) {
-		uint32_t mask = ~0 ;
-		if (stype->count-i < 32) {
-			mask = ~(mask >> (stype->count-i));
-		}
-		slab->available[i/32] = mask;
-	}
+	bitarray_setall(slab->available, stype->count, 1);
 
 	assert(slab->type);
 
@@ -167,35 +161,15 @@ void * slab_alloc_p(slab_type_t * stype)
 	slab_lock(0);
 	while(slab) {
 		assert(stype == slab->type);
-		for(int i=0; i<slab->type->count; i+=32) {
-			if (slab->available[i/32]) {
-				/* There is some available slots */
-				int slot = i;
-				uint32_t a = slab->available[i/32];
-				uint32_t mask = 0x80000000;
-#if 0
-				if (a & 0x0000ffff) slot += 16, a >>= 16;
-				if (a & 0x00ff00ff) slot += 8, a >>= 8;
-				if (a & 0x0f0f0f0f) slot += 4, a >>= 4;
-				if (a & 0x33333333) slot += 2, a >>= 2;
-				if (a & 0x55555555) slot += 1, a >>= 1;
-#endif
-				while(mask) {
-					if (a&mask) {
-						break;
-					}
-					mask>>=1;
-					slot++;
-				}
-
-				slab->available[i/32] &= ~mask;
-				slab->finalize[i/32] &= ~mask;
-				slab_unlock();
-				mutex_unlock(stype->lock);
-				debug_checkbuf(slab->data + slab->type->esize*slot, slab->type->esize);
-				debug_fillbuf(slab->data + slab->type->esize*slot, slab->type->esize, 0x0a);
-				return slab->data + slab->type->esize*slot;
-			}
+		int slot = bitarray_firstset(slab->available, slab->type->count);
+		if (slot>=0) {
+			bitarray_set(slab->available, slot, 0);
+			bitarray_set(slab->finalize, slot, 0);
+			slab_unlock();
+			mutex_unlock(stype->lock);
+			debug_checkbuf(slab->data + slab->type->esize*slot, slab->type->esize);
+			debug_fillbuf(slab->data + slab->type->esize*slot, slab->type->esize, 0x0a);
+			return slab->data + slab->type->esize*slot;
 		}
 
 		LIST_NEXT(stype->first,slab);
@@ -218,19 +192,6 @@ void * slab_calloc_p(slab_type_t * stype)
 	memset(p, 0, stype->esize);
 
 	return p;
-}
-
-static void slab_mark_available_all(slab_t * slab)
-{
-        for(int i=0; i<slab->type->count; i+=32) {
-                uint32_t mask = ~0 ;
-                if (slab->type->count-i < 32) {
-                        mask = ~(mask >> (slab->type->count-i));
-                }
-		slab->finalize[i/32] = slab->available[i/32];
-                slab->available[i/32] = mask;
-        }
-
 }
 
 static int slab_all_free(slab_t * slab)
@@ -260,6 +221,18 @@ static struct
 	size_t total;
 } gc_stats = {0};
 
+static struct gccontext {
+	/* The block to be scanned */
+	void ** from;
+	void ** to;
+
+	/* Previous context */
+	arena_state state;
+	struct gccontext * prev;
+} * context = 0;
+static arena_t * gcarena = 0;
+static int gclevel = 0;
+
 void slab_gc_begin()
 {
 	slab_lock(1);
@@ -274,13 +247,15 @@ void slab_gc_begin()
 
 		while(slab) {
 			gc_stats.total += stype->esize * stype->count;
-			slab_mark_available_all(slab);
+			/* Provisionally finalize all allocated slots */
+			bitarray_copy(slab->finalize, slab->available, stype->count);
+			bitarray_invert(slab->finalize, stype->count);
 			LIST_NEXT(stype->first, slab);
 		}
 
 		LIST_NEXT(types, stype);
 	}
-	gcarena = arena_thread_get();
+	gcarena = arena_get();
 }
 
 static slab_t * slab_get(void * p)
@@ -297,19 +272,6 @@ static slab_t * slab_get(void * p)
 	return 0;
 }
 
-#if 1
-struct gccontext {
-	/* The block to be scanned */
-	void ** from;
-	void ** to;
-
-	/* Previous context */
-	arena_state state;
-	struct gccontext * prev;
-} * context = 0;
-arena_t * gcarena;
-int gclevel = 0;
-
 void slab_gc_mark(void * root)
 {
 	slab_t * slab = slab_get(root);
@@ -320,10 +282,9 @@ void slab_gc_mark(void * root)
 		/* Adjust root to point to the start of the slab entry */
 		root = slab->data + slab->type->esize*entry;
 
-		uint32_t mask = (0x80000000u >> entry%32);
-		if (slab->available[entry/32] & mask) {
-			/* Marked as available, clear the mark */
-			slab->available[entry/32] &= ~mask;
+		if (bitarray_get(slab->finalize, entry)) {
+			/* Marked for finalization, clear the mark */
+			bitarray_set(slab->finalize, entry, 0);
 			gc_stats.inuse += slab->type->esize;
 
 			if (slab->type->mark) {
@@ -379,55 +340,6 @@ void slab_gc_mark_block(void ** block, size_t size)
 	slab_gc_mark_range(block, block + size/sizeof(*block));
 }
 
-#else
-void slab_gc_mark(void * root)
-{
-	arch_check_stack();
-
-	slab_t * slab = slab_get(root);
-
-	if (slab) {
-		int i = ((char*)root - slab->data) / slab->type->esize;
-		/* Ensure we're at the start of the block */
-		root = slab->data + slab->type->esize*i;
-		uint32_t mask = (0x80000000u >> i%32);
-		if (slab->available[i/32] & mask) {
-			gc_stats.inuse += slab->type->esize;
-
-			/* Marked as available, clear the mark */
-			slab->available[i/32] &= ~mask;
-			if (slab->type->mark) {
-				/* Call type specific mark */
-				slab->type->mark(root);
-			} else {
-				/* Call the generic conservative mark */
-				void ** p = (void**)root;
-				for(;p<(void**)root+slab->type->esize/sizeof(void*); p++) {
-					slab_gc_mark(*p);
-				}
-				p = 0;
-			}
-		}
-	}
-	slab=0;
-}
-
-void slab_gc_mark_block(void ** block, size_t size)
-{
-	for(int i=0; i<size/sizeof(*block); i++) {
-		slab_gc_mark(block[i]);
-	}
-}
-
-void slab_gc_mark_range(void * from, void * to)
-{
-	void ** mark = (void**)from;
-	while((void*)mark<to) {
-		slab_gc_mark(*mark++);
-	}
-}
-#endif
-
 static void slab_finalize_clear_param(void * param)
 {
 	param = 0;
@@ -472,8 +384,22 @@ void slab_gc_end()
 		slab_t * slab = stype->first;
 
 		while(slab) {
+#if 0
 			if (stype->finalize) {
 				slab_finalize(slab);
+			}
+#endif
+			if (stype->finalize) {
+				/* Step through each finalizable slot */
+				int slot=bitarray_firstset(slab->finalize, stype->count);
+				while(slot>=0) {
+					slab->type->finalize(slab->data + slab->type->esize*slot);
+					bitarray_set(slab->finalize, slot, 0);
+					bitarray_set(slab->available, slot, 1);
+					slot=bitarray_firstset(slab->finalize, stype->count);
+				}
+			} else {
+				bitarray_or(slab->available, slab->finalize, stype->count);
 			}
 
 			/* Release page if now empty */
@@ -489,6 +415,7 @@ void slab_gc_end()
 
 		LIST_NEXT(types, stype);
 	}
+	arena_free(gcarena);
 	slab_unlock();
 }
 

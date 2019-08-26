@@ -95,11 +95,11 @@ static pte_t * vmap_get_pgtable(asid vid)
 	return pgtbls[ptid];
 }
 
-static int lock[] = {0};
+static mutex_t lock[] = {0};
 
 void vmap_set_asid(asid vid)
 {
-	SPIN_AUTOLOCK(lock) {
+	MUTEX_AUTOLOCK(lock) {
 		int ptid = vmap_get_ptid(vid);
 
 		set_page_dir(VMAP_PAGE(pgdirs[ptid]));
@@ -108,7 +108,7 @@ void vmap_set_asid(asid vid)
 
 void vmap_release_asid(asid vid)
 {
-	SPIN_AUTOLOCK(lock) {
+	MUTEX_AUTOLOCK(lock) {
 		int ptid = vmap_probe_ptid(vid);
 
 		if (ptid>=0) {
@@ -121,7 +121,7 @@ page_t vmap_get_page(asid vid, void * vaddress)
 {
 	uint32_t pte = 0;
 
-	SPIN_AUTOLOCK(lock) {
+	MUTEX_AUTOLOCK(lock) {
 		page_t vpage = (uint32_t)vaddress >> ARCH_PAGE_SIZE_LOG2;
 		pte_t * pgtbl = vmap_get_pgtable(vid);
 		pte = pgtbl[vpage];
@@ -137,7 +137,7 @@ static pte_t vmap_get_pte(asid vid, void * vaddress)
 {
 	pte_t pte = 0;
 
-	SPIN_AUTOLOCK(lock) {
+	MUTEX_AUTOLOCK(lock) {
 		int ptid = vmap_probe_ptid(vid);
 		if (ptid>=0) {
 			page_t vpage = (uint32_t)vaddress >> ARCH_PAGE_SIZE_LOG2;
@@ -157,7 +157,7 @@ static pte_t vmap_get_pte(asid vid, void * vaddress)
 
 static void vmap_set_pte(asid vid, void * vaddress, pte_t pte)
 {
-	SPIN_AUTOLOCK(lock) {
+	MUTEX_AUTOLOCK(lock) {
 		int ptid = vmap_get_ptid(vid);
 		page_t vpage = (uint32_t)vaddress >> ARCH_PAGE_SIZE_LOG2;
 		pte_t * pgtbl = pgtbls[ptid];
@@ -166,6 +166,8 @@ static void vmap_set_pte(asid vid, void * vaddress, pte_t pte)
 		if (0 == (pgdirs[ptid][pgdirnum] & 1)){
 			/* No page table, create a new one */
 			ptrdiff_t koffset = (uint32_t)(_bootstrap_nextalloc - _bootstrap_end);
+
+			/* page_alloc might end up needing lock */
 			page_t page = page_alloc();
 
 			if (((uintptr_t)vaddress)<koffset) {
@@ -195,6 +197,8 @@ static void vmap_set_pte(asid vid, void * vaddress, pte_t pte)
 
 void vmap_map(asid vid, void * vaddress, page_t page, int rw, int user)
 {
+	assert(page);
+
 	/* Map the new page table entry */
 	pte_t pte = page << ARCH_PAGE_SIZE_LOG2 | 0x1;
 	if (rw) {

@@ -80,6 +80,7 @@ void kernel_main() {
 		}
 		char ** strs = ssplit("/a/path/file/name", '/');
 #endif
+		bitarray_test();
 		if (initrd) {
 			process_t * p = process_get();
 			p->root = p->cwd = tarfs_open(dev_static(initrd, initrdsize));

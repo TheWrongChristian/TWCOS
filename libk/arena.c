@@ -23,7 +23,7 @@ static arena_t * arena_create(size_t size)
 {
 	arena_t * arena = slab_alloc(arenas);
 
-	arena->base = arena->state = vm_kas_get(size);
+	arena->base = arena->state = vm_kas_get_aligned(size, ARCH_PAGE_SIZE);
 	arena->seg = vm_segment_anonymous(arena->base, size, SEGMENT_R | SEGMENT_W);
 	arena->top  = arena->base + size;
 	map_putpp(kas, arena->seg->base, arena->seg);
@@ -112,8 +112,12 @@ arena_t * arena_get()
 void arena_free(arena_t * arena)
 {
 	MUTEX_AUTOLOCK(arena_lock) {
-		arena->next = free_arenas;
+		/* Reset the memory used by the arena */
 		arena->state = arena->base;
+		vmobject_release(arena->seg->dirty);
+
+		/* Chain into available cached arenas */
+		arena->next = free_arenas;
 		free_arenas = arena;
 	}
 }
@@ -142,9 +146,16 @@ arena_t * arena_thread_get()
 
 void arena_thread_free()
 {
-	arena_t * arena = arena_thread_get();
+	/* Check we have a valid TLS key, init if not */
+	MUTEX_AUTOLOCK(arena_lock) {
+		if (0 == arena_key) {
+			arena_key = tls_get_key();
+		}
+	}
+
+	/* Get the TLS arena, and get a new one if there is none */
+	arena_t * arena = tls_get(arena_key);
 	if (arena) {
-		tls_set(arena_key, 0);
 		arena_free(arena);
 	}
 }

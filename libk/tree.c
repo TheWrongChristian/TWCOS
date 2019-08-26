@@ -38,11 +38,6 @@ static node_t * node_next( node_t * current );
 static void tree_mark(void * p)
 {
 	tree_t * tree = (tree_t*)p;
-	node_t * node = tree_node_first(tree);
-	while (node) {
-		slab_gc_mark(node);
-		node = node_next(node);
-	}
 	slab_gc_mark(tree->root);
 }
 
@@ -51,14 +46,12 @@ static void node_mark(void * p)
 	node_t * node = (node_t*)p;
 	slab_gc_mark((void*)node->key);
 	slab_gc_mark((void*)node->data);
-#if 0
 	slab_gc_mark(node->left);
 	slab_gc_mark(node->right);
-#endif
 }
 
-static slab_type_t nodes[1] = { SLAB_TYPE(sizeof(node_t), 0, 0)};
-static slab_type_t trees[1] = { SLAB_TYPE(sizeof(tree_t), 0, 0)};
+static slab_type_t nodes[1] = { SLAB_TYPE(sizeof(node_t), node_mark, 0)};
+static slab_type_t trees[1] = { SLAB_TYPE(sizeof(tree_t), tree_mark, 0)};
 
 /*
  * Rotate left:

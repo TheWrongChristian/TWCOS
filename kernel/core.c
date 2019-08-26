@@ -19,8 +19,10 @@ struct kernel_mmap {
 	int count;
 	int free;
 	uint32_t * available;
+	uint32_t * finalize;
 };
 
+static int mmap_lock[] = {0};
 static int mmap_count = 0;
 static struct kernel_mmap mmap[32];
 
@@ -46,6 +48,36 @@ int page_count_free()
 	return free;
 }
 
+void page_gc_begin()
+{
+}
+
+void page_gc_mark(page_t page)
+{
+	if (0 == page) {
+		/* Ignore page zero */
+		return;
+	}
+
+	spin_lock(mmap_lock);
+	for(int i=0; i<mmap_count; i++) {
+		int p = page - mmap[i].base;
+		if (p >= 0 && p < mmap[i].count) {
+			/*
+			 * Page is in this memory range, mark it as free
+			 */
+			if (mmap[i].available[p/32] & (0x80000000 >> p%32)) {
+				kernel_panic("Page marked free is in use: %d", page);
+			}
+		}
+	}
+	spin_unlock(mmap_lock);
+}
+
+void page_gc_end()
+{
+}
+
 void page_add_range(page_t base, uint32_t count)
 {
 	size_t bitmapsize = (count+31)/32;
@@ -54,6 +86,7 @@ void page_add_range(page_t base, uint32_t count)
 	mmap[mmap_count].count = count;
 	mmap[mmap_count].free = 0;
 	mmap[mmap_count].available = bootstrap_alloc(sizeof(mmap[mmap_count].available[0]) * bitmapsize);
+	mmap[mmap_count].finalize = bootstrap_alloc(sizeof(mmap[mmap_count].finalize[0]) * bitmapsize);
 	for(i=0; i<bitmapsize; i++) {
 		mmap[mmap_count].available[i] = 0;
 	}
@@ -62,7 +95,6 @@ void page_add_range(page_t base, uint32_t count)
 
 monitor_t cleansignal[] = {0};
 monitor_t freesignal[] = {0};
-static int mmap_lock[] = {0};
 void page_free(page_t page)
 {
 	int i = 0;

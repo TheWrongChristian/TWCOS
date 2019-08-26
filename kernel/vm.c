@@ -104,8 +104,17 @@ struct segment_anonymous_s {
 	segment_t segment;
 };
 
+void vmpage_mark(void * p)
+{
+	vmpage_t * vmpage = p;
+
+	if (vmpage->flags & VMPAGE_MANAGED) {
+		page_gc_mark(vmpage->page);
+	}
+}
+
 static void vmpage_finalize(void * p);
-static slab_type_t slabvmpages[] = { SLAB_TYPE(sizeof(vmpage_t), slab_nomark, vmpage_finalize) };
+static slab_type_t slabvmpages[] = { SLAB_TYPE(sizeof(vmpage_t), vmpage_mark, vmpage_finalize) };
 
 static map_t * vmpages;
 map_t * kas;
@@ -117,7 +126,7 @@ void vm_init()
 	kas = tree_new(0, TREE_TREAP);
 	vmpages = vector_new();
 	thread_gc_root(kas);
-	thread_gc_root(vmpages);
+	//thread_gc_root(vmpages);
 }
 
 static void vm_invalid_pointer(void * p, int write, int user, int present)
@@ -236,7 +245,11 @@ void vm_page_fault(void * p, int write, int user, int present)
 vmpage_t * vmobject_get_page(vmobject_t * object, off_t offset)
 {
 	if (object->ops->get_page) {
-		return object->ops->get_page(object, offset);
+		vmpage_t * vmpage = object->ops->get_page(object, offset);
+		if (vmpage) {
+			assert(vmpage->page);
+		}
+		return vmpage;
 	}
 
 	KTHROWF(RuntimeException, "Unimplemented vmobject_get_page: %p", object);
@@ -246,6 +259,9 @@ vmpage_t * vmobject_get_page(vmobject_t * object, off_t offset)
 
 vmpage_t * vmobject_put_page(vmobject_t * object, off_t offset, vmpage_t * vmpage)
 {
+	if (vmpage) {
+		assert(vmpage->page);
+	}
 	if (object->ops->put_page) {
 		return object->ops->put_page(object, offset, vmpage);
 	}
@@ -416,7 +432,7 @@ static vmpage_t * vm_heap_get_page(vmobject_t * object, off_t offset)
 	return 0;
 }
 
-static void vm_heap_put_page(vmobject_t * object, off_t offset, vmpage_t * vmpage)
+static vmobject_t * vm_heap_put_page(vmobject_t * object, off_t offset, vmpage_t * vmpage)
 {
 	vmobject_heap_t * heap = container_of(object, vmobject_heap_t, vmobject);
 	int pageno = offset >> ARCH_PAGE_SIZE_LOG2;
@@ -424,10 +440,11 @@ static void vm_heap_put_page(vmobject_t * object, off_t offset, vmpage_t * vmpag
 	if (pageno<heap->pcount) {
 		heap->pages[pageno] = vmpage->page;
 		vmpage->page = 0;
-		return;
+		return 0;
 	}
 
 	kernel_panic("Put page beyond end of heap");
+	return 0;
 }
 
 vmobject_t * vm_object_heap(int pcount)
@@ -672,7 +689,7 @@ void * vm_kas_get( size_t size )
 	return vm_kas_get_aligned(size, sizeof(intptr_t));
 }
 
-static mutex_t vmpages_lock;
+static mutex_t vmpages_lock[1];
 
 static void vmpage_finalize(void * p)
 {
@@ -688,7 +705,12 @@ static void vmpage_finalize(void * p)
 
 	if (vmpage->page>0 && vmpage->flags & VMPAGE_MANAGED) {
 		page_free(vmpage->page);
+		MUTEX_AUTOLOCK(vmpages_lock) {
+			vmpage_t * vmpage_check = map_putip(vmpages, vmpage->page, 0);
+			assert(0 == vmpage_check || vmpage == vmpage_check);
+		}
 	}
+
 }
 
 vmpage_t * vmpage_alloc(vmpage_t * vmpage, page_t page)
@@ -715,6 +737,11 @@ vmpage_t * vmpage_calloc()
 
 void vmpage_map( vmpage_t * vmpage, asid as, void * p, int rw, int user )
 {
+	MUTEX_AUTOLOCK(vmpages_lock) {
+		vmpage_t * vmpage_check = map_putip(vmpages, vmpage->page, vmpage);
+		assert(0 == vmpage_check || vmpage == vmpage_check);
+	}
+
 	/* Check if we already have this mapping */
 	for(int i=0; i<VMPAGE_MAPS; i++) {
 		if (vmpage->maps[i].as == as && vmpage->maps[i].p == p) {
@@ -816,6 +843,7 @@ vmpage_t * vmpage_get_copy(vmpage_t * vmpage)
 
 void vmpage_release(vmpage_t * vmpage)
 {
+#if 0
 	if (vmpage->copies)  {
 		vmpage->copies--;
 	} else {
@@ -825,6 +853,7 @@ void vmpage_release(vmpage_t * vmpage)
 			vmpage->page = 0;
 		}
 	}
+#endif
 }
 
 void vmpage_trapaccess(vmpage_t * vmpage)

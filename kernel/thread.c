@@ -330,8 +330,8 @@ static void thread_mark(void * p)
 	for(int i=0; i<sizeof(thread->tls)/sizeof(thread->tls[0]); i++) {
 		slab_gc_mark(thread->tls[i]);
 	}
-	slab_gc_mark(thread->next);
 #endif
+	slab_gc_mark(thread->next);
 	slab_gc_mark_block(thread->tls, sizeof(thread->tls));
 	slab_gc_mark(thread->retval);
 }
@@ -339,6 +339,8 @@ static void thread_mark(void * p)
 static void thread_finalize(void * p)
 {
 	thread_t * thread = (thread_t *)p;
+
+	arena_thread_free();
 	arch_thread_finalize(thread);
 }
 
