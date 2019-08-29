@@ -143,7 +143,7 @@ void elf_execve(vnode_t * f, process_t * p, char * argv[], char * envp)
 		map_putpp(p->as, ehdr, seg);
 		int supported = elf_check_supported(ehdr);
 		if (!supported) {
-		KTHROW(Exception, "Unsupported executable format");
+			KTHROW(Exception, "Unsupported executable format");
 		}
 
 		Elf32_Phdr * phdr = (Elf32_Phdr *)(((char*)ehdr) + ehdr->e_phoff);
@@ -189,7 +189,9 @@ void elf_execve(vnode_t * f, process_t * p, char * argv[], char * envp)
 				}
 #endif
 			} else {
+#if 0
 				KTHROW(Exception, "Unsupported executable format");
+#endif
 			}
 		}
 

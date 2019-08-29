@@ -148,6 +148,7 @@ PDCLIB_SRCS_C := \
   $(subdir)/platform/twcos/functions/_PDCLIB/_PDCLIB_close.c\
   $(subdir)/platform/twcos/functions/_PDCLIB/_PDCLIB_rename.c\
   $(subdir)/platform/twcos/functions/_PDCLIB/_PDCLIB_cstart.c\
+  $(subdir)/platform/twcos/functions/_PDCLIB/_PDCLIB_cppstart.c\
   $(subdir)/platform/twcos/functions/signal/raise.c\
   $(subdir)/platform/twcos/functions/signal/signal.c\
   $(subdir)/platform/twcos/functions/time/timespec_get.c\
