@@ -1,10 +1,9 @@
 #include <stdio.h>
+#include <stdlib.h>
 
 int main(void)
 {
-#if 0
-	printf("Hello world\n");
-#endif
+	malloc(1024);
 	if (fork()) {
 		int status;
 		while(1 == getpid()) {

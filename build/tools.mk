@@ -4,7 +4,7 @@ endif
 
 TOOLS=$(TOP)/tools/bin
 HOSTCC=gcc
-CROSS=i386-linux-
+CROSS=i686-elf-
 CC=ccache $(TOOLS)/$(CROSS)gcc
 # CC=$(TOOLS)/$(CROSS)gcc
 LD=$(TOOLS)/$(CROSS)ld

@@ -152,12 +152,14 @@ void elf_execve(vnode_t * f, process_t * p, char * argv[], char * envp)
 		}
 
 		/* Default user stack will be at 16MB */
-		void * stacktop = 0x1000000;
+		void * stacktop = (void*)0x1000000;
 		void * stackbot = ARCH_PAGE_SIZE;
+		void * heap = 0;
 		for(int i=0; i<ehdr->e_phnum; i++) {
 			if (1 == phdr[i].type) {
 				void * vaddr = (void*)PTR_ALIGN(phdr[i].vaddr, phdr[i].align);
 				size_t msize = PTR_ALIGN_NEXT(phdr[i].msize, phdr[i].align);
+				void * vend = (void*)PTR_ALIGN(((char*)vaddr + msize), phdr[i].align);
 				size_t fsize = PTR_ALIGN_NEXT(phdr[i].fsize, phdr[i].align);
 				uintptr_t offset = PTR_ALIGN(phdr[i].offset, phdr[i].align);
 				int perms = SEGMENT_U | SEGMENT_P;
@@ -181,11 +183,14 @@ void elf_execve(vnode_t * f, process_t * p, char * argv[], char * envp)
 				if (vaddr<stacktop) {
 					stacktop = vaddr;
 				}
-#if 0
+#if 1
 				if (iswr) {
 					uintptr_t zstart = phdr[i].vaddr+phdr[i].fsize;
-					uintptr_t zend = PTR_ALIGN_NEXT(phdr[i].vaddr+phdr[i].msize, phdr[i].align)-1;
+					uintptr_t zend = PTR_ALIGN_NEXT(phdr[i].vaddr+phdr[i].msize, phdr[i].align);
 					memset((void*)(zstart), 0, zend-zstart);
+					if ((void*)zend>p->brk) {
+						p->brk = (void*)zend;
+					}
 				}
 #endif
 			} else {
@@ -201,6 +206,10 @@ void elf_execve(vnode_t * f, process_t * p, char * argv[], char * envp)
 		/* Create a stack */
 		seg = vm_segment_anonymous(stackbot, stacktop-stackbot, SEGMENT_U | SEGMENT_R | SEGMENT_W);
 		map_putpp(p->as, stackbot, seg);
+
+		/* Create a heap */
+		p->heap = vm_segment_anonymous(p->brk, 0, SEGMENT_U | SEGMENT_R | SEGMENT_W);
+		map_putpp(p->as, p->brk, p->heap);
 
 		/* By here, we're committed - Destroy old as */
 		vm_as_release(oldas);

@@ -21,6 +21,8 @@ struct process_t {
 	 */
 	map_t * as;
 	map_t * files;
+	void * brk;
+	segment_t * heap;
 
 	/*
 	 * root and working directories
@@ -111,6 +113,10 @@ pid_t process_fork()
 
 	/* New address space */
 	new->as = process_duplicate_as(current);
+
+	/* New heap */
+	new->brk = current->brk;
+	new->heap = vm_get_segment(new->as, new->brk);
 
 	/* Thread set */
 	new->threads = tree_new(0, TREE_TREAP);
@@ -265,4 +271,19 @@ void process_execve(char * filename, char * argv[], char * envp[])
 	process_t * p = arch_get_thread()->process;
 
 	elf_execve(f, p, argv, envp);
+}
+
+void * process_brk(void * p)
+{
+	process_t * current = process_get();
+
+	if (p <= current->brk) {
+		return current->brk;
+	}
+
+	/* Extend the heap */
+	current->brk = p;
+	current->heap->size = (uintptr_t)p - (uintptr_t)current->heap->base;
+
+	return p;
 }

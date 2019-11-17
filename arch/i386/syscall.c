@@ -118,6 +118,11 @@ void i386_syscall(uint32_t intr, uint32_t * state)
 			retval = file_write(fd, p, count);
 			break;
 		}
+		case sc_brk: {
+			void * p = (void*)state[ISR_REG_EBX];
+			retval = (reg_t)process_brk(p);
+			break;
+		}
 		default:
 			retval = -ENOSYS;
 		}

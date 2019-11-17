@@ -135,7 +135,7 @@ static void vm_invalid_pointer(void * p, int write, int user, int present)
 	kernel_panic("Invalid pointer: %p\n", p);
 }
 
-static segment_t * vm_get_segment(map_t * as, void * p)
+segment_t * vm_get_segment(map_t * as, void * p)
 {
 	/* Check for kernel address space */
 	segment_t * seg = map_getpp_cond(as, p, MAP_LE);
@@ -739,7 +739,7 @@ void vmpage_map( vmpage_t * vmpage, asid as, void * p, int rw, int user )
 {
 	MUTEX_AUTOLOCK(vmpages_lock) {
 		vmpage_t * vmpage_check = map_putip(vmpages, vmpage->page, vmpage);
-		assert(0 == vmpage_check || vmpage == vmpage_check);
+		//assert(0 == vmpage_check || vmpage == vmpage_check);
 	}
 
 	/* Check if we already have this mapping */
