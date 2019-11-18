@@ -52,11 +52,12 @@ clean::
 	echo break kernel_main | tee -a .gdbinit
 
 QEMU_OPTS=-d cpu_reset,guest_errors
+QEMU_MEM=1536k
 qemu: all .gdbinit
-	$(QEMU) $(QEMU_OPTS) -m 1536k -s -S -kernel $(KERNEL) -initrd $(INITRD_TAR) &
+	$(QEMU) $(QEMU_OPTS) -m $(QEMU_MEM) -s -S -kernel $(KERNEL) -initrd $(INITRD_TAR) &
 
 run: all
-	$(QEMU) $(QEMU_OPTS) -m 1536k -s -kernel $(KERNEL) -initrd $(INITRD_TAR) &
+	$(QEMU) $(QEMU_OPTS) -m $(QEMU_MEM) -s -kernel $(KERNEL) -initrd $(INITRD_TAR) &
 
 includes::
 	mkdir -p lib
