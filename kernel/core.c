@@ -93,6 +93,26 @@ void page_add_range(page_t base, uint32_t count)
 	mmap_count++;
 }
 
+void page_free_all()
+{
+	for(int i=0; i<mmap_count; i++) {
+		bitarray_setall(mmap[i].available, mmap[i].count, 1);
+		mmap[i].free = mmap[i].count;
+	}
+}
+
+void page_reserve(page_t page)
+{
+	for(int i=0; i<mmap_count; i++) {
+		int p = page - mmap[i].base;
+		if (p >= 0 && p < mmap[i].count) {
+			bitarray_set(mmap[i].available, p, 0);
+			mmap[i].free--;
+			return;
+		}
+	}
+}
+
 monitor_t cleansignal[] = {0};
 monitor_t freesignal[] = {0};
 void page_free(page_t page)
@@ -111,7 +131,7 @@ void page_free(page_t page)
 			/*
 			 * Page is in this memory range, mark it as free
 			 */
-			mmap[i].available[p/32] |= (0x80000000 >> p%32);
+			bitarray_set(mmap[i].available, p, 1);
 			mmap[i].free++;
 			break;
 		}
@@ -130,9 +150,8 @@ static page_t page_alloc_internal(int reserve)
 	}
 	for(;m>=0; m--) {
 		if (mmap[m].free>0) {
-			int p;
-
-			for(p=0; p<mmap[m].count; p+=32) {
+#if 0
+			for(int p=0; p<mmap[m].count; p+=32) {
 				if (mmap[m].available[p/32]) {
 					uint32_t mask = 0x80000000;
 					for(; mask; mask >>= 1, p++) {
@@ -144,6 +163,14 @@ static page_t page_alloc_internal(int reserve)
 						}
 					}
 				}
+			}
+#endif
+			int p = bitarray_firstset(mmap[m].available, mmap[m].count);
+			if (p>=0) {
+				bitarray_set(mmap[m].available, p, 0);
+				mmap[m].free--;
+				spin_unlock(mmap_lock);
+				return mmap[m].base + p;
 			}
 		}
 	}
@@ -204,19 +231,25 @@ static void ** heap_cache;
 void * page_heap_alloc()
 {
 	void * p = 0;
-	SPIN_AUTOLOCK(&heap_cache_lock) {
-		if (heap_cache) {
-			p = heap_cache;
-			heap_cache = heap_cache[0];
+	while(0==p) {
+		SPIN_AUTOLOCK(&heap_cache_lock) {
+			if (heap_cache) {
+				p = heap_cache;
+				heap_cache = heap_cache[0];
+			}
 		}
-	}
 
-	if (0 == p) {
-		p = arch_heap_page();
-		page_t page = page_alloc();
-		vmap_map(0, p, page, 1, 0);
-		vmpage_t vmpage = {page: page};
-		vmobject_put_page(heap->dirty, (char*)p - (char*)heap->base, &vmpage);
+		if (0 == p) {
+			p = arch_heap_page();
+			if (0 == p) {
+				thread_gc();
+				continue;
+			}
+			page_t page = page_alloc();
+			vmap_map(0, p, page, 1, 0);
+			vmpage_t vmpage = {page: page};
+			vmobject_put_page(heap->dirty, (char*)p - (char*)heap->base, &vmpage);
+		}
 	}
 
 	memset(p, 0, ARCH_PAGE_SIZE);

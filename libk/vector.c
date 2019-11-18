@@ -61,8 +61,10 @@ static intptr_t * vector_entry_get(vector_table_t * table, map_key i, int create
 		return vector_entry_get((vector_table_t *)table->d[index], i&((1<<shift)-1), create);
 	} else if (i<VECTOR_TABLE_ENTRIES) {
 		return table->d+i;
-	} else {
+	} else if (!create) {
 		return 0;
+	} else {
+		kernel_panic("Vector leaf overflow");
 	}
 }
 

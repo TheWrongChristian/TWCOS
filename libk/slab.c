@@ -82,11 +82,23 @@ void slab_init()
 #endif
 }
 
+static mutex_t slablock[1];
+static void slab_lock(int gc)
+{
+	if (gc) {
+		mutex_lock(slablock);
+	} else {
+		mutex_lock(slablock);
+	}
+}
+
+static void slab_unlock()
+{
+	mutex_unlock(slablock);
+}
+
 static slab_t * slab_new(slab_type_t * stype)
 {
-	/* Allocate and map page */
-	slab_t * slab = page_heap_alloc();
-
 	if (0 == stype->magic) {
 		/* Initialize type */
 		stype->first = 0;
@@ -103,35 +115,27 @@ static slab_t * slab_new(slab_type_t * stype)
 		 * c = (8*d - 64) / (8*s + 2)
 		 */
 		stype->count = (8*(ARCH_PAGE_SIZE-sizeof(slab_t))-64)/ (8 * stype->esize + 2);
+		slab_lock(0);
 		LIST_APPEND(types, stype);
+		slab_unlock();
 	}
-	slab->magic = stype->magic;
-	slab->type = stype;
-	slab->available = (uint32_t*)(slab+1);
-	slab->finalize = slab->available + (slab->type->count+32)/32;
-	slab->data = (char*)(slab->finalize + (slab->type->count+32)/32);
-	bitarray_setall(slab->available, stype->count, 1);
 
-	LIST_PREPEND(stype->first, slab);
+	/* Allocate and map page */
+	slab_t * slab = page_heap_alloc();
+	if (slab) {
+		slab->magic = stype->magic;
+		slab->type = stype;
+		slab->available = (uint32_t*)(slab+1);
+		slab->finalize = slab->available + (slab->type->count+32)/32;
+		slab->data = (char*)(slab->finalize + (slab->type->count+32)/32);
+		bitarray_setall(slab->available, stype->count, 1);
 
-	assert(slab->type);
+		LIST_PREPEND(stype->first, slab);
+
+		assert(slab->type);
+	}
 
 	return slab;
-}
-
-static mutex_t slablock[1];
-static void slab_lock(int gc)
-{
-	if (gc) {
-		mutex_lock(slablock);
-	} else {
-		mutex_lock(slablock);
-	}
-}
-
-static void slab_unlock()
-{
-	mutex_unlock(slablock);
 }
 
 static void debug_fillbuf(void * p, size_t l, int c)
@@ -403,7 +407,7 @@ void slab_gc_end()
 			}
 
 			/* Release page if now empty */
-			if (slab_all_free(slab)) {
+			if (0 && slab_all_free(slab)) {
 				slab_t * empty = slab;
 				LIST_NEXT(stype->first, slab);
 				LIST_DELETE(stype->first, empty);

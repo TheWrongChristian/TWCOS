@@ -5,7 +5,7 @@
 /*
  * Reserve address spaces
  */
-#define ASID_COUNT_LOG2 4
+#define ASID_COUNT_LOG2 2
 #define ASID_COUNT (1<<ASID_COUNT_LOG2)
 typedef pte_t pgtbls_t[1<<ARCH_PAGE_TABLE_SIZE_LOG2];
 
@@ -253,7 +253,7 @@ void vmap_init()
 	int i;
 
 	char * p = code_start;
-	char * end = arch_heap_page();
+	char * end = bootstrap_alloc(0);
 	unsigned int offset = _kernel_offset-_kernel_offset_bootstrap;
 	uint32_t pde = (((uint32_t)pgktbl)-offset) | 0x3;
 	uint32_t pgdirs_p = (uint32_t)((char*)pgdirs-offset);

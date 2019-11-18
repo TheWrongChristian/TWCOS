@@ -66,10 +66,14 @@ static void bootstrap_finish()
 
 void * arch_heap_page()
 {
-	/* FIXME: check against heap limits */
-	void * p = nextalloc;
-	nextalloc += ARCH_PAGE_SIZE;
-	return p;
+	if (nextalloc<heapend) {
+		void * p = nextalloc;
+		nextalloc += ARCH_PAGE_SIZE;
+		return p;
+	} else {
+		kernel_printk("Heap exhausted!");
+		return 0;
+	}
 }
 
 int arch_is_heap_pointer(void *p)
@@ -86,8 +90,6 @@ void arch_init()
 
 	int i;
 	ptrdiff_t koffset = _bootstrap_nextalloc - _bootstrap_end;
-	page_t pstart;
-	page_t pend;
 	void * modstart = 0;
 	size_t modsize = 0;
 	int pcount = 0;
@@ -127,11 +129,22 @@ void arch_init()
 	}
 
 	/* 64MB max heap by default */
-	heapend = data_start + 0x4000000;
+	heapend = data_start + (4<<20);
 	vm_kas_start(heapend);
 
-	pstart = ((uint32_t)&_bootstrap_start)>>ARCH_PAGE_SIZE_LOG2;
-	pend = ((uint32_t)(nextalloc-koffset))>>ARCH_PAGE_SIZE_LOG2;
+	vmobject_t * heapobject = vm_object_heap(pcount);
+	i386_init();
+	vmap_init();
+	bootstrap_finish();
+
+	page_t pstart = ((uint32_t)&_bootstrap_start)>>ARCH_PAGE_SIZE_LOG2;
+	page_t pend = ((uint32_t)(nextalloc-koffset))>>ARCH_PAGE_SIZE_LOG2;
+	page_free_all();
+	page_reserve(0);
+	for(page_t p=pstart; p<pend; p++) {
+		page_reserve(p);
+	}
+#if 0
 	for(i=0;;i++) {
 		multiboot_memory_map_t * mmap = multiboot_mmap(i);
 
@@ -155,11 +168,7 @@ void arch_init()
 			break;
 		}
 	}
-	i386_init();
-	int heapsize = page_count_free() << ARCH_PAGE_SIZE_LOG2;
-	vmobject_t * heapobject = vm_object_heap(page_count_free());
-	vmap_init();
-	bootstrap_finish();
+#endif
 	heap = vm_segment_heap(nextalloc, heapobject);
 	vm_init();
 	page_t code_page = ((uintptr_t)code_start - koffset) >> ARCH_PAGE_SIZE_LOG2;
@@ -185,6 +194,12 @@ void arch_init()
 	kernel_printk("Bootstrap end - %p\n", nextalloc);
 	sti();
 	kernel_startlogging(1);
+
+#if 0
+	address_info_t info[1];
+	vm_resolve_address(kas, info);
+	kasvmpage = vmobject_get_page(info->seg->dirty, info->offset);
+#endif
 }
 
 #if INTERFACE

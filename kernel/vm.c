@@ -703,12 +703,12 @@ static void vmpage_finalize(void * p)
 		}
 	}
 
+	MUTEX_AUTOLOCK(vmpages_lock) {
+		vmpage_t * vmpage_check = map_putip(vmpages, vmpage->page, 0);
+		assert(0 == vmpage_check || vmpage == vmpage_check);
+	}
 	if (vmpage->page>0 && vmpage->flags & VMPAGE_MANAGED) {
 		page_free(vmpage->page);
-		MUTEX_AUTOLOCK(vmpages_lock) {
-			vmpage_t * vmpage_check = map_putip(vmpages, vmpage->page, 0);
-			assert(0 == vmpage_check || vmpage == vmpage_check);
-		}
 	}
 
 }
@@ -739,7 +739,7 @@ void vmpage_map( vmpage_t * vmpage, asid as, void * p, int rw, int user )
 {
 	MUTEX_AUTOLOCK(vmpages_lock) {
 		vmpage_t * vmpage_check = map_putip(vmpages, vmpage->page, vmpage);
-		//assert(0 == vmpage_check || vmpage == vmpage_check);
+		assert(0 == vmpage_check || vmpage == vmpage_check);
 	}
 
 	/* Check if we already have this mapping */
