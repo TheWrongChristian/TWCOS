@@ -64,16 +64,16 @@ includes::
 	$(MAKEHEADERS) $(SRCS_C) $(ARCH_USYSCALL_C) $(PDCLIB_TWCOS_SRCS_C)
 
 cflow:
-	cflow -d 4 -m kernel_main $(SRCS_C)
+	cflow -d 4 -m kernel_main $(SRCS_C) $(LIBC_SRCS_C)
 
 cflowr:
-	cflow -d 4 -r $(SRCS_C)
+	cflow -d 4 -r $(SRCS_C) $(LIBC_SRCS_C)
 
 cxref:
 	cxref -html-src $(SRCS_C) $(SRCS_C:.c=.h)
 
 ctags:
-	ctags $(SRCS_C)
+	ctags $(SRCS_C) $(LIBC_SRCS_C)
 
 cppcheck:
 	cppcheck $(SRCS_C)
