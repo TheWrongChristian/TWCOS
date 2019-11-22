@@ -290,11 +290,6 @@ void thread_set_priority(thread_t * thread, tpriority priority)
 
 static void ** roots;
 
-static void thread_gc_walk(void * p, void * key, void * d)
-{
-	slab_gc_mark(key);
-}
-
 void thread_gc()
 {
 	// thread_cleanlocks();
