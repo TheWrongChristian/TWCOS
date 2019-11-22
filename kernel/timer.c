@@ -30,7 +30,9 @@ struct timer_event_t {
 
 #endif
 
-static timer_t * timers;
+static int timers_lock[1]={0};
+static timer_t dummy;
+static timer_t * timers = &dummy;
 static timerspec_t uptime = 0;
 static timer_event_t * uptime_timer = 0;
 
@@ -73,7 +75,7 @@ static void timer_clear()
 
 static void timer_expire()
 {
-	SPIN_AUTOLOCK(timers->lock) {
+	SPIN_AUTOLOCK(timers_lock) {
 		timers->running = 0;
 		timer_event_t * timer = timers->queue;
 		if (timer) {
@@ -82,10 +84,10 @@ static void timer_expire()
 			timer->next = 0;
 			uptime += timer->usec;
 
-			spin_unlock(timers->lock);
+			spin_unlock(timers_lock);
 			/* Call the callback */
 			timer->cb(timer->p);
-			spin_lock(timers->lock);
+			spin_lock(timers_lock);
 
 			/* Start next timer */
 			timer_set();
@@ -113,7 +115,7 @@ void timer_start(timer_event_t * timer)
 {
 	timer->usec = timer->reset;
 
-	SPIN_AUTOLOCK(timers->lock) {
+	SPIN_AUTOLOCK(timers_lock) {
 		timer_event_t * next = timers->queue;
 		timer_event_t ** pprev = &timers->queue;
 
@@ -144,7 +146,7 @@ void timer_start(timer_event_t * timer)
 
 void timer_delete(timer_event_t * timer)
 {
-	SPIN_AUTOLOCK(timers->lock) {
+	SPIN_AUTOLOCK(timers_lock) {
 		timer_event_t * next = timers->queue;
 		timer_event_t ** pprev = &timers->queue;
 
@@ -174,7 +176,7 @@ timerspec_t timer_uptime()
 {
 	timerspec_t t = 0;
 
-	SPIN_AUTOLOCK(timers->lock) {
+	SPIN_AUTOLOCK(timers_lock) {
 		timer_clear();
 		t = uptime;
 		timer_set();
