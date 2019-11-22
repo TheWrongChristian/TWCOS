@@ -14,11 +14,35 @@ struct cbuffer_t {
 
 void * memset(void *s, int c, size_t n)
 {
-	char * cp = s;
-	int i;
+	/*
+	 * -cccIIIIIIIIIIIIcc--
+	 *  ^  ^           ^ ^
+	 *  |  |           | |
+         *  |  |           | end
+	 *  |  |           p4end
+	 *  |  p1end/p4
+	 *  p1
+	 */
+	char * p = s;
+	char * p1end = (char*)PTR_ALIGN_NEXT(p, sizeof(uint32_t));
+	uint32_t * p4 = (uint32_t*)p1end;
 
-	for(i=0; i<n; i++, cp++) {
-		*cp = c;
+	char * end = p + n;
+	uint32_t * p4end = (uint32_t*)PTR_ALIGN(end, sizeof(uint32_t));
+
+	for(;p<p1end; p++) {
+		*p = c;
+	}
+
+	c |= c<<8;
+	c |= c<<16;
+	for(;p4<p4end; p4++) {
+		*p4 = c;
+	}
+
+	p = (char*)p4end;
+	for(;p<p1end; p++) {
+		*p = c;
 	}
 
 	return s;
@@ -28,9 +52,33 @@ void *memcpy(void *dest, const void *src, size_t n)
 {
 	const char * cs = src;
 	char * cd = dest;
+	uint32_t * cs4 = (uint32_t*)PTR_ALIGN(cs, sizeof(uint32_t));
+	uint32_t * cd4 = (uint32_t*)PTR_ALIGN(cd, sizeof(uint32_t));
 
-	for(int i=0; i<n; i++) {
-		cd[i] = cs[i];
+	if ((uint32_t *)src == cs4 && (uint32_t *)dest == cd4 && 0==n%sizeof(uint32_t)) {
+		uint32_t * cs4end = cs4 + n/sizeof(uint32_t);
+
+		switch((n>>2)&03) {
+			do {
+			case 0:
+				*cd4++ = *cs4++;
+			case 3:
+				*cd4++ = *cs4++;
+			case 2:
+				*cd4++ = *cs4++;
+			case 1:
+				*cd4++ = *cs4++;
+			} while(cs4<cs4end);
+		}
+#if 0
+		for(int i=0; i<n/sizeof(uint32_t); i++) {
+			cd4[i] = cs4[i];
+		}
+#endif
+	} else {
+		for(int i=0; i<n; i++) {
+			cd[i] = cs[i];
+		}
 	}
 
 	return dest;
