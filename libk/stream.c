@@ -20,7 +20,7 @@ static int stream_tell(stream_t * stream)
 static char * digits = "0123456789abcdef";
 static void stream_putuint(stream_t * stream, int base, uint32_t i)
 {
-	if (abs(i)<base) {
+	if (i<base) {
 		stream_putc(stream, digits[i]);
 	} else {
 		stream_putuint(stream, base, i / base);

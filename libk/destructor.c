@@ -49,6 +49,7 @@ void dtor_pop(dtor_t * until)
 		if (frame->dtor) {
 			frame->dtor(frame->p);
 			frame->dtor = 0;
+			frame->p = 0;
 		}
 		last = frame;
 		frame = frame->next;
