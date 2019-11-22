@@ -129,7 +129,7 @@ void arch_init()
 	}
 
 	/* 64MB max heap by default */
-	heapend = data_start + (4<<20);
+	heapend = ARCH_PAGE_ALIGN(data_start + (64<<20));
 	vm_kas_start(heapend);
 
 	vmobject_t * heapobject = vm_object_heap(pcount);
