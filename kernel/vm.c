@@ -124,7 +124,7 @@ void vm_init()
 	INIT_ONCE();
 
 	kas = tree_new(0, TREE_TREAP);
-	vmpages = vector_new();
+	//vmpages = vector_new();
 	thread_gc_root(kas);
 	//thread_gc_root(vmpages);
 }
@@ -703,10 +703,12 @@ static void vmpage_finalize(void * p)
 		}
 	}
 
+#if 0
 	MUTEX_AUTOLOCK(vmpages_lock) {
 		vmpage_t * vmpage_check = map_putip(vmpages, vmpage->page, 0);
 		assert(0 == vmpage_check || vmpage == vmpage_check);
 	}
+#endif
 	if (vmpage->page>0 && vmpage->flags & VMPAGE_MANAGED) {
 		page_free(vmpage->page);
 	}
@@ -737,10 +739,12 @@ vmpage_t * vmpage_calloc()
 
 void vmpage_map( vmpage_t * vmpage, asid as, void * p, int rw, int user )
 {
+#if 0
 	MUTEX_AUTOLOCK(vmpages_lock) {
 		vmpage_t * vmpage_check = map_putip(vmpages, vmpage->page, vmpage);
 		assert(0 == vmpage_check || vmpage == vmpage_check);
 	}
+#endif
 
 	/* Check if we already have this mapping */
 	for(int i=0; i<VMPAGE_MAPS; i++) {
