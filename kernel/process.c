@@ -21,7 +21,6 @@ struct process_t {
 	 */
 	map_t * as;
 	map_t * files;
-	void * brk;
 	segment_t * heap;
 
 	/*
@@ -100,6 +99,7 @@ void process_init()
 	map_putpp(current->process->threads, current, current);
 	current->process->container = container_get(0);
 	current->process->files = vector_new();
+	current->process->heap = vm_segment_anonymous(0, 0, SEGMENT_P | SEGMENT_R | SEGMENT_W);
 	container_nextpid(current->process);
 }
 
@@ -115,8 +115,7 @@ pid_t process_fork()
 	new->as = process_duplicate_as(current);
 
 	/* New heap */
-	new->brk = current->brk;
-	new->heap = vm_get_segment(new->as, new->brk);
+	new->heap = vm_get_segment(new->as, current->heap->base);
 
 	/* Thread set */
 	new->threads = tree_new(0, TREE_TREAP);
@@ -276,13 +275,13 @@ void process_execve(char * filename, char * argv[], char * envp[])
 void * process_brk(void * p)
 {
 	process_t * current = process_get();
+	void * brk = ((char*)current->heap->base) + current->heap->size;
 
-	if (p <= current->brk) {
-		return current->brk;
+	if (p <= brk) {
+		return brk;
 	}
 
 	/* Extend the heap */
-	current->brk = p;
 	current->heap->size = (uintptr_t)p - (uintptr_t)current->heap->base;
 
 	return p;

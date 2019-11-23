@@ -154,7 +154,7 @@ void elf_execve(vnode_t * f, process_t * p, char * argv[], char * envp)
 		/* Default user stack will be at 16MB */
 		void * stacktop = (void*)0x1000000;
 		void * stackbot = ARCH_PAGE_SIZE;
-		void * heap = 0;
+		void * brk = 0;
 		for(int i=0; i<ehdr->e_phnum; i++) {
 			if (1 == phdr[i].type) {
 				void * vaddr = (void*)PTR_ALIGN(phdr[i].vaddr, phdr[i].align);
@@ -188,8 +188,8 @@ void elf_execve(vnode_t * f, process_t * p, char * argv[], char * envp)
 					uintptr_t zstart = phdr[i].vaddr+phdr[i].fsize;
 					uintptr_t zend = PTR_ALIGN_NEXT(phdr[i].vaddr+phdr[i].msize, phdr[i].align);
 					memset((void*)(zstart), 0, zend-zstart);
-					if ((void*)zend>p->brk) {
-						p->brk = (void*)zend;
+					if ((void*)zend>brk) {
+						brk = (void*)zend;
 					}
 				}
 #endif
@@ -208,8 +208,8 @@ void elf_execve(vnode_t * f, process_t * p, char * argv[], char * envp)
 		map_putpp(p->as, stackbot, seg);
 
 		/* Create a heap */
-		p->heap = vm_segment_anonymous(p->brk, 0, SEGMENT_U | SEGMENT_R | SEGMENT_W);
-		map_putpp(p->as, p->brk, p->heap);
+		p->heap = vm_segment_anonymous(brk, 0, SEGMENT_U | SEGMENT_R | SEGMENT_W);
+		map_putpp(p->as, p->heap->base, p->heap);
 
 		/* By here, we're committed - Destroy old as */
 		vm_as_release(oldas);
