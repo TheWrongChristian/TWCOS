@@ -196,7 +196,7 @@ static void tarfs_add_node( tarfs_t * fs, const char * fullname, tarfsnode_t * v
 				inode = dir->inode = fs->inext++;
 				tarfs_dirent_t * newdirent = malloc(sizeof(*newdirent));
 				newdirent->dir = dnode;
-				newdirent->name = dirs[i];
+				newdirent->name = strdup(dirs[i]);
 				map_putpi(fs->tree, newdirent, dir->inode);
 				map_putip(fs->vnodes, dir->inode, &dir->vnode);
 			}
@@ -215,7 +215,7 @@ static void tarfs_add_node( tarfs_t * fs, const char * fullname, tarfsnode_t * v
 		/* New file, get new inode */
 		tarfs_dirent_t * newdirent = malloc(sizeof(*newdirent));
 		newdirent->dir = dnode;
-		newdirent->name = file;
+		newdirent->name = strdup(file);
 		inode = fs->inext++;
 
 		map_putip(fs->vnodes, inode, &vnode->vnode);
@@ -348,7 +348,7 @@ static void tarfs_scan( tarfs_t * fs )
 	arena_free(arena);
 }
 
-static page_t tarfs_get_page(vnode_t * vnode, off_t offset)
+static vmpage_t * tarfs_get_page(vnode_t * vnode, off_t offset)
 {
 	tarfsnode_t * tnode = container_of(vnode, tarfsnode_t, vnode);
 	tarfs_t * tfs = container_of(vnode->fs, tarfs_t, fs);
@@ -377,10 +377,10 @@ static page_t tarfs_get_page(vnode_t * vnode, off_t offset)
 		memset(buf, 0, ARCH_PAGE_SIZE-readmax);
 	}
 
-	/* Steal the page, and return the page */
-	page_t page = vm_page_steal(p);
+	/* Steal, and return the page */
+	vmpage_t * vmpage = vm_page_steal(p);
 	arena_setstate(arena, state);
-	return page;
+	return vmpage;
 }
 
 static void tarfs_put_page(vnode_t * vnode, off_t offset, page_t page)

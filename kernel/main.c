@@ -78,9 +78,9 @@ void kernel_main() {
 		if (0 == testshell) {
 			testshell_run(terminal);
 		}
-#endif
 		char ** strs = ssplit("/a/path/file/name", '/');
-		static vnode_t * root = 0;
+#endif
+		bitarray_test();
 		if (initrd) {
 			process_t * p = process_get();
 			p->root = p->cwd = tarfs_open(dev_static(initrd, initrdsize));
@@ -96,11 +96,16 @@ void kernel_main() {
 			file_dup(0);
 		
 			process_execve("/user/shell/init", 0, 0);	
-			testshell_run();
+			kernel_panic("Unable to exec %s", "/user/shell/init");
+			/* testshell_run(); */
 		}
 
 		idle();
 	} KCATCH(Throwable) {
 		kernel_panic("Error in initialization: %s\n", exception_message());
 	}
+}
+
+void kernel_break()
+{
 }

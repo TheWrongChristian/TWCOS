@@ -13,6 +13,7 @@ typedef struct slab_type {
 	void (*mark)(void *);
 	void (*finalize)(void *);
 	mutex_t lock[1];
+	vmpage_t vmpage[1];
 } slab_type_t;
 
 #define SLAB_TYPE(s, m, f) {.magic=0, .esize=s, .mark=m, .finalize=f}
@@ -47,21 +48,61 @@ typedef struct slab {
 
 static slab_type_t * types;
 
+static thread_t * cleaner_thread;
+int is_cleaner()
+{
+	return arch_get_thread() == cleaner_thread;
+}
+
+static void cleaner()
+{
+	cleaner_thread = arch_get_thread();
+	int pages = page_count();
+	while(1) {
+		MONITOR_AUTOLOCK(cleansignal) {
+			monitor_wait(cleansignal);
+		}
+		int prefree = page_count_free();
+		thread_gc();
+		int postfree = page_count_free();
+		MONITOR_AUTOLOCK(freesignal) {
+			monitor_broadcast(freesignal);
+		}
+	}
+}
+
 void slab_init()
 {
 	INIT_ONCE();
 	kernel_startlogging(1);
+#if 0
+	if (0 == thread_fork()) {
+		cleaner();
+	}
+#endif
+}
+
+static mutex_t slablock[1];
+static void slab_lock(int gc)
+{
+	if (gc) {
+		mutex_lock(slablock);
+	} else {
+		mutex_lock(slablock);
+	}
+}
+
+static void slab_unlock()
+{
+	mutex_unlock(slablock);
 }
 
 static slab_t * slab_new(slab_type_t * stype)
 {
-	/* Allocate and map page */
-	slab_t * slab = page_heap_alloc();
-
 	if (0 == stype->magic) {
 		/* Initialize type */
 		stype->first = 0;
-		stype->magic = 997 * 0xaf653de9 * (uint32_t)stype;
+		stype->magic = 997 * (uint32_t)stype;
 
 		/*           <-----------------d------------------>
 		 * | slab_t |a|f|              data                |
@@ -74,39 +115,27 @@ static slab_t * slab_new(slab_type_t * stype)
 		 * c = (8*d - 64) / (8*s + 2)
 		 */
 		stype->count = (8*(ARCH_PAGE_SIZE-sizeof(slab_t))-64)/ (8 * stype->esize + 2);
+		slab_lock(0);
 		LIST_APPEND(types, stype);
+		slab_unlock();
 	}
-	slab->magic = stype->magic;
-	slab->type = stype;
-	slab->available = (uint32_t*)(slab+1);
-	slab->finalize = slab->available + (slab->type->count+32)/32;
-	slab->data = (char*)(slab->finalize + (slab->type->count+32)/32);
-	LIST_PREPEND(stype->first, slab);
 
-	for(int i=0; i<stype->count; i+=32) {
-		uint32_t mask = ~0 ;
-		if (stype->count-i < 32) {
-			mask = ~(mask >> (stype->count-i));
-		}
-		slab->available[i/32] = mask;
+	/* Allocate and map page */
+	slab_t * slab = page_heap_alloc();
+	if (slab) {
+		slab->magic = stype->magic;
+		slab->type = stype;
+		slab->available = (uint32_t*)(slab+1);
+		slab->finalize = slab->available + (slab->type->count+32)/32;
+		slab->data = (char*)(slab->finalize + (slab->type->count+32)/32);
+		bitarray_setall(slab->available, stype->count, 1);
+
+		LIST_PREPEND(stype->first, slab);
+
+		assert(slab->type);
 	}
 
 	return slab;
-}
-
-static rwlock_t slablock[1];
-static void slab_lock(int gc)
-{
-	if (gc) {
-		rwlock_write(slablock);
-	} else {
-		rwlock_read(slablock);
-	}
-}
-
-static void slab_unlock()
-{
-	rwlock_unlock(slablock);
 }
 
 static void debug_fillbuf(void * p, size_t l, int c)
@@ -130,41 +159,21 @@ static void debug_checkbuf(void * p, size_t l)
 
 void * slab_alloc_p(slab_type_t * stype)
 {
-	slab_lock(0);
 	mutex_lock(stype->lock);
 	slab_t * slab = stype->first ? stype->first : slab_new(stype);
 
+	slab_lock(0);
 	while(slab) {
 		assert(stype == slab->type);
-		for(int i=0; i<slab->type->count; i+=32) {
-			if (slab->available[i/32]) {
-				/* There is some available slots */
-				int slot = i;
-				uint32_t a = slab->available[i/32];
-				uint32_t mask = 0x80000000;
-#if 0
-				if (a & 0x0000ffff) slot += 16, a >>= 16;
-				if (a & 0x00ff00ff) slot += 8, a >>= 8;
-				if (a & 0x0f0f0f0f) slot += 4, a >>= 4;
-				if (a & 0x33333333) slot += 2, a >>= 2;
-				if (a & 0x55555555) slot += 1, a >>= 1;
-#endif
-				while(mask) {
-					if (a&mask) {
-						break;
-					}
-					mask>>=1;
-					slot++;
-				}
-
-				slab->available[i/32] &= ~mask;
-				slab->finalize[i/32] &= ~mask;
-				mutex_unlock(stype->lock);
-				slab_unlock();
-				debug_checkbuf(slab->data + slab->type->esize*slot, slab->type->esize);
-				debug_fillbuf(slab->data + slab->type->esize*slot, slab->type->esize, 0x0a);
-				return slab->data + slab->type->esize*slot;
-			}
+		int slot = bitarray_firstset(slab->available, slab->type->count);
+		if (slot>=0) {
+			bitarray_set(slab->available, slot, 0);
+			bitarray_set(slab->finalize, slot, 0);
+			slab_unlock();
+			mutex_unlock(stype->lock);
+			debug_checkbuf(slab->data + slab->type->esize*slot, slab->type->esize);
+			debug_fillbuf(slab->data + slab->type->esize*slot, slab->type->esize, 0x0a);
+			return slab->data + slab->type->esize*slot;
 		}
 
 		LIST_NEXT(stype->first,slab);
@@ -173,8 +182,8 @@ void * slab_alloc_p(slab_type_t * stype)
 		}
 	}
 
-	mutex_unlock(stype->lock);
 	slab_unlock();
+	mutex_unlock(stype->lock);
 
 	KTHROW(OutOfMemoryException, "Out of memory");
 	/* Shouldn't get here */
@@ -189,17 +198,24 @@ void * slab_calloc_p(slab_type_t * stype)
 	return p;
 }
 
-static void slab_mark_available_all(slab_t * slab)
+static int slab_all_free(slab_t * slab)
 {
         for(int i=0; i<slab->type->count; i+=32) {
                 uint32_t mask = ~0 ;
                 if (slab->type->count-i < 32) {
                         mask = ~(mask >> (slab->type->count-i));
                 }
-		slab->finalize[i/32] = slab->available[i/32];
-                slab->available[i/32] = mask;
-        }
+		if (mask ^ slab->available[i/32]) {
+			return 0;
+		}
+	}
 
+	return 1;
+}
+
+void slab_nomark(void * p)
+{
+	/* Does nothing */
 }
 
 static struct
@@ -208,6 +224,18 @@ static struct
 	size_t peak;
 	size_t total;
 } gc_stats = {0};
+
+static struct gccontext {
+	/* The block to be scanned */
+	void ** from;
+	void ** to;
+
+	/* Previous context */
+	arena_state state;
+	struct gccontext * prev;
+} * context = 0;
+static arena_t * gcarena = 0;
+static int gclevel = 0;
 
 void slab_gc_begin()
 {
@@ -223,12 +251,15 @@ void slab_gc_begin()
 
 		while(slab) {
 			gc_stats.total += stype->esize * stype->count;
-			slab_mark_available_all(slab);
+			/* Provisionally finalize all allocated slots */
+			bitarray_copy(slab->finalize, slab->available, stype->count);
+			bitarray_invert(slab->finalize, stype->count);
 			LIST_NEXT(stype->first, slab);
 		}
 
 		LIST_NEXT(types, stype);
 	}
+	gcarena = arena_get();
 }
 
 static slab_t * slab_get(void * p)
@@ -245,69 +276,77 @@ static slab_t * slab_get(void * p)
 	return 0;
 }
 
-static void slab_debug()
-{
-	int i = 0;
-	i++;
-}
-
 void slab_gc_mark(void * root)
 {
 	slab_t * slab = slab_get(root);
-
 	if (slab) {
-		int i = ((char*)root - slab->data) / slab->type->esize;
-		/* Ensure we're at the start of the block */
-		root = slab->data + slab->type->esize*i;
-		uint32_t mask = (0x80000000u >> i%32);
-		if (slab->available[i/32] & mask) {
-			gc_stats.inuse += slab->type->esize;
-			if (gc_stats.inuse >= gc_stats.peak) {
-				gc_stats.peak = gc_stats.inuse;
-			}
+		/* Entry within the slab */
+		int entry = ((char*)root - slab->data) / slab->type->esize;
 
-			/* Marked as available, clear the mark */
-			slab->available[i/32] &= ~mask;
+		/* Adjust root to point to the start of the slab entry */
+		root = slab->data + slab->type->esize*entry;
+
+		if (bitarray_get(slab->finalize, entry)) {
+			/* Marked for finalization, clear the mark */
+			bitarray_set(slab->finalize, entry, 0);
+			gc_stats.inuse += slab->type->esize;
+
 			if (slab->type->mark) {
 				/* Call type specific mark */
 				slab->type->mark(root);
 			} else {
-				/* Call the generic conservative mark */
-				void ** p = (void**)root;
-				for(;p<(void**)root+slab->type->esize/sizeof(void*); p++) {
-					slab_gc_mark(*p);
-				}
-				p = 0;
+				/* Generic mark */
+				struct gccontext * new = arena_calloc(gcarena, sizeof(*new));
+				new->state = arena_getstate(gcarena);
+				new->from = root;
+				new->to = new->from + slab->type->esize/sizeof(*new->to);
+				new->prev = context;
+				context = new;
+				gclevel++;
 			}
 		}
-	}
-	slab=0;
-}
-
-void slab_gc_mark_block(void ** block, size_t size)
-{
-	for(int i=0; i<size/sizeof(*block); i++) {
-		slab_gc_mark(block[i]);
 	}
 }
 
 void slab_gc_mark_range(void * from, void * to)
 {
-	void ** mark = (void**)from;
-	while((void*)mark<to) {
-		slab_gc_mark(*mark++);
+	struct gccontext * new = arena_calloc(gcarena, sizeof(*new));
+	new->from = from;
+	new->to = to;
+	new->state = arena_getstate(gcarena);
+	new->prev = context;
+	context = new;
+	gclevel++;
+}
+
+void slab_gc()
+{
+	mutex_t lock[1] = {0};
+
+	MUTEX_AUTOLOCK(lock) {
+		arena_state state = arena_getstate(gcarena);
+
+		while(context) {
+			/* Check the next pointer in the block */
+			if (context->from && context->from < context->to) {
+				slab_gc_mark(*context->from++);
+			} else {
+				arena_setstate(gcarena, context->state);
+				context = context->prev;
+				gclevel--;
+			}
+		}
 	}
+}
+
+void slab_gc_mark_block(void ** block, size_t size)
+{
+	slab_gc_mark_range(block, block + size/sizeof(*block));
 }
 
 static void slab_finalize_clear_param(void * param)
 {
 	param = 0;
-}
-
-int finalizer_debug_val;
-static void debug_finalizer(slab_t * slab)
-{
-	finalizer_debug_val=1;
 }
 
 static void slab_finalize(slab_t * slab)
@@ -317,7 +356,6 @@ static void slab_finalize(slab_t * slab)
 	}
         for(int i=0; i<slab->type->count; ) {
 		if (slab->finalize[i/32]) {
-			debug_finalizer(slab);
 			uint32_t finalize = slab->finalize[i/32];
 			uint32_t mask = 0x80000000;
 			slab->finalize[i/32] = 0;
@@ -331,45 +369,58 @@ static void slab_finalize(slab_t * slab)
 			i+=32;
 		}
 	}
+
 	/* Clear parameter values left on stack */
 	slab_finalize_clear_param(0);
 }
 
 void slab_gc_end()
 {
-	slab_type_t * stype = types;
+	slab_gc();
+
+	if (gc_stats.inuse >= gc_stats.peak) {
+		gc_stats.peak = gc_stats.inuse;
+	}
 
 	/* Finalize elements now available */
+	slab_type_t * stype = types;
 	while(stype) {
 		slab_t * slab = stype->first;
 
-		while(slab && stype->finalize) {
-			slab_finalize(slab);
-			LIST_NEXT(stype->first, slab);
+		while(slab) {
+#if 0
+			if (stype->finalize) {
+				slab_finalize(slab);
+			}
+#endif
+			if (stype->finalize) {
+				/* Step through each finalizable slot */
+				int slot=bitarray_firstset(slab->finalize, stype->count);
+				while(slot>=0) {
+					slab->type->finalize(slab->data + slab->type->esize*slot);
+					bitarray_set(slab->finalize, slot, 0);
+					bitarray_set(slab->available, slot, 1);
+					slot=bitarray_firstset(slab->finalize, stype->count);
+				}
+			} else {
+				bitarray_or(slab->available, slab->finalize, stype->count);
+			}
+
+			/* Release page if now empty */
+			if (0 && slab_all_free(slab)) {
+				slab_t * empty = slab;
+				LIST_NEXT(stype->first, slab);
+				LIST_DELETE(stype->first, empty);
+				page_heap_free(empty);
+			} else {
+				LIST_NEXT(stype->first, slab);
+			}
 		}
 
 		LIST_NEXT(types, stype);
 	}
+	arena_free(gcarena);
 	slab_unlock();
-}
-
-void slab_free(void * p)
-{
-#if 0
-	slab_t * slab = slab_get(p);
-
-	if (slab) {
-		slab_lock();
-		char * cp = p;
-		int i = (cp - slab->data) / slab->type->esize;
-		slab->available[i/32] |= (0x80000000 >> i%32);
-		if (slab->type->finalize) {
-			slab->type->finalize(p);
-		}
-		p = 0;
-		slab_unlock();
-	}
-#endif
 }
 
 static void slab_test_finalize(void * p)

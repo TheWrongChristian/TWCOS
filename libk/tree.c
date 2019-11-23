@@ -33,6 +33,8 @@ typedef struct {
 	int (*comp)(map_key k1, map_key k2);
 } tree_t;
 
+static node_t * tree_node_first(tree_t * tree);
+static node_t * node_next( node_t * current );
 static void tree_mark(void * p)
 {
 	tree_t * tree = (tree_t*)p;
@@ -633,8 +635,6 @@ static map_data tree_remove( map_t * map, map_key key )
                                 parent->count--;
                                 parent = parent->parent;
                         }
-
-                        slab_free(node);
 
                         tree_verify(tree, NULL);
 

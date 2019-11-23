@@ -195,7 +195,7 @@ void console_initialize()
 	console_row = 0;
 	console_column = 0;
 	console_color = make_color(COLOR_LIGHT_GREY, COLOR_BLACK);
-	console_buffer = (uint16_t*) 0xC00B8000;
+	console_buffer = (uint16_t*) vm_kas_get_aligned(VGA_HEIGHT*VGA_WIDTH*sizeof(*console_buffer), ARCH_PAGE_SIZE);
 	segment_t * seg = vm_segment_direct(console_buffer, 0x2000, SEGMENT_W, fb);
 	map_putpp(kas, seg->base, seg);
 	for (size_t y = 0; y < VGA_HEIGHT; y++) {

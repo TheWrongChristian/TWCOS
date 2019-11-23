@@ -142,9 +142,7 @@ void thread_schedule()
 		int i;
 		scheduler_lock();
 		for(i=0; i<THREAD_PRIORITIES; i++) {
-			if (0 == queue[i]) {
-				continue;
-			} else {
+			if (queue[i]) {
 				thread_t * current = arch_get_thread();
 				thread_t * next = queue[i];
 				LIST_DELETE(queue[i], next);
@@ -250,7 +248,13 @@ void thread_exit(void * retval)
 	}
 
 	/* Remove this thread from the set of process threads */
-	map_removepp(this->process->threads, this);
+	if (this->process) {
+		MONITOR_AUTOLOCK(&this->process->lock) {
+			map_removepp(this->process->threads, this);
+		}
+	}
+
+	this->process = 0;
 
 	/* Remove this thread from the set of all threads */
 	thread_track(this, 0);
@@ -286,23 +290,20 @@ void thread_set_priority(thread_t * thread, tpriority priority)
 
 static void ** roots;
 
-static void thread_gc_walk(void * p, void * key, void * d)
-{
-	slab_gc_mark(key);
-}
-
 void thread_gc()
 {
-#if 1
 	// thread_cleanlocks();
 	slab_gc_begin();
+#if 0
 	slab_gc_mark(arch_get_thread());
 	for(int i=0; i<sizeof(queue)/sizeof(queue[0]); i++) {
 		slab_gc_mark(queue[i]);
 	}
 	slab_gc_mark(roots);
-	slab_gc_end();
+#else
+	slab_gc_mark(roots);
 #endif
+	slab_gc_end();
 }
 
 void thread_gc_root(void * p)
@@ -317,18 +318,22 @@ static void thread_mark(void * p)
 {
 	thread_t * thread = (thread_t *)p;
 
-	for(int i=0; i<sizeof(thread->tls)/sizeof(thread->tls[0]); i++) {
-		slab_gc_mark(thread->tls[i]);
+	if (thread->state != THREAD_TERMINATED) {
+		/* Mark live state only */
+		arch_thread_mark(thread);
+		slab_gc_mark_block(thread->tls, sizeof(thread->tls));
+		slab_gc_mark(thread->process);
+	} else {
+		/* Mark dead state only */
+		slab_gc_mark(thread->retval);
 	}
-	slab_gc_mark(thread->next);
-	slab_gc_mark(thread->retval);
-
-	arch_thread_mark(thread);
 }
 
 static void thread_finalize(void * p)
 {
 	thread_t * thread = (thread_t *)p;
+
+	arena_thread_free();
 	arch_thread_finalize(thread);
 }
 
@@ -344,6 +349,7 @@ void thread_init()
 	/* Craft a new bootstrap thread to replace the static defined thread */
 	sync_init();
 	arch_thread_init(slab_calloc(threads));
+	thread_track(arch_get_thread(), 1);
 }
 
 static void thread_test2();

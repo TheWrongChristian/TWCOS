@@ -41,6 +41,11 @@ static intptr_t * vector_entry_get(vector_table_t * table, map_key i, int create
 {
 	if (table->level) {
 		int shift = VECTOR_TABLE_ENTRIES_LOG2*table->level;
+#if 0
+		if (shift>sizeof(uint32_t)*4) {
+			kernel_panic("Vector overflow!");
+		}
+#endif
 		int index = i>>shift;
 		if (VECTOR_TABLE_ENTRIES <= index) {
 			/* Beyond the bounds of the vector */
@@ -54,15 +59,19 @@ static intptr_t * vector_entry_get(vector_table_t * table, map_key i, int create
 		}
 
 		return vector_entry_get((vector_table_t *)table->d[index], i&((1<<shift)-1), create);
-	} else {
+	} else if (i<VECTOR_TABLE_ENTRIES) {
 		return table->d+i;
+	} else if (!create) {
+		return 0;
+	} else {
+		kernel_panic("Vector leaf overflow");
 	}
 }
 
 static void vector_checksize(vector_t * v, map_key i)
 {
 	/* Extend the table as necessary */
-	while(1<<(VECTOR_TABLE_ENTRIES_LOG2*(v->table->level+1))<i) {
+	while(1<<(VECTOR_TABLE_ENTRIES_LOG2*(v->table->level+1))<=i) {
 		vector_table_t * table = vector_table_new(v->table->level+1);
 		table->d[0] = (intptr_t)v->table;
 		v->table = table;
@@ -143,6 +152,12 @@ void vector_test()
 	int i = 3;
 	map_t * v = vector_new();
 	void * p = vector_test;
+
+	kernel_printk("v[%d] = %p\n", i, map_getip(v, i));
+	map_putip(v, i, p);
+	kernel_printk("v[%d] = %p\n", i, map_getip(v, i));
+
+	i+=61;
 
 	kernel_printk("v[%d] = %p\n", i, map_getip(v, i));
 	map_putip(v, i, p);

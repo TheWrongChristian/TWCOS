@@ -21,6 +21,7 @@ struct process_t {
 	 */
 	map_t * as;
 	map_t * files;
+	segment_t * heap;
 
 	/*
 	 * root and working directories
@@ -32,7 +33,6 @@ struct process_t {
 	 * Threads
 	 */
 	map_t * threads;
-
 	/*
 	 * process hierarchy
 	 */
@@ -68,7 +68,8 @@ static void process_duplicate_as_copy_seg(void * p, void * key, void * data)
 	map_t * as = (map_t*)p;
 	segment_t * seg = (segment_t *)data;
 
-	map_putpp(as, key, vm_segment_copy(seg, 1));
+	int private = (seg->clean != seg->dirty);
+	map_putpp(as, key, vm_segment_copy(seg, private));
 }
 
 static map_t * process_duplicate_as(process_t * from)
@@ -98,6 +99,7 @@ void process_init()
 	map_putpp(current->process->threads, current, current);
 	current->process->container = container_get(0);
 	current->process->files = vector_new();
+	current->process->heap = vm_segment_anonymous(0, 0, SEGMENT_P | SEGMENT_R | SEGMENT_W);
 	container_nextpid(current->process);
 }
 
@@ -111,6 +113,9 @@ pid_t process_fork()
 
 	/* New address space */
 	new->as = process_duplicate_as(current);
+
+	/* New heap */
+	new->heap = vm_get_segment(new->as, current->heap->base);
 
 	/* Thread set */
 	new->threads = tree_new(0, TREE_TREAP);
@@ -135,7 +140,16 @@ pid_t process_fork()
 	/* Finally, new thread */
 	thread_t * thread = thread_fork();
 	if (0 == thread) {
+#if 0
+		static timerspec_t next = 0;
 		/* Child thread */
+		next += 10000;
+		timerspec_t usec = next - timer_uptime();
+		if (usec>0) {
+			timer_sleep(usec);
+		}
+#endif
+		/* FIXME: Wait for go-ahead from parent */
 		return 0;
 	} else {
 		thread->process = new;
@@ -149,6 +163,18 @@ static void process_exit_reparent(void * p, map_key key, void * data)
 {
 	process_t * current = data;
 	current->parent = p;
+}
+
+pid_t process_getpid()
+{
+	process_t * current = process_get();
+
+	if (current) {
+		return current->pid;
+	}
+
+	kernel_panic("No process!");
+	return 0;
 }
 
 void process_exit(int code)
@@ -174,10 +200,16 @@ void process_exit(int code)
 				map_walkip(current->zombies, process_exit_reparent, init);
 				map_put_all(init->zombies, current->zombies);
 			}
+			current->children = current->zombies = 0;
 		}
 	}
 
 	/* FIXME: Clean up address space, files, other threads etc. */
+	if (current->as) {
+		vm_as_release(current->as);
+		current->as = 0;
+	}
+
 	thread_exit(0);
 }
 
@@ -237,17 +269,20 @@ void process_execve(char * filename, char * argv[], char * envp[])
 	vnode_t * f = file_namev(filename);
 	process_t * p = arch_get_thread()->process;
 
-	/* Save old AS */
-	map_t * oldas = p->as;
+	elf_execve(f, p, argv, envp);
+}
 
-	KTRY {
-		elf_execve(f, p, argv, envp);
-	} KCATCH(Exception) {
-		/* Restore old AS */
-		p->as = oldas;
-		vmap_set_asid(p->as);
+void * process_brk(void * p)
+{
+	process_t * current = process_get();
+	void * brk = ((char*)current->heap->base) + current->heap->size;
 
-		/* Propagate original exception */
-		KRETHROW();
+	if (p <= brk) {
+		return brk;
 	}
+
+	/* Extend the heap */
+	current->heap->size = (uintptr_t)p - (uintptr_t)current->heap->base;
+
+	return p;
 }

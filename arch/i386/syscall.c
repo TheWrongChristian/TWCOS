@@ -87,6 +87,16 @@ void i386_syscall(uint32_t intr, uint32_t * state)
 		case sc_exit:
 			process_exit(state[ISR_REG_EBX]);
 			break;
+		case sc_getpid:
+			retval = process_getpid();
+			break;
+		case sc_execve: {
+				char * filename = (char*)state[ISR_REG_EBX];
+				char ** argv = (char**)state[ISR_REG_ECX];
+				char ** envp = (char**)state[ISR_REG_EDX];
+				process_execve(filename, argv, envp);
+				break;
+			}
 		case sc_waitpid: {
 				int pid = state[ISR_REG_EBX];
 				int * pstatus = (int*)state[ISR_REG_ECX];
@@ -106,6 +116,11 @@ void i386_syscall(uint32_t intr, uint32_t * state)
 			void * p = (void*)state[ISR_REG_ECX];
 			int count = state[ISR_REG_EDX];
 			retval = file_write(fd, p, count);
+			break;
+		}
+		case sc_brk: {
+			void * p = (void*)state[ISR_REG_EBX];
+			retval = (reg_t)process_brk(p);
 			break;
 		}
 		default:

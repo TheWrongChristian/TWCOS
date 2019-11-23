@@ -30,7 +30,9 @@ struct timer_event_t {
 
 #endif
 
-static timer_t * timers;
+static int timers_lock[1]={0};
+static timer_t dummy;
+static timer_t * timers = &dummy;
 static timerspec_t uptime = 0;
 static timer_event_t * uptime_timer = 0;
 
@@ -73,7 +75,7 @@ static void timer_clear()
 
 static void timer_expire()
 {
-	SPIN_AUTOLOCK(timers->lock) {
+	SPIN_AUTOLOCK(timers_lock) {
 		timers->running = 0;
 		timer_event_t * timer = timers->queue;
 		if (timer) {
@@ -82,10 +84,10 @@ static void timer_expire()
 			timer->next = 0;
 			uptime += timer->usec;
 
-			spin_unlock(timers->lock);
+			spin_unlock(timers_lock);
 			/* Call the callback */
 			timer->cb(timer->p);
-			spin_lock(timers->lock);
+			spin_lock(timers_lock);
 
 			/* Start next timer */
 			timer_set();
@@ -113,7 +115,7 @@ void timer_start(timer_event_t * timer)
 {
 	timer->usec = timer->reset;
 
-	SPIN_AUTOLOCK(timers->lock) {
+	SPIN_AUTOLOCK(timers_lock) {
 		timer_event_t * next = timers->queue;
 		timer_event_t ** pprev = &timers->queue;
 
@@ -144,7 +146,7 @@ void timer_start(timer_event_t * timer)
 
 void timer_delete(timer_event_t * timer)
 {
-	SPIN_AUTOLOCK(timers->lock) {
+	SPIN_AUTOLOCK(timers_lock) {
 		timer_event_t * next = timers->queue;
 		timer_event_t ** pprev = &timers->queue;
 
@@ -174,7 +176,7 @@ timerspec_t timer_uptime()
 {
 	timerspec_t t = 0;
 
-	SPIN_AUTOLOCK(timers->lock) {
+	SPIN_AUTOLOCK(timers_lock) {
 		timer_clear();
 		t = uptime;
 		timer_set();
@@ -183,22 +185,38 @@ timerspec_t timer_uptime()
 	return t;
 }
 
+struct sleepvar {
+	volatile int done;
+	thread_t * waiting;
+	int lock[1];
+};
+
 static void timer_sleep_cb(void * p)
 {
-	monitor_t * lock = p;
+	struct sleepvar * sleep = p;
 
-	MONITOR_AUTOLOCK(lock) {
-		monitor_signal(lock);
+	assert(sleep->waiting);
+
+	SPIN_AUTOLOCK(sleep->lock) {
+		sleep->done = 1;
+		thread_t * resume = sleep->waiting;
+		LIST_DELETE(sleep->waiting, resume);
+		thread_resume(resume);
 	}
 }
 
 void timer_sleep(timerspec_t usec)
 {
-	monitor_t lock[1] = {0};
+	struct sleepvar sleep[1] = {{0}};
 
-	MONITOR_AUTOLOCK(lock) {
-		timer_add(usec, timer_sleep_cb, lock);
-		monitor_wait(lock);
+	SPIN_AUTOLOCK(sleep->lock) {
+		timer_add(usec, timer_sleep_cb, sleep);
+		sleep->waiting = thread_queue(sleep->waiting, NULL, THREAD_SLEEPING);
+		while(!sleep->done) {
+			spin_unlock(sleep->lock);
+			thread_schedule();
+			spin_lock(sleep->lock);
+		}
 	}
 }
 

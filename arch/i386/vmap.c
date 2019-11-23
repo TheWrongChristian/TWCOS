@@ -3,10 +3,11 @@
 #include "vmap.h"
 
 /*
- * Reserve 8 address spaces
+ * Reserve address spaces
  */
-#define ASID_COUNT_LOG2 3
+#define ASID_COUNT_LOG2 2
 #define ASID_COUNT (1<<ASID_COUNT_LOG2)
+typedef pte_t pgtbls_t[1<<ARCH_PAGE_TABLE_SIZE_LOG2];
 
 extern char _kernel_offset_bootstrap[0];
 extern char _kernel_offset[0];
@@ -15,73 +16,116 @@ extern uint32_t pt_00000000[1024];
 static __attribute__((section(".aligned"))) pte_t pgdirs[ASID_COUNT][1024];
 static __attribute__((section(".aligned"))) pte_t pgktbl[1024];
 
-#define VMAP_PAGE(add) ((page_t)add-(_kernel_offset-_kernel_offset_bootstrap) >> ARCH_PAGE_SIZE_LOG2)
+#define VMAP_PAGE(add) ((page_t)(add)-(_kernel_offset-_kernel_offset_bootstrap) >> ARCH_PAGE_SIZE_LOG2)
 
 /*
  * Page dirs are at the top of the address space
  */
-static pte_t * pgtbls = (void *)(0xffffffff << (2 + ARCH_PAGE_TABLE_SIZE_LOG2 + ASID_COUNT_LOG2));
+#if 0
+static pgtbls_t * pgtbls = (void *)(0xffffffff << (2 + ARCH_PAGE_TABLE_SIZE_LOG2 + ASID_COUNT_LOG2));
+#endif
+static pgtbls_t * pgtbls = (void *)((intptr_t)(-ASID_COUNT*sizeof(pgtbls_t)));
+
 
 static struct {
 	asid vid;
 	int seq;
 } asids[1 << ASID_COUNT_LOG2];
 
-static pte_t * vmap_get_pgtable(asid vid)
+static void vmap_pgtbl_init(int ptid)
 {
-	int i;
-	int lowseq = INT32_MAX;
-	int lowi = 0;
-	static int seq = 0;
+	ptrdiff_t poffset = (uint32_t)(_bootstrap_nextalloc - _bootstrap_end) >> ARCH_PAGE_SIZE_LOG2;
+	pte_t * pgtbl=pgtbls[ptid];
+	pte_t * pgdir=pgdirs+ptid;
+	for(int i=0; i<poffset; i+=1024) {
+		if (pgdir[i>>(ARCH_PAGE_SIZE_LOG2-2)]) {
+			for(int j=0; j<1024; j++) {
+				pgtbl[i+j] = 0;
+			}
+		}
+	}
+}
 
-	if (0 == vid) {
-		return pgtbls;
+static int ptidseq = 0;
+static int vmap_probe_ptid(asid vid)
+{
+	if (0 == vid || kas == vid) {
+		return 0;
 	}
 
-	for(i=0; i<ASID_COUNT; i++) {
+	for(int i=0; i<ASID_COUNT; i++) {
 		if (vid == asids[i].vid) {
-			asids[i].seq = seq;
-			return pgtbls+ARCH_PAGE_TABLE_SIZE*i;
+			asids[i].seq = ptidseq;
+			return i;
 		}
+	}
+
+	return -1;
+}
+
+static int vmap_get_ptid(asid vid)
+{
+	int ptid = vmap_probe_ptid(vid);
+
+	if (ptid>=0) {
+		return ptid;
 	}
 
 	/* Not found - Allocate a new asid */
-	for(i=0; i<ASID_COUNT; i++) {
+	int lowseq = INT32_MAX;
+	ptid = 0;
+	for(int i=0; i<ASID_COUNT; i++) {
 		if (lowseq > asids[i].seq) {
 			lowseq = asids[i].seq;
-			lowi = i;
+			ptid = i;
 		}
 	}
 
-	asids[lowi].vid = vid;
-	asids[lowi].seq = ++seq;
+	asids[ptid].vid = vid;
+	asids[ptid].seq = ++ptidseq;
+	vmap_pgtbl_init(ptid);
 
-	return pgtbls+ARCH_PAGE_TABLE_SIZE*lowi;
+	return ptid;
 }
 
-pte_t * vmap_get_pgdir(asid vid)
+static pte_t * vmap_get_pgtable(asid vid)
 {
-	pte_t * pgdir = vmap_get_pgtable(vid);
-	if (0 == vid) {
-		return &pgdir[ARCH_PAGE_TABLE_SIZE-ASID_COUNT];
-	}
-	int i = (pgdir-pgtbls) >> ARCH_PAGE_TABLE_SIZE_LOG2;
+	int ptid = vmap_get_ptid(vid);
 
-	return &pgdir[ARCH_PAGE_TABLE_SIZE-ASID_COUNT+i];
+	return pgtbls[ptid];
 }
+
+static mutex_t lock[] = {0};
 
 void vmap_set_asid(asid vid)
 {
-	pte_t * pgdir = vmap_get_pgdir(vid);
-	page_t pageno = *pgdir >> ARCH_PAGE_SIZE_LOG2;
-	set_page_dir(pageno);
+	MUTEX_AUTOLOCK(lock) {
+		int ptid = vmap_get_ptid(vid);
+
+		set_page_dir(VMAP_PAGE(pgdirs[ptid]));
+	}
+}
+
+void vmap_release_asid(asid vid)
+{
+	MUTEX_AUTOLOCK(lock) {
+		int ptid = vmap_probe_ptid(vid);
+
+		if (ptid>=0) {
+			asids[ptid].vid = 0;
+		}
+	}
 }
 
 page_t vmap_get_page(asid vid, void * vaddress)
 {
-	page_t vpage = (uint32_t)vaddress >> ARCH_PAGE_SIZE_LOG2;
-	pte_t * pgtbl = vmap_get_pgtable(vid);
-	uint32_t pte = pgtbl[vpage];
+	uint32_t pte = 0;
+
+	MUTEX_AUTOLOCK(lock) {
+		page_t vpage = (uint32_t)vaddress >> ARCH_PAGE_SIZE_LOG2;
+		pte_t * pgtbl = vmap_get_pgtable(vid);
+		pte = pgtbl[vpage];
+	}
 
 	if (pte & 0x1) {
 		return pte >> ARCH_PAGE_SIZE_LOG2;
@@ -91,39 +135,70 @@ page_t vmap_get_page(asid vid, void * vaddress)
 
 static pte_t vmap_get_pte(asid vid, void * vaddress)
 {
-	page_t vpage = (uint32_t)vaddress >> ARCH_PAGE_SIZE_LOG2;
-	pte_t * pgtbl = vmap_get_pgtable(vid);
+	pte_t pte = 0;
 
-	if (0 == vmap_get_page(vid, pgtbl+vpage)) {
-		return 0;
+	MUTEX_AUTOLOCK(lock) {
+		int ptid = vmap_probe_ptid(vid);
+		if (ptid>=0) {
+			page_t vpage = (uint32_t)vaddress >> ARCH_PAGE_SIZE_LOG2;
+			pte_t * pgtbl = pgtbls[ptid];
+			int pgdirnum = vpage >> 10;
+
+			/* Check if we have a page directory */
+			if (pgdirs[ptid][pgdirnum] & 1){
+				/* Get the page table entry */
+				pte = pgtbl[vpage];
+			}
+		}
 	}
 
-	return pgtbl[vpage];
+	return pte;
 }
 
 static void vmap_set_pte(asid vid, void * vaddress, pte_t pte)
 {
-	page_t vpage = (uint32_t)vaddress >> ARCH_PAGE_SIZE_LOG2;
-	pte_t * pgtbl = vmap_get_pgtable(vid);
+	MUTEX_AUTOLOCK(lock) {
+		int ptid = vmap_get_ptid(vid);
+		page_t vpage = (uint32_t)vaddress >> ARCH_PAGE_SIZE_LOG2;
+		pte_t * pgtbl = pgtbls[ptid];
+		int pgdirnum = vpage >> 10;
 
-	if (0 == vmap_get_page(vid, pgtbl+vpage)) {
-		/* No page table, create a new one */
-		pte_t * pgtbl = pgtbls;
-		page_t page = page_alloc();
+		if (0 == (pgdirs[ptid][pgdirnum] & 1)){
+			/* No page table, create a new one */
+			ptrdiff_t koffset = (uint32_t)(_bootstrap_nextalloc - _bootstrap_end);
 
-		for(int i=0; i<ASID_COUNT; i++, pgtbl += ARCH_PAGE_TABLE_SIZE) {
-			vmap_map(0, pgtbl+vpage, page, 1, pte & 0x4);
+			/* page_alloc might end up needing lock */
+			page_t page = page_alloc();
+
+			if (((uintptr_t)vaddress)<koffset) {
+				/* User mapping, just this ASID */
+				pgdirs[ptid][pgdirnum] = (page << ARCH_PAGE_SIZE_LOG2) | 7;
+			} else {
+				/* Kernel mapping, reflect across all ASID */
+				for(int i=0; i<ASID_COUNT; i++) {
+					pgdirs[i][pgdirnum] = (page << ARCH_PAGE_SIZE_LOG2) | 3;
+				}
+			}
+
+			/* Clean directory */
+			memset(pgtbl + (vpage&~0x3ff), 0, ARCH_PAGE_SIZE);
+#if 0
+			for(i=0; i<1024; i++) {
+				pgtbl[vpage & 0x3ff + i] = 0;
+			}
+			page_clean(page);
+#endif
 		}
-
-		page_clean(page);
+		pgtbl[vpage] = pte;
+		/* FIXME: Only need this if vid is current or kernel as */
+		invlpg(vaddress);
 	}
-	pgtbl[vpage] = pte;
-	/* FIXME: Only need this if vid is current or kernel as */
-	invlpg(vaddress);
 }
 
 void vmap_map(asid vid, void * vaddress, page_t page, int rw, int user)
 {
+	assert(page);
+
 	/* Map the new page table entry */
 	pte_t pte = page << ARCH_PAGE_SIZE_LOG2 | 0x1;
 	if (rw) {
@@ -149,45 +224,22 @@ void vmap_mapn(asid vid, int n, void * vaddress, page_t page, int rw, int user)
 
 int vmap_ismapped(asid vid, void * vaddress)
 {
-	pte_t pte = vmap_get_pte(vid, vaddress);
-
-	return pte & 0x1;
+	return vmap_get_pte(vid, vaddress) & 0x1;
 }
 
 int vmap_iswriteable(asid vid, void * vaddress)
 {
-	pte_t pte = vmap_get_pte(vid, vaddress);
-
-	return pte & 0x2;
+	return 0x3 == (vmap_get_pte(vid, vaddress) & 0x3);
 }
 
 int vmap_isuser(asid vid, void * vaddress)
 {
-	pte_t pte = vmap_get_pte(vid, vaddress);
-
-	return pte & 0x4;
+	return 0x5 == (vmap_get_pte(vid, vaddress) & 0x5);
 }
 
 void vmap_unmap(asid vid, void * vaddress)
 {
 	vmap_set_pte(vid, vaddress, 0);
-}
-
-/*
- * Page fault handler
- */
-void vmap_fault(void * p, int write, int user, int present)
-{
-	if ((char*)p > (char*)pgtbls) {
-		/* Handle page tables specially */
-	} else {
-		/* Hand off to VM to resolve */
-		vm_page_fault(p, write, user, present);
-	}
-}
-
-static void vmap_test()
-{
 }
 
 extern char code_start[];
@@ -201,7 +253,7 @@ void vmap_init()
 	int i;
 
 	char * p = code_start;
-	char * end = arch_heap_page();
+	char * end = bootstrap_alloc(0);
 	unsigned int offset = _kernel_offset-_kernel_offset_bootstrap;
 	uint32_t pde = (((uint32_t)pgktbl)-offset) | 0x3;
 	uint32_t pgdirs_p = (uint32_t)((char*)pgdirs-offset);
@@ -237,7 +289,6 @@ void vmap_init()
 	for(; p<end; p+=ARCH_PAGE_SIZE) {
 		vmap_map(0, p, (uint32_t)(p-offset) >> ARCH_PAGE_SIZE_LOG2, 1, 0);
 	}
-	vmap_test();
 }
 
 

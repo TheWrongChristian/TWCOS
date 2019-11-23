@@ -297,12 +297,24 @@ static void i386_sx(uint32_t num, uint32_t * state)
 typedef void (*irq_func)();
 #define ARCH_PAGE_ALIGN(p) ((void*)((uint32_t)(p) & (0xffffffff << ARCH_PAGE_SIZE_LOG2)))
 
-typedef struct {
+struct arch_context_t {
 	void * stack;
 	jmp_buf state;
-} arch_context_t;
+};
 
 #endif
+
+static thread_t initial;
+static thread_t * current;
+
+void arch_check_stack()
+{
+	char var;
+
+	if ((&var - (char*)current->context.stack) < 128) {
+		kernel_panic("Stack overflow");
+	}
+}
 
 void arch_thread_mark(thread_t * thread)
 {
@@ -348,9 +360,6 @@ static isr_t itable[256] = {
 	i386_irq, i386_irq, i386_irq, i386_irq,
 	[0x80]=i386_syscall
 };
-
-static thread_t initial;
-static thread_t * current;
 
 #define PIC_IRQ_BASE    0x20
 void i386_init()
@@ -497,6 +506,15 @@ void arch_thread_switch(thread_t * thread)
 	if (old->state == THREAD_RUNNING) {
 		old->state = THREAD_RUNNABLE;
 	}
+
+	if (old->process != thread->process) {
+		if (thread->process) {
+			vmap_set_asid(thread->process->as);
+		} else {
+			vmap_set_asid(0);
+		}
+	}
+
 	if (0 == setjmp(old->context.state)) {
 		if (thread->state == THREAD_RUNNABLE) {
 			thread->state = THREAD_RUNNING;
@@ -574,13 +592,16 @@ void arch_spin_unlock(int * p)
 	sti();
 }
 
+#if 0
 void * arch_user_stack()
 {
 }
+#endif
 
 #if INTERFACE
 
 void arch_startuser(void * start, void * tos);
+void arch_altstack(void (*f)(void), void * s);
 
 /*
  * Sizes

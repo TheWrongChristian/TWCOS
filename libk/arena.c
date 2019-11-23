@@ -23,7 +23,7 @@ static arena_t * arena_create(size_t size)
 {
 	arena_t * arena = slab_alloc(arenas);
 
-	arena->base = arena->state = vm_kas_get(size);
+	arena->base = arena->state = vm_kas_get_aligned(size, ARCH_PAGE_SIZE);
 	arena->seg = vm_segment_anonymous(arena->base, size, SEGMENT_R | SEGMENT_W);
 	arena->top  = arena->base + size;
 	map_putpp(kas, arena->seg->base, arena->seg);
@@ -35,6 +35,7 @@ static void arena_mark(void * p)
 {
 	arena_t * arena = (arena_t *)p;
 
+	slab_gc_mark(arena->seg);
 	slab_gc_mark_range(arena->base, arena->state);
 }
 
@@ -46,6 +47,12 @@ void * arena_alloc(arena_t * arena, size_t size)
 	arena->state += size;
 
 	return p;
+}
+
+void * arena_calloc(arena_t * arena, size_t size)
+{
+	void * p = arena_alloc(arena, size);
+	return memset(p, 0, size);
 }
 
 void * arena_palloc(arena_t * arena, int pages)
@@ -68,11 +75,17 @@ void * arena_palloc(arena_t * arena, int pages)
 
 arena_state arena_getstate(arena_t * arena)
 {
+	if (0 == arena) {
+		arena = arena_thread_get();
+	}
 	return (arena_state)arena->state;
 }
 
 void arena_setstate(arena_t * arena, arena_state state)
 {
+	if (0 == arena) {
+		arena = arena_thread_get();
+	}
 	check_ptr_bounds(state, arena->base, arena->top, "Arena state pointer out of arena bounds");
 	arena->state = (char*)state;
 }
@@ -99,8 +112,12 @@ arena_t * arena_get()
 void arena_free(arena_t * arena)
 {
 	MUTEX_AUTOLOCK(arena_lock) {
-		arena->next = free_arenas;
+		/* Reset the memory used by the arena */
 		arena->state = arena->base;
+		vmobject_release(arena->seg->dirty);
+
+		/* Chain into available cached arenas */
+		arena->next = free_arenas;
 		free_arenas = arena;
 	}
 }
@@ -129,9 +146,16 @@ arena_t * arena_thread_get()
 
 void arena_thread_free()
 {
-	arena_t * arena = arena_thread_get();
+	/* Check we have a valid TLS key, init if not */
+	MUTEX_AUTOLOCK(arena_lock) {
+		if (0 == arena_key) {
+			arena_key = tls_get_key();
+		}
+	}
+
+	/* Get the TLS arena, and get a new one if there is none */
+	arena_t * arena = tls_get(arena_key);
 	if (arena) {
-		tls_set(arena_key, 0);
 		arena_free(arena);
 	}
 }

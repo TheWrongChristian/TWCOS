@@ -174,6 +174,7 @@ void mutex_unlock(mutex_t * lock)
 		lock->count--;
 		if (0 == lock->count) {
 			lock->owner = 0;
+			thread_lock_signal(lock);
 		}
 	} else {
 		/* FIXME: panic? */
