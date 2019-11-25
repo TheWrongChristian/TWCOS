@@ -304,9 +304,6 @@ static void vm_as_release_walk(void * p, void * key, void * data)
 void vm_as_release(map_t * as)
 {
 	vmap_release_asid(as);
-#if 0
-	map_walkpp(as, vm_as_release_walk, as);
-#endif
 }
 
 /*

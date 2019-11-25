@@ -183,7 +183,7 @@ void elf_execve(vnode_t * f, process_t * p, char * argv[], char * envp)
 				if (vaddr<stacktop) {
 					stacktop = vaddr;
 				}
-#if 1
+
 				if (iswr) {
 					uintptr_t zstart = phdr[i].vaddr+phdr[i].fsize;
 					uintptr_t zend = PTR_ALIGN_NEXT(phdr[i].vaddr+phdr[i].msize, phdr[i].align);
@@ -192,7 +192,6 @@ void elf_execve(vnode_t * f, process_t * p, char * argv[], char * envp)
 						brk = (void*)zend;
 					}
 				}
-#endif
 			} else {
 #if 0
 				KTHROW(Exception, "Unsupported executable format");
