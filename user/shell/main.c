@@ -1,14 +1,26 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <ctype.h>
+#include <string.h>
 
 #include "main.h"
 
 #define GOTO(continuation) switch(continuation)
-#define DEFAULT()	default: 
+#define DEFAULT()	default: do {} while(0)
 #define RESET(continuation) continuation=0
 #define RETURN(continuation) (continuation)=__LINE__; return; case __LINE__:
 #define CONTINUE(continuation) (continuation)=__LINE__; continue; case __LINE__:
+
+int keyword(char * keyword, int ttype, char * token, size_t tokenlen)
+{
+	if (TOKENIZER_WORD==ttype) {
+		if (0==strncmp(keyword, token, tokenlen)) {
+			return 1;
+		}
+	}
+
+	return 0;
+}
 
 void consumer(void * arg, int ttype, char * token, size_t tokenlen)
 {
@@ -25,14 +37,19 @@ void command_loop()
 	tokenizer_init(t);
 
 	while(1) {
+#if 1
 		fgets(buf, sizeof(buf), stdin);
 		tokenizer_tokenize(t, buf, sizeof(buf), consumer, NULL);
+#else
+		char str[]="for(int i=0; i<10; i++) { printf(\"\\\"\\n\\\"\");}";
+		tokenizer_tokenize(t, str, sizeof(str), consumer, NULL);
+#endif
 	}
 }
 
-int main(void)
+int main(int argc, char * argv[], char * envp[])
 {
-#if 0
+#if 1
 	malloc(1024);
 	if (fork()) {
 		int status;
@@ -42,10 +59,11 @@ int main(void)
 	} else {
 		printf("Hello world from pid %d\r", getpid());
 		fflush(stdout);
-		execve("/user/shell/init", 0, 0);
+		execve(argv[0], argv, envp);
 	}
-#endif
+#else
 	command_loop();
+#endif
 
 	return 0;
 }
