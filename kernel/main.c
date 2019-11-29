@@ -94,8 +94,10 @@ void kernel_main() {
 			file_vopen(terminal, 0, 0);
 			file_dup(0);
 			file_dup(0);
-		
-			process_execve("/user/shell/init", 0, 0);	
+
+			char * argv[]={"/user/shell/init", NULL};
+			char * envp[]={"HOME=/", NULL};
+			process_execve("/user/shell/init", argv, envp);	
 			kernel_panic("Unable to exec %s", "/user/shell/init");
 			/* testshell_run(); */
 		}

@@ -1,5 +1,6 @@
 #include <stdint.h>
 #include <stdarg.h>
+#include <stddef.h>
 
 #include "i386.h"
 
@@ -597,6 +598,26 @@ void * arch_user_stack()
 {
 }
 #endif
+
+char * arch_user_stack_pushstr(char * oldsp, char * str)
+{
+	int len = strlen(str);
+#if 0
+	char * newsp = (char*)PTR_ALIGN(oldsp-len, sizeof(int32_t));
+
+	strncpy(newsp, str, len);
+
+	return newsp;
+#endif
+	return arch_user_stack_mempcy(oldsp, str, len+1);
+}
+
+char * arch_user_stack_mempcy(char * oldsp, void * src, size_t len)
+{
+	char * newsp = (char*)PTR_ALIGN(oldsp-len, sizeof(int32_t));
+
+	return memcpy(newsp, src, len);
+}
 
 #if INTERFACE
 
