@@ -229,7 +229,10 @@ static void console_setcolor(uint8_t color) {
  
 static void console_putentryat(char c, uint8_t color, size_t x, size_t y) {
 	const size_t index = y * VGA_WIDTH + x;
-	console_buffer[index] = make_vgaentry(c, color);
+	static const maxindex=VGA_WIDTH*VGA_HEIGHT;
+	if (index<maxindex) {
+		console_buffer[index] = make_vgaentry(c, color);
+	}
 }
 
 static void console_scroll()
