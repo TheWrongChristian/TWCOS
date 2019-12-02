@@ -57,8 +57,20 @@ static size_t terminal_write(vnode_t * vnode, off_t ignored, void * buf, size_t 
 	return vnode_write(terminal->output, ignored, buf, len);
 }
 
+static unsigned char terminal_getchar(vnode_terminal_t * terminal)
+{
+	unsigned char c = 0;
+	if (1==vnode_read(terminal->input, 0, &c, 1)) {
+		return c;
+	}
+
+	/* FIXME: Throw ? */
+	return 0;
+}
+
 static void terminal_thread(vnode_terminal_t * terminal)
 {
+	int modifiers = 0;
 	while(1) {
 		MONITOR_AUTOLOCK(terminal->lock) {
 			if(0 == terminal->vnode->ref) {
@@ -68,14 +80,30 @@ static void terminal_thread(vnode_terminal_t * terminal)
 
 		unsigned char c = 0;
 
-		(void)vnode_read(terminal->input, 0, &c, 1);
-		if (0xff == c) {
-			/* Discard key releases */
-			(void)vnode_read(terminal->input, 0, &c, 1);
-			continue;
+		/* Deal with modifiers and key releases */
+		while(1) {
+			int release=0;
+			c=terminal_getchar(terminal);
+			if(c==0xff) {
+				release=1;
+				c=terminal_getchar(terminal);
+			}
+			if(c>=KEY_LEFTCTRL && c<=KEY_RIGHTMETA) {
+				unsigned key=1<<c;
+				c-=KEY_LEFTCTRL;
+				if (release) {
+					modifiers &= ~key;
+				} else {
+					modifiers |= key;
+				}
+			} else if (release) {
+				continue;
+			} else {
+				break;
+			}
 		}
 
-		c = input_key_to_char(c, 0);
+		c = input_key_to_char(c, modifiers);
 
 		if (c) {
 			MONITOR_AUTOLOCK(terminal->lock) {

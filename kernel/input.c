@@ -278,7 +278,7 @@ struct input_consumer_t {
 int input_key_to_char(unsigned char key, int modifiers)
 {
 	int shift = modifiers & (KEY_MOD_LSHIFT | KEY_MOD_RSHIFT);
-	int control = modifiers & (KEY_MOD_LSHIFT | KEY_MOD_RSHIFT);
+	int control = modifiers & (KEY_MOD_LCTRL | KEY_MOD_RCTRL);
 
 	if (key>=KEY_A && key<= KEY_Z) {
 		int base = 'a';
@@ -303,11 +303,11 @@ int input_key_to_char(unsigned char key, int modifiers)
 	} else if (KEY_ENTER == key) {
 			return '\n';
 	} else if (key>=KEY_TAB && key<=KEY_SLASH) {
-		char * punct = "\t-=[]\\#;'`,./";
+		char * punct = "\t -=[]\\#;'`,./";
 		int i = key-KEY_TAB;
 
 		if (shift) {
-			punct = "\t_+{}|~:\"~<>?";
+			punct = "\t _+{}|~:\"~<>?";
 		}
 
 		return punct[i];
