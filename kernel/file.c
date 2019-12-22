@@ -108,11 +108,9 @@ int file_dup(int fd)
 
 int file_open(const char * name, int flags, mode_t mode)
 {
-	process_t * proc = process_get();
-	int fd = file_get_fd();
 	vnode_t * v = file_namev(name);
 
-	return -1;
+	return file_vopen(v, flags, mode);
 }
 
 

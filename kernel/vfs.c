@@ -126,14 +126,32 @@ void vnode_close(vnode_t * vnode)
 	vnode->fs->fsops->close(vnode);
 }
 
+
+static void * vnode_map_buffer(vnode_t * vnode, off_t offset, size_t len)
+{
+	off_t pstart=PTR_ALIGN(offset, ARCH_PAGE_SIZE);
+	off_t pend=PTR_ALIGN(offset+len, ARCH_PAGE_SIZE);
+
+	return 0;
+}
+
 size_t vnode_write(vnode_t * vnode, off_t offset, void * buf, size_t len)
 {
+	if (vnode->fs->fsops->write) {
+		return vnode->fs->fsops->write(vnode, offset, buf, len);
+	} else {
+		return 0;
+	}
 	return vnode->fs->fsops->write(vnode, offset, buf, len);
 }
 
 size_t vnode_read(vnode_t * vnode, off_t offset, void * buf, size_t len)
 {
-	return vnode->fs->fsops->read(vnode, offset, buf, len);
+	if (vnode->fs->fsops->read) {
+		return vnode->fs->fsops->read(vnode, offset, buf, len);
+	} else {
+		return 0;
+	}
 }
 
 void fs_idle(vnode_t * root)
