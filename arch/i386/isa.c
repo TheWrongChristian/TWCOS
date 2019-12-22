@@ -91,7 +91,7 @@ static void isa_irq(uint32_t num, uint32_t * state)
 	irq_flag |= (1 << irq);
 
 	if (irq_table[irq]) {
-		irq_table[irq]();
+		irq_table[irq](irq);
 	}
 
 	PIC_eoi(irq);
@@ -104,7 +104,7 @@ void i386_irq(uint32_t num, uint32_t * state)
 	irq_flag |= (1 << irq);
 
 	if (irq_table[irq]) {
-		irq_table[irq]();
+		irq_table[irq](irq);
 	}
 
 	PIC_eoi(irq);
@@ -114,6 +114,12 @@ irq_func add_irq(int irq, irq_func handler)
 {
 	irq_func old = irq_table[irq];
 	irq_table[irq] = handler;
+	if (irq<8) {
+		outb(PIC1_DATA, inb(PIC1_DATA) & ~(1<<irq));
+	} else {
+		outb(PIC1_DATA, inb(PIC1_DATA) & ~(1<<2));
+		outb(PIC2_DATA, inb(PIC2_DATA) & ~(1<<(irq-8)));
+	}
 	return old;
 }
 
@@ -167,7 +173,7 @@ static int pit_get()
 	return count;
 }
 
-static void pit_timer_int()
+static void pit_timer_int(int irq)
 {
 	SPIN_AUTOLOCK(pit_lock) {
 		if (ticks>65535) {
@@ -227,6 +233,16 @@ timer_ops_t * arch_timer_ops()
 void arch_idle()
 {
 	hlt();
+}
+
+uint8_t isa_inb(uint16_t port)
+{
+	return inb(port);
+}
+
+void isa_outb(uint16_t port, uint8_t data)
+{
+	outb(port, data);
 }
 
 void isa_init()
