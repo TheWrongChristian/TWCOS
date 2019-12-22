@@ -107,10 +107,11 @@ struct segment_anonymous_s {
 void vmpage_mark(void * p)
 {
 	vmpage_t * vmpage = p;
-
+#if 0
 	if (vmpage->flags & VMPAGE_MANAGED) {
 		page_gc_mark(vmpage->page);
 	}
+#endif
 }
 
 static void vmpage_finalize(void * p);
@@ -118,15 +119,17 @@ static slab_type_t slabvmpages[] = { SLAB_TYPE(sizeof(vmpage_t), vmpage_mark, vm
 
 static map_t * vmpages;
 map_t * kas;
-
+#define RMAP 1
 void vm_init()
 {
 	INIT_ONCE();
 
 	kas = tree_new(0, TREE_TREAP);
-	//vmpages = vector_new();
 	thread_gc_root(kas);
-	//thread_gc_root(vmpages);
+#if RMAP
+	vmpages = vector_new();
+	thread_gc_root(vmpages);
+#endif
 }
 
 static void vm_invalid_pointer(void * p, int write, int user, int present)
@@ -304,9 +307,6 @@ static void vm_as_release_walk(void * p, void * key, void * data)
 void vm_as_release(map_t * as)
 {
 	vmap_release_asid(as);
-#if 0
-	map_walkpp(as, vm_as_release_walk, as);
-#endif
 }
 
 /*
@@ -703,10 +703,13 @@ static void vmpage_finalize(void * p)
 		}
 	}
 
-#if 0
+#if RMAP
 	MUTEX_AUTOLOCK(vmpages_lock) {
-		vmpage_t * vmpage_check = map_putip(vmpages, vmpage->page, 0);
-		assert(0 == vmpage_check || vmpage == vmpage_check);
+		slab_weakref_t * ref = map_putip(vmpages, vmpage->page, 0);
+		if (ref) {
+			vmpage_t * vmpage_check = slab_weakref_get(ref);
+			assert(0 == vmpage || vmpage == vmpage_check);
+		}
 	}
 #endif
 	if (vmpage->page>0 && vmpage->flags & VMPAGE_MANAGED) {
@@ -739,10 +742,13 @@ vmpage_t * vmpage_calloc()
 
 void vmpage_map( vmpage_t * vmpage, asid as, void * p, int rw, int user )
 {
-#if 0
+#if RMAP
 	MUTEX_AUTOLOCK(vmpages_lock) {
-		vmpage_t * vmpage_check = map_putip(vmpages, vmpage->page, vmpage);
-		assert(0 == vmpage_check || vmpage == vmpage_check);
+		slab_weakref_t * ref = map_putip(vmpages, vmpage->page, slab_weakref(vmpage));
+		if (ref) {
+			vmpage_t * vmpage_check = slab_weakref_get(ref);
+			assert(0 == vmpage || vmpage == vmpage_check);
+		}
 	}
 #endif
 

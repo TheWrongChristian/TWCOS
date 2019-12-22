@@ -48,6 +48,7 @@ void kernel_main() {
 		page_cache_init();
 		process_init();
 		timer_init(arch_timer_ops());
+		cache_test();
 #if 0
 		vnode_t * root = tarfs_test();
 		vfs_test(root);
@@ -89,13 +90,24 @@ void kernel_main() {
 		/* Create process 1 - init */
 		if (0 == process_fork()) {
 			/* Open stdin/stdout/stderr */
+#if 0
 			vnode_t * console = dev_vnode(console_dev());
 			vnode_t * terminal = terminal_new(console, console);
+#else
+			vnode_t * serial = ns16650_open(0x3f8, 4);
+			vnode_t * terminal = terminal_new(serial, serial);
+#endif
 			file_vopen(terminal, 0, 0);
 			file_dup(0);
 			file_dup(0);
-		
-			process_execve("/user/shell/init", 0, 0);	
+
+#if 1
+			char * argv[]={"/user/shell/init", NULL};
+#else
+			char * argv[]={"user/picol/picol", "/user/picol/script.tcl", NULL};
+#endif
+			char * envp[]={"HOME=/", NULL};
+			process_execve(argv[0], argv, envp);	
 			kernel_panic("Unable to exec %s", "/user/shell/init");
 			/* testshell_run(); */
 		}

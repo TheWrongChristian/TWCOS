@@ -22,6 +22,11 @@ reg_t syscall_ppp(syscall_e sc, void * p1, void * p2, void * p3)
 	return syscall_3(sc, (reg_t)p1, (reg_t)p2, (reg_t)p3);
 }
 
+reg_t syscall_pii(syscall_e sc, void * p1, int i1, int i2)
+{
+	return syscall_3(sc, (reg_t)p1, (reg_t)i1, (reg_t)i2);
+}
+
 reg_t syscall_pp(syscall_e sc, void * p1, void * p2)
 {
 	return syscall_2(sc, (reg_t)p1, (reg_t)p2);
@@ -45,7 +50,7 @@ pid_t fork()
 	return syscall_v(sc_fork);
 }
 
-void exit(int code)
+void _exit(int code)
 {
 	syscall_i(sc_exit, code);
 }
@@ -100,4 +105,19 @@ void * sbrk(intptr_t incr)
 	}
 
 	return internal_brk(current + incr);
+}
+
+int open(const char *pathname, int flags, mode_t mode)
+{
+	return syscall_pii(sc_open, pathname, flags, mode);
+}
+
+int close(int fd)
+{
+	return syscall_i(sc_close, fd);
+}
+
+int unlink(const char * path)
+{
+	return syscall_p(sc_unlink, path);
 }

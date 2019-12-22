@@ -104,6 +104,13 @@ void i386_syscall(uint32_t intr, uint32_t * state)
 				retval = process_waitpid(pid, pstatus, options);
 				break;
 			}
+		case sc_open: {
+				char * name = (char*)state[ISR_REG_EBX];
+				int flags = state[ISR_REG_ECX];
+				int mode = state[ISR_REG_EDX];
+				retval = file_open(name, flags, mode);
+				break;
+			}
 		case sc_read: {
 				int fd = state[ISR_REG_EBX];
 				void * p = (void*)state[ISR_REG_ECX];

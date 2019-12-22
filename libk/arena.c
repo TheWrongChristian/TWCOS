@@ -167,6 +167,13 @@ void * tmalloc(size_t size)
 	return arena_alloc(arena, size);
 }
 
+void * tcalloc(size_t nmemb, size_t size)
+{
+	arena_t * arena = arena_thread_get();
+
+	return arena_calloc(arena, nmemb*size);
+}
+
 char * tstrdup(const char * s)
 {
 	int len = strlen(s);

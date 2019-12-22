@@ -127,10 +127,35 @@ int elf_check_supported(Elf32_Ehdr *hdr) {
 }
 
 
-void elf_execve(vnode_t * f, process_t * p, char * argv[], char * envp)
+void elf_execve(vnode_t * f, process_t * p, char * argv[], char * envp[])
 {
+	/* Temporary arena */
+	arena_state state = arena_getstate(0);
+
 	/* Save old AS */
 	map_t * oldas = p->as;
+
+	/* Create argv and envp */
+	int argc;
+	for(argc=0; argv[argc]; argc++) {
+		/* Nothing */
+	}
+
+	int envc;
+	for(envc=0; envp[envc]; envc++) {
+		/* Nothing */
+	}
+
+	/* Copy the strings to the temporary arena */
+	char ** targv = tcalloc(sizeof(*targv), argc+1);
+	for(int i=0; i<argc; i++) {
+		targv[i] = tstrdup(argv[i]);
+	}
+	char ** tenvp = tcalloc(sizeof(*tenvp), envc+1);
+	for(int i=0; i<envc; i++) {
+		tenvp[i] = tstrdup(envp[i]);
+	}
+
 
 	KTRY {
 		/* Create and switch to new address space */
@@ -183,7 +208,7 @@ void elf_execve(vnode_t * f, process_t * p, char * argv[], char * envp)
 				if (vaddr<stacktop) {
 					stacktop = vaddr;
 				}
-#if 1
+
 				if (iswr) {
 					uintptr_t zstart = phdr[i].vaddr+phdr[i].fsize;
 					uintptr_t zend = PTR_ALIGN_NEXT(phdr[i].vaddr+phdr[i].msize, phdr[i].align);
@@ -192,7 +217,6 @@ void elf_execve(vnode_t * f, process_t * p, char * argv[], char * envp)
 						brk = (void*)zend;
 					}
 				}
-#endif
 			} else {
 #if 0
 				KTHROW(Exception, "Unsupported executable format");
@@ -211,6 +235,20 @@ void elf_execve(vnode_t * f, process_t * p, char * argv[], char * envp)
 		p->heap = vm_segment_anonymous(brk, 0, SEGMENT_U | SEGMENT_R | SEGMENT_W);
 		map_putpp(p->as, p->heap->base, p->heap);
 
+		/* Copy argv and envp */
+		for(int i=0; i<argc; i++) {
+			targv[i] = stacktop = arch_user_stack_pushstr(stacktop, targv[i]);
+		}
+		for(int i=0; i<envc; i++) {
+			tenvp[i] = stacktop = arch_user_stack_pushstr(stacktop, tenvp[i]);
+		}
+		tenvp = stacktop = arch_user_stack_mempcy(stacktop, tenvp, (1+envc) * sizeof(*tenvp));
+		targv = stacktop = arch_user_stack_mempcy(stacktop, targv, (1+argc) * sizeof(*targv));
+
+		stacktop = arch_user_stack_mempcy(stacktop, &argc, sizeof(argc));
+
+		arena_setstate(0, state);
+
 		/* By here, we're committed - Destroy old as */
 		vm_as_release(oldas);
 		arch_startuser((void*)ehdr->e_entry, stacktop);
@@ -219,6 +257,8 @@ void elf_execve(vnode_t * f, process_t * p, char * argv[], char * envp)
 		vm_as_release(p->as);
 		p->as = oldas;
 		vmap_set_asid(p->as);
+
+		arena_setstate(0, state);
 
 		KRETHROW();
 	}

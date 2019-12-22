@@ -51,29 +51,29 @@ clean::
 	echo symbol-file $(KERNEL) | tee -a .gdbinit
 	echo break kernel_main | tee -a .gdbinit
 
-QEMU_OPTS=-d cpu_reset,guest_errors
+QEMU_OPTS=-d cpu_reset,guest_errors -serial stdio
 QEMU_MEM=1536k
 qemu: all .gdbinit
-	$(QEMU) $(QEMU_OPTS) -m $(QEMU_MEM) -s -S -kernel $(KERNEL) -initrd $(INITRD_TAR) &
+	$(QEMU) $(QEMU_OPTS) -m $(QEMU_MEM) -s -S -kernel $(KERNEL) -initrd $(INITRD_TAR)
 
 run: all
-	$(QEMU) $(QEMU_OPTS) -m $(QEMU_MEM) -s -kernel $(KERNEL) -initrd $(INITRD_TAR) &
+	$(QEMU) $(QEMU_OPTS) -m $(QEMU_MEM) -s -kernel $(KERNEL) -initrd $(INITRD_TAR)
 
 includes::
 	mkdir -p lib
 	$(MAKEHEADERS) $(SRCS_C) $(ARCH_USYSCALL_C) $(PDCLIB_TWCOS_SRCS_C)
 
 cflow:
-	cflow -d 4 -m kernel_main $(SRCS_C) $(LIBC_SRCS_C)
+	cflow -d 4 -m kernel_main $(SRCS_C) $(LIBC_SRCS_C) $(INIT_SRCS_C)
 
 cflowr:
-	cflow -d 4 -r $(SRCS_C) $(LIBC_SRCS_C)
+	cflow -d 4 -r $(SRCS_C) $(LIBC_SRCS_C) $(INIT_SRCS_C)
 
 cxref:
 	cxref -html-src $(SRCS_C) $(SRCS_C:.c=.h)
 
 ctags:
-	ctags $(SRCS_C) $(LIBC_SRCS_C)
+	ctags $(SRCS_C) $(LIBC_SRCS_C) $(INIT_SRCS_C)
 
 cppcheck:
 	cppcheck $(SRCS_C)
