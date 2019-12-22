@@ -174,6 +174,13 @@ static int vm_resolve_address(void * p, address_info_t * info)
 	return 0;
 }
 
+void vm_kas_add(segment_t * seg)
+{
+	MUTEX_AUTOLOCK(&kaslock) {
+		map_putpp(kas, seg->base, seg);
+	}
+}
+
 void vm_page_fault(void * p, int write, int user, int present)
 {
 	address_info_t info[1];

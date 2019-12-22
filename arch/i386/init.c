@@ -173,9 +173,9 @@ void arch_init()
 	vm_init();
 	page_t code_page = ((uintptr_t)code_start - koffset) >> ARCH_PAGE_SIZE_LOG2;
 	page_t data_page = ((uintptr_t)data_start - koffset) >> ARCH_PAGE_SIZE_LOG2;
-	map_putpp(kas, code_start, vm_segment_direct(code_start, data_start - code_start, SEGMENT_R | SEGMENT_X, code_page ));
-	map_putpp(kas, data_start, vm_segment_direct(data_start, nextalloc - data_start, SEGMENT_R | SEGMENT_W, data_page ));
-	map_putpp(kas, nextalloc, heap);
+	vm_kas_add(vm_segment_direct(code_start, data_start - code_start, SEGMENT_R | SEGMENT_X, code_page ));
+	vm_kas_add(vm_segment_direct(data_start, nextalloc - data_start, SEGMENT_R | SEGMENT_W, data_page ));
+	vm_kas_add(heap);
 	pci_scan();
 
 #if 0
