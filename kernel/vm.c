@@ -119,7 +119,7 @@ static slab_type_t slabvmpages[] = { SLAB_TYPE(sizeof(vmpage_t), vmpage_mark, vm
 
 static map_t * vmpages;
 map_t * kas;
-#define RMAP 1
+#define RMAP 0
 void vm_init()
 {
 	INIT_ONCE();
