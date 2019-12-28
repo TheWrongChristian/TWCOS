@@ -142,7 +142,6 @@ size_t vnode_write(vnode_t * vnode, off_t offset, void * buf, size_t len)
 	} else {
 		return 0;
 	}
-	return vnode->fs->fsops->write(vnode, offset, buf, len);
 }
 
 size_t vnode_read(vnode_t * vnode, off_t offset, void * buf, size_t len)
