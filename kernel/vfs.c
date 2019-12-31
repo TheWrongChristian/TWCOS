@@ -14,7 +14,7 @@ struct vfs_ops_t {
 	void (*put_page)(vnode_t * vnode, off_t offset, vmpage_t * page);
 	void (*close)(vnode_t * vnode);
 	size_t (*get_size)(vnode_t * vnode);
-	size_t (*set_size)(vnode_t * vnode);
+	void (*set_size)(vnode_t * vnode, size_t size);
 
 	/* Stream read/write */
 	size_t (*read)(vnode_t * vnode, off_t offset, void * buf, size_t len);
@@ -118,9 +118,9 @@ size_t vnode_get_size(vnode_t * vnode)
 	return vnode->fs->fsops->get_size(vnode);
 }
 
-size_t vnode_set_size(vnode_t * vnode)
+void vnode_set_size(vnode_t * vnode, size_t size)
 {
-	return vnode->fs->fsops->set_size(vnode);
+	return vnode->fs->fsops->set_size(vnode, size);
 }
 
 vnode_t * vnode_get_vnode( vnode_t * dir, const char * name )
@@ -180,6 +180,25 @@ static ssize_t vnode_readwrite( vnode_t * vnode, off_t offset, void * buf, size_
 {
 	size_t processed = 0;
 	char * cto = buf;
+
+	/* Deal with file size limit */
+	off_t size = vnode_get_size(vnode);
+	if (write) {
+		/* Extend the file if we're going beyond EOF */
+		if (offset+len > size) {
+			vnode_set_size(vnode, offset+len);
+		}
+	} else {
+		/* Clamp reads to the EOF */
+		if (offset+len > size) {
+			len = size-offset;
+			if (len<0) {
+				/* Offset is beyond the end of the file already! */
+				len = 0;
+			}
+		}
+	}
+
 	while(processed<len) {
 		// Offsets to copy from the buffer
 		off_t from = offset + processed;
