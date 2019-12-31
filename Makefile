@@ -51,7 +51,7 @@ clean::
 	echo symbol-file $(KERNEL) | tee -a .gdbinit
 	echo break kernel_main | tee -a .gdbinit
 
-QEMU_OPTS=-d cpu_reset,guest_errors -serial stdio
+QEMU_OPTS=-enable-kvm -d cpu_reset,guest_errors -serial stdio
 QEMU_MEM=1536k
 qemu: all .gdbinit
 	$(QEMU) $(QEMU_OPTS) -m $(QEMU_MEM) -s -S -kernel $(KERNEL) -initrd $(INITRD_TAR)
