@@ -43,7 +43,7 @@ static int console_column;
 static uint8_t console_color;
 static uint16_t* console_buffer;
 
-static monitor_t * keyq_lock;
+static GCROOT monitor_t * keyq_lock;
 static uint8_t keyq [256];
 #define keyq_ptr(i) ((i)%sizeof(keyq))
 static int keyhead;
@@ -153,7 +153,7 @@ uint8_t keyq_get()
 	return scancode;
 }
 
-static queue_t * input_queue;
+static GCROOT queue_t * input_queue;
 void console_input(int key)
 {
 	if (key<0) {
@@ -209,15 +209,14 @@ void console_initialize()
 	}
 
 	keyq_lock = monitor_create();
-	thread_gc_root(keyq_lock);
 
 	input_queue = queue_new(64);
-	thread_gc_root(input_queue);
 
-	thread_t * keythread = thread_fork();
-	thread_gc_root(keythread);
-	if (0 == keythread) {
+	thread_t * thread = thread_fork();
+	if (0 == thread) {
 		/* Keyboard handler thread */
+		static GCROOT thread_t * keythread=0;
+		keythread = thread;
 		thread_set_priority(0, THREAD_INTERRUPT);
 		keyb_thread();
 	}

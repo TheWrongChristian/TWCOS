@@ -64,6 +64,9 @@ SECTIONS
 	.bss ALIGN(4K) : AT(ADDR(.bss) - kernel_offset)
 	{
 		*(COMMON)
+		gcroot_start = .;
+		*(.gcroot)
+		gcroot_end = .;
 		*(.bss)
 		zero_end = .;
 	}

@@ -31,8 +31,8 @@ struct timer_event_t {
 #endif
 
 static int timers_lock[1]={0};
-static timer_t dummy;
-static timer_t * timers = &dummy;
+static GCROOT timer_t timers_static;
+static timer_t * timers = &timers_static;
 static timerspec_t uptime = 0;
 static timer_event_t * uptime_timer = 0;
 
@@ -46,12 +46,10 @@ void timer_init(timer_ops_t * ops)
 {
 	INIT_ONCE();
 
-	timers = calloc(1, sizeof(*timers));
 	timers->ops = ops;
-	thread_gc_root(timers);
 
-	/* Uptime tracking timer - update uptime at least every 10 seconds second */
-	uptime_timer = timer_add(10000000, timer_uptime_cb, 0);
+	/* Uptime tracking timer - update uptime at least every 1 second */
+	uptime_timer = timer_add(1000000, timer_uptime_cb, 0);
 }
 
 static void timer_expire();
@@ -174,14 +172,16 @@ void timer_delete(timer_event_t * timer)
 
 timerspec_t timer_uptime()
 {
+#if 1
 	timerspec_t t = 0;
-
 	SPIN_AUTOLOCK(timers_lock) {
 		timer_clear();
 		t = uptime;
 		timer_set();
 	}
-
+#else
+	timerspec_t t = uptime;
+#endif
 	return t;
 }
 

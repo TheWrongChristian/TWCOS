@@ -14,6 +14,7 @@ struct vfs_ops_t {
 	void (*put_page)(vnode_t * vnode, off_t offset, vmpage_t * page);
 	void (*close)(vnode_t * vnode);
 	size_t (*get_size)(vnode_t * vnode);
+	size_t (*set_size)(vnode_t * vnode);
 
 	/* Stream read/write */
 	size_t (*read)(vnode_t * vnode, off_t offset, void * buf, size_t len);
@@ -47,6 +48,8 @@ typedef struct fs_t {
  
 #endif
 
+#define VFS_BUFFER_LEN (64<<10)
+
 exception_def FileException = { "FileException", &Exception };
 exception_def ReadOnlyFileException = { "ReadOnlyFileException", &FileException };
 exception_def UnauthorizedFileException = { "UnauthorizedFileException", &FileException };
@@ -75,21 +78,20 @@ static int page_cache_key_comp( map_key p1, map_key p2 )
 	}
 }
 
-static map_t * page_cache;
+static GCROOT map_t * page_cache;
 
 void page_cache_init()
 {
 	INIT_ONCE();
 
 	page_cache = tree_new(page_cache_key_comp, TREE_TREAP);
-	thread_gc_root(page_cache);
 }
 
 
 
 vmpage_t * vnode_get_page( vnode_t * vnode, off_t offset )
 {
-	offset = ARCH_PAGE_ALIGN(offset);
+	offset = (off_t)ARCH_PAGE_ALIGN(offset);
 	page_cache_key_t key[] = {{ vnode, offset }};
 
 	vmpage_t * vmpage = map_getpp(page_cache, key);
@@ -116,6 +118,11 @@ size_t vnode_get_size(vnode_t * vnode)
 	return vnode->fs->fsops->get_size(vnode);
 }
 
+size_t vnode_set_size(vnode_t * vnode)
+{
+	return vnode->fs->fsops->set_size(vnode);
+}
+
 vnode_t * vnode_get_vnode( vnode_t * dir, const char * name )
 {
 	return dir->fs->fsops->get_vnode(dir, name);
@@ -126,30 +133,97 @@ void vnode_close(vnode_t * vnode)
 	vnode->fs->fsops->close(vnode);
 }
 
+typedef struct file_buffer_s {
+	vnode_t * vnode;
+	void * p;
+	segment_t * seg;
 
-static void * vnode_map_buffer(vnode_t * vnode, off_t offset, size_t len)
+	struct file_buffer_s * next;
+} file_buffer_t;
+
+static GCROOT file_buffer_t * bufs=0;
+static int bufslock[] = {0};
+
+static file_buffer_t * vnode_get_buffer(vnode_t * vnode, off_t offset)
 {
-	off_t pstart=PTR_ALIGN(offset, ARCH_PAGE_SIZE);
-	off_t pend=PTR_ALIGN(offset+len, ARCH_PAGE_SIZE);
+	file_buffer_t * buf = 0;
 
-	return 0;
+	SPIN_AUTOLOCK(bufslock) {
+		buf = bufs;
+		if (buf) {
+			bufs = bufs->next;
+		} else {
+			/* No existing free buffers - create one */
+			buf = calloc(1, sizeof(*buf));
+			buf->p = vm_kas_get_aligned(VFS_BUFFER_LEN, ARCH_PAGE_SIZE);
+		}
+		buf->vnode = vnode;
+		buf->seg = vm_segment_vnode(buf->p, VFS_BUFFER_LEN, SEGMENT_W | SEGMENT_R, vnode, PTR_ALIGN(offset, VFS_BUFFER_LEN));
+		vm_kas_add(buf->seg);
+	}
+
+	return buf;
 }
 
-size_t vnode_write(vnode_t * vnode, off_t offset, void * buf, size_t len)
+static void vnode_put_buffer(file_buffer_t * buf)
+{
+	SPIN_AUTOLOCK(bufslock) {
+		vm_kas_remove(buf->seg);
+		buf->vnode = 0;
+		buf->seg = 0;
+		buf->next = bufs;
+		bufs = buf;
+	}
+}
+
+static ssize_t vnode_readwrite( vnode_t * vnode, off_t offset, void * buf, size_t len, int write)
+{
+	size_t processed = 0;
+	char * cto = buf;
+	while(processed<len) {
+		// Offsets to copy from the buffer
+		off_t from = offset + processed;
+		off_t to = PTR_ALIGN(offset+VFS_BUFFER_LEN, VFS_BUFFER_LEN);
+		if (to>offset+len) {
+			to = offset+len;
+		}
+
+		// map i
+		file_buffer_t * buf = vnode_get_buffer(vnode, from);
+		char * cfrom = buf->p;
+
+		// copy to/from buf
+		if (write) {
+			memcpy(cfrom + (from % VFS_BUFFER_LEN), cto + processed, (to-from));
+		} else {
+			memcpy(cto + processed, cfrom + (from % VFS_BUFFER_LEN), (to-from));
+		}
+
+		// unmap i
+		vnode_put_buffer(buf);
+
+		// Advance cursor
+		processed += (to-from);
+	}
+
+	return processed;
+}
+
+ssize_t vnode_write(vnode_t * vnode, off_t offset, void * buf, size_t len)
 {
 	if (vnode->fs->fsops->write) {
 		return vnode->fs->fsops->write(vnode, offset, buf, len);
 	} else {
-		return 0;
+		return vnode_readwrite(vnode, offset, buf, len, 1);
 	}
 }
 
-size_t vnode_read(vnode_t * vnode, off_t offset, void * buf, size_t len)
+ssize_t vnode_read(vnode_t * vnode, off_t offset, void * buf, size_t len)
 {
 	if (vnode->fs->fsops->read) {
 		return vnode->fs->fsops->read(vnode, offset, buf, len);
 	} else {
-		return 0;
+		return vnode_readwrite(vnode, offset, buf, len, 0);
 	}
 }
 

@@ -38,7 +38,7 @@ static void ns16650_outq(ns16650_device_t * dev)
 }
 
 static int devices_lock[1]={0};
-static map_t * devices = 0;
+static GCROOT map_t * devices = 0;
 
 static void ns16650_int(int irq)
 {
@@ -125,7 +125,6 @@ vnode_t * ns16650_open(int baseport, int irq)
 	SPIN_AUTOLOCK(devices_lock) {
 		if (0==devices) {
 			devices = splay_new(0);
-			thread_gc_root(devices);
 		}
 
 		dev = map_getip(devices, irq);

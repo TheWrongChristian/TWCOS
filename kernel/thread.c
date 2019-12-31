@@ -194,13 +194,12 @@ void thread_set_name(thread_t * thread, char * name)
 static void thread_track(thread_t * thread, int add)
 {
 	static int lock = 0;
-	static map_t * allthreads = 0;
+	static GCROOT map_t * allthreads = 0;
 
 	SPIN_AUTOLOCK(&lock) {
 		if (0 == allthreads) {
 			/* All threads */
 			allthreads = tree_new(0, TREE_TREAP);
-			thread_gc_root(allthreads);
 		}
 		if (add) {
 			if (map_putpp(allthreads, thread, thread)) {
@@ -288,7 +287,7 @@ void thread_set_priority(thread_t * thread, tpriority priority)
 	thread->priority = priority;
 }
 
-static void ** roots;
+static GCROOT void ** roots;
 
 void thread_gc()
 {
@@ -301,11 +300,14 @@ void thread_gc()
 	}
 	slab_gc_mark(roots);
 #else
-	slab_gc_mark(roots);
+	extern char gcroot_start[];
+	extern char gcroot_end[];
+	slab_gc_mark_range(gcroot_start, gcroot_end);
 #endif
 	slab_gc_end();
 }
 
+#if 0
 void thread_gc_root(void * p)
 {
 	static int rootcount = 0;
@@ -313,6 +315,7 @@ void thread_gc_root(void * p)
 	roots = realloc(roots, sizeof(*roots)*(rootcount+1));
 	roots[rootcount++] = p;
 }
+#endif
 
 static void thread_mark(void * p)
 {

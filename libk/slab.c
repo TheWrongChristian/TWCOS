@@ -39,6 +39,8 @@ struct slab_weakref_t {
 #define slab_calloc(type) slab_calloc_p(type)
 #endif
 
+#define GCROOT __attribute__((section(".gcroot")))
+
 #endif
 
 exception_def OutOfMemoryException = { "OutOfMemoryException", &Exception };

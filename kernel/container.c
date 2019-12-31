@@ -12,7 +12,7 @@ struct container_t {
 /*
  * List of containers - 0 is root container
  */
-static map_t * containers; 
+static GCROOT map_t * containers; 
 
 void container_init()
 {
@@ -25,9 +25,6 @@ void container_init()
 
 	containers = vector_new();
 	map_putip(containers, 0, container);
-
-	/* Make containers a GC root */
-	thread_gc_root(containers);
 }
 
 static int lock[] = {0};

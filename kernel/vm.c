@@ -117,18 +117,16 @@ void vmpage_mark(void * p)
 static void vmpage_finalize(void * p);
 static slab_type_t slabvmpages[] = { SLAB_TYPE(sizeof(vmpage_t), vmpage_mark, vmpage_finalize) };
 
-static map_t * vmpages;
-map_t * kas;
+static GCROOT map_t * vmpages;
+GCROOT map_t * kas;
 #define RMAP 0
 void vm_init()
 {
 	INIT_ONCE();
 
 	kas = tree_new(0, TREE_TREAP);
-	thread_gc_root(kas);
 #if RMAP
 	vmpages = vector_new();
-	thread_gc_root(vmpages);
 #endif
 }
 
@@ -178,6 +176,14 @@ void vm_kas_add(segment_t * seg)
 {
 	MUTEX_AUTOLOCK(&kaslock) {
 		map_putpp(kas, seg->base, seg);
+	}
+}
+
+void vm_kas_remove(segment_t * seg)
+{
+	MUTEX_AUTOLOCK(&kaslock) {
+		assert(seg == map_removepp(kas, seg->base));
+		vm_segment_unmap(kas, seg);
 	}
 }
 
@@ -559,6 +565,22 @@ static vmobject_t * vm_object_vnode(vnode_t * vnode)
         return &ovnode->vmobject;
 }
 
+void vm_segment_unmap(asid as, segment_t * seg)
+{
+	char * p = seg->base;
+	for(size_t offset=0; offset<seg->size; offset+=ARCH_PAGE_SIZE) {
+		vmpage_t * vmpage = vmobject_get_page(seg->dirty, offset);
+		if (0 == vmpage) {
+			/* Handle case of page not in dirty pages */
+			vmpage = vmobject_get_page(seg->clean, offset);
+		}
+		if (vmpage) {
+			/* Page might be mapped, unmap it */
+			vmpage_unmap(vmpage, as, p+offset);
+		}
+	}
+}
+
 segment_t * vm_segment_base( void * p, size_t size, int perms, vmobject_t * clean, off_t offset)
 {
 	vm_init();
@@ -577,7 +599,7 @@ segment_t * vm_segment_base( void * p, size_t size, int perms, vmobject_t * clea
 segment_t * vm_segment_vnode(void * p, size_t size, int perms, vnode_t * vnode, off_t offset)
 {
 	vmobject_t * vobject = vm_object_vnode(vnode);
-	segment_t * seg = vm_segment_base(p, size, perms | SEGMENT_P, vobject, offset);
+	segment_t * seg = vm_segment_base(p, size, perms, vobject, offset);
 	if (perms & SEGMENT_P) {
 		seg->dirty = vm_object_anon(vobject);
 	}
