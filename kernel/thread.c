@@ -95,7 +95,7 @@ thread_t * thread_queue(thread_t * queue, thread_t * thread, tstate state)
 }
 
 /* Simple RR scheduler */
-static thread_t * queue[THREAD_PRIORITIES];
+static GCROOT thread_t * queue[THREAD_PRIORITIES];
 static int queuelock;
 
 static void scheduler_lock()
