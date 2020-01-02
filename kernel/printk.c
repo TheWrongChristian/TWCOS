@@ -1,9 +1,17 @@
-#include <stdarg.h>
-
 #include "printk.h"
 
+#if INTERFACE
 
-stream_t * console = 0;
+#include <stdarg.h>
+
+typedef void (*kernel_logger)(void * p, const char * msg);
+
+struct kernel_logger_listener_t {
+	int level;
+	kernel_logger cb;
+};
+
+#endif
 
 #define countof(arr) (sizeof(arr)/sizeof(arr[0]))
 
@@ -11,6 +19,8 @@ static char msg_ring[32][128];
 static int msg_next=0;
 static int enabled=0;
 static char * msgs[countof(msg_ring)];
+
+stream_t * console = 0;
 
 void kernel_startlogging(int enable)
 {
@@ -50,4 +60,20 @@ int kernel_vprintk(const char * fmt, va_list ap)
 	}
 
         return len;
+}
+
+static kernel_logger_listener_t listener[1];
+
+void kernel_vlog(int level, const char * fmt, va_list ap)
+{
+	if (listener->cb && level<listener->level) {
+	}
+}
+
+void kernel_log(int level, const char * fmt, ...)
+{
+        va_list ap;
+        va_start(ap, fmt);
+	kernel_vlog(level, fmt, ap);
+	va_end(ap);
 }
