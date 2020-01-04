@@ -115,7 +115,9 @@ pid_t process_fork()
 	new->as = process_duplicate_as(current);
 
 	/* New heap */
-	new->heap = vm_get_segment(new->as, current->heap->base);
+	if (current->heap) {
+		new->heap = vm_get_segment(new->as, current->heap->base);
+	}
 
 	/* Thread set */
 	new->threads = tree_new(0, TREE_TREAP);
