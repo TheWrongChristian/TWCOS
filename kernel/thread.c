@@ -292,22 +292,14 @@ static GCROOT void ** roots;
 void thread_gc()
 {
 	// thread_cleanlocks();
-	slab_gc_begin();
-#if 0
-	slab_gc_mark(arch_get_thread());
-	for(int i=0; i<sizeof(queue)/sizeof(queue[0]); i++) {
-		slab_gc_mark(queue[i]);
-	}
-	slab_gc_mark(roots);
-#else
 	extern char gcroot_start[];
 	extern char gcroot_end[];
+
+	slab_gc_begin();
 	slab_gc_mark_range(gcroot_start, gcroot_end);
-#endif
 	slab_gc_end();
 }
 
-#if 0
 void thread_gc_root(void * p)
 {
 	static int rootcount = 0;
@@ -315,7 +307,6 @@ void thread_gc_root(void * p)
 	roots = realloc(roots, sizeof(*roots)*(rootcount+1));
 	roots[rootcount++] = p;
 }
-#endif
 
 static void thread_mark(void * p)
 {
