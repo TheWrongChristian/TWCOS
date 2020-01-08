@@ -51,13 +51,23 @@ clean::
 	echo symbol-file $(KERNEL) | tee -a .gdbinit
 	echo break kernel_main | tee -a .gdbinit
 
-QEMU_OPTS=-enable-kvm -d cpu_reset,guest_errors -serial stdio
+QEMU_OPTS=-d cpu_reset,guest_errors -serial stdio
 QEMU_MEM=1536k
 qemu: all .gdbinit
 	$(QEMU) $(QEMU_OPTS) -m $(QEMU_MEM) -s -S -kernel $(KERNEL) -initrd $(INITRD_TAR)
 
 run: all
 	$(QEMU) $(QEMU_OPTS) -m $(QEMU_MEM) -s -kernel $(KERNEL) -initrd $(INITRD_TAR)
+
+run-gcoverhead: all
+	$(QEMU) -enable-kvm $(QEMU_OPTS) -m $(QEMU_MEM) -kernel $(KERNEL) -initrd $(INITRD_TAR) &
+	$(QEMU) -enable-kvm $(QEMU_OPTS) -m 10$(QEMU_MEM) -kernel $(KERNEL) -initrd $(INITRD_TAR)
+
+qemu-kvm: all .gdbinit
+	$(QEMU) -enable-kvm $(QEMU_OPTS) -m $(QEMU_MEM) -s -S -kernel $(KERNEL) -initrd $(INITRD_TAR)
+
+run-kvm: all
+	$(QEMU) -enable-kvm $(QEMU_OPTS) -m $(QEMU_MEM) -s -kernel $(KERNEL) -initrd $(INITRD_TAR)
 
 includes::
 	mkdir -p lib
