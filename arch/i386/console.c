@@ -52,7 +52,6 @@ static int keytail;
 /*
  * PC keyboard input handler - emulate HID keyboard report
  */
-static keyqueue_t keyqueue = {0};
 static int scancodes[] = {
 	/* 0x00 */
 	0, KEY_ESC, KEY_1, KEY_2, KEY_3, KEY_4, KEY_5, KEY_6,
@@ -92,6 +91,7 @@ static int keyq_translate(uint8_t scancode)
 	return (scancode < sizeof(scancodes)/sizeof(scancodes[0])) ? scancodes[scancode] : 0;
 }
 
+#if 0
 static void keyq_press(uint8_t scancode)
 {
 	int key = keyq_translate(scancode);
@@ -107,6 +107,7 @@ static void keyq_release(uint8_t scancode)
 	switch(key) {
 	}
 }
+#endif
 
 /*
  * Called in interrupt context
@@ -190,17 +191,11 @@ void console_initialize()
 {
 	INIT_ONCE();
 
-	page_t fb = 0xb8;
 	keyhead = keytail = 0;
 	console_row = 0;
 	console_column = 0;
 	console_color = make_color(COLOR_LIGHT_GREY, COLOR_BLACK);
-	console_buffer = fb_create(0xb8000, VGA_WIDTH, VGA_HEIGHT, 2*VGA_WIDTH, 2, 16);
-#if 0
-	console_buffer = (uint16_t*) vm_kas_get_aligned(VGA_HEIGHT*VGA_WIDTH*sizeof(*console_buffer), ARCH_PAGE_SIZE);
-	segment_t * seg = vm_segment_direct(console_buffer, 0x2000, SEGMENT_W, fb);
-	vm_kas_add(seg);
-#endif
+	console_buffer = fb_create(0xb8000, VGA_WIDTH, VGA_HEIGHT, 2*VGA_WIDTH);
 	for (size_t y = 0; y < VGA_HEIGHT; y++) {
 		for (size_t x = 0; x < VGA_WIDTH; x++) {
 			const size_t index = y * VGA_WIDTH + x;
@@ -215,10 +210,11 @@ void console_initialize()
 	thread_t * thread = thread_fork();
 	if (0 == thread) {
 		/* Keyboard handler thread */
-		static GCROOT thread_t * keythread=0;
-		keythread = thread;
 		thread_set_priority(0, THREAD_INTERRUPT);
 		keyb_thread();
+	} else {
+		static GCROOT thread_t * keythread;
+		keythread = thread;
 	}
 	add_irq(1, keyb_isr);
 }
@@ -231,7 +227,7 @@ static void console_setcolor(uint8_t color) {
  
 static void console_putentryat(char c, uint8_t color, size_t x, size_t y) {
 	const size_t index = y * VGA_WIDTH + x;
-	static const maxindex=VGA_WIDTH*VGA_HEIGHT;
+	static const int maxindex=VGA_WIDTH*VGA_HEIGHT;
 	if (index<maxindex) {
 		console_buffer[index] = make_vgaentry(c, color);
 	}
