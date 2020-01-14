@@ -19,37 +19,6 @@
  */
 #include "multiboot.h"
 
-BOOTSTRAP_DATA static multiboot_info_t * info;
-
-BOOTSTRAP_CODE void multiboot_init(multiboot_uint32_t magic, multiboot_info_t * p)
-{
-	if (MULTIBOOT_BOOTLOADER_MAGIC == magic) {
-		info = p;
-	} else {
-		info = 0;
-	}
-}
-
-BOOTSTRAP_CODE multiboot_module_t * multiboot_mod(int index)
-{
-	if (info && info->flags & MULTIBOOT_INFO_MODS && index < info->mods_count) {
-		multiboot_module_t * table = (multiboot_module_t *)info->mods_addr;
-
-		return table+index;
-	}
-	return 0;
-}
-
-BOOTSTRAP_CODE multiboot_memory_map_t * multiboot_mmap(int index)
-{
-	if (info && info->flags & MULTIBOOT_INFO_MEM_MAP && index < info->mmap_length/sizeof(multiboot_memory_map_t)) {
-		multiboot_memory_map_t * table = (multiboot_memory_map_t *)info->mmap_addr;
-
-		return table+index;
-	}
-	return 0;
-}
-
 #if INTERFACE
 #include <stdint.h>
 
@@ -307,4 +276,42 @@ struct multiboot_apm_info
 
 #endif /* ASM_FILE */
 #endif /* INTERFACE */
+
+BOOTSTRAP_DATA static multiboot_header header = {
+	.magic = MULTIBOOT_HEADER_MAGIC,
+	.flags = MULTIBOOT_PAGE_ALIGN | MULTIBOOT_MEMORY_INFO | MULTIBOOT_VIDEO_MODE,
+	.checksum = -(MULTIBOOT_HEADER_MAGIC + (MULTIBOOT_PAGE_ALIGN | MULTIBOOT_MEMORY_INFO | MULTIBOOT_VIDEO_MODE)),
+	.mode_type = 1
+};
+
+BOOTSTRAP_DATA static multiboot_info_t * info;
+
+BOOTSTRAP_CODE void multiboot_init(multiboot_uint32_t magic, multiboot_info_t * p)
+{
+	if (MULTIBOOT_BOOTLOADER_MAGIC == magic) {
+		info = p;
+	} else {
+		info = 0;
+	}
+}
+
+BOOTSTRAP_CODE multiboot_module_t * multiboot_mod(int index)
+{
+	if (info && info->flags & MULTIBOOT_INFO_MODS && index < info->mods_count) {
+		multiboot_module_t * table = (multiboot_module_t *)info->mods_addr;
+
+		return table+index;
+	}
+	return 0;
+}
+
+BOOTSTRAP_CODE multiboot_memory_map_t * multiboot_mmap(int index)
+{
+	if (info && info->flags & MULTIBOOT_INFO_MEM_MAP && index < info->mmap_length/sizeof(multiboot_memory_map_t)) {
+		multiboot_memory_map_t * table = (multiboot_memory_map_t *)info->mmap_addr;
+
+		return table+index;
+	}
+	return 0;
+}
 
