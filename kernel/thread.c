@@ -95,7 +95,7 @@ thread_t * thread_queue(thread_t * queue, thread_t * thread, tstate state)
 }
 
 /* Simple RR scheduler */
-static thread_t * queue[THREAD_PRIORITIES];
+static GCROOT thread_t * queue[THREAD_PRIORITIES];
 static int queuelock;
 
 static void scheduler_lock()
@@ -194,13 +194,12 @@ void thread_set_name(thread_t * thread, char * name)
 static void thread_track(thread_t * thread, int add)
 {
 	static int lock = 0;
-	static map_t * allthreads = 0;
+	static GCROOT map_t * allthreads = 0;
 
 	SPIN_AUTOLOCK(&lock) {
 		if (0 == allthreads) {
 			/* All threads */
 			allthreads = tree_new(0, TREE_TREAP);
-			thread_gc_root(allthreads);
 		}
 		if (add) {
 			if (map_putpp(allthreads, thread, thread)) {
@@ -288,21 +287,16 @@ void thread_set_priority(thread_t * thread, tpriority priority)
 	thread->priority = priority;
 }
 
-static void ** roots;
+static GCROOT void ** roots;
 
 void thread_gc()
 {
 	// thread_cleanlocks();
+	extern char gcroot_start[];
+	extern char gcroot_end[];
+
 	slab_gc_begin();
-#if 0
-	slab_gc_mark(arch_get_thread());
-	for(int i=0; i<sizeof(queue)/sizeof(queue[0]); i++) {
-		slab_gc_mark(queue[i]);
-	}
-	slab_gc_mark(roots);
-#else
-	slab_gc_mark(roots);
-#endif
+	slab_gc_mark_range(gcroot_start, gcroot_end);
 	slab_gc_end();
 }
 

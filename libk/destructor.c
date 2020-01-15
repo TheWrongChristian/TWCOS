@@ -32,7 +32,7 @@ dtor_t * dtor_poll_frame()
 
 /* dtor_t frame cache */
 static int frames_lock;
-static dtor_t ** frames = 0;
+static GCROOT dtor_t ** frames = 0;
 
 void dtor_pop(dtor_t * until)
 {
@@ -74,7 +74,6 @@ dtor_t * dtor_push(void (*dtor)(void * p), void * p)
 	SPIN_AUTOLOCK(&frames_lock) {
 		if (0 == frames) {
 			frames = calloc(1, sizeof(*frames));
-			thread_gc_root(frames);
 		}
 		if (frames[0]) {
 			frame = frames[0];

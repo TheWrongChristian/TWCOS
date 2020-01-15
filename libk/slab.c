@@ -39,6 +39,8 @@ struct slab_weakref_t {
 #define slab_calloc(type) slab_calloc_p(type)
 #endif
 
+#define GCROOT __attribute__((section(".gcroot")))
+
 #endif
 
 exception_def OutOfMemoryException = { "OutOfMemoryException", &Exception };
@@ -182,6 +184,7 @@ void * slab_alloc_p(slab_type_t * stype)
 		if (slot>=0) {
 			bitarray_set(slab->available, slot, 0);
 			bitarray_set(slab->finalize, slot, 0);
+			stype->first = slab;
 			slab_unlock();
 			mutex_unlock(stype->lock);
 			void * p = SLAB_SLOT_USER(slab, slot);

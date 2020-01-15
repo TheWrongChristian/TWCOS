@@ -16,7 +16,7 @@ SECTIONS
 
 	/* First put the multiboot header, as it is required to be put very early
 	   early in the image or the bootloader won't recognize the file format. */
-	.bootstrap ALIGN(4K) :
+	.bootstrap :
 	{
 		*(.bootstrap_data)
 		*(.bootstrap_code)
@@ -64,6 +64,9 @@ SECTIONS
 	.bss ALIGN(4K) : AT(ADDR(.bss) - kernel_offset)
 	{
 		*(COMMON)
+		gcroot_start = .;
+		*(.gcroot)
+		gcroot_end = .;
 		*(.bss)
 		zero_end = .;
 	}

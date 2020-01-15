@@ -90,11 +90,11 @@ void kernel_main() {
 		/* Create process 1 - init */
 		if (0 == process_fork()) {
 			/* Open stdin/stdout/stderr */
-#if 0
+#if 1
 			vnode_t * console = dev_vnode(console_dev());
 			vnode_t * terminal = terminal_new(console, console);
 #else
-			vnode_t * serial = ns16650_open(0x3f8, 4);
+			vnode_t * serial = ns16550_open(0x3f8, 4);
 			vnode_t * terminal = terminal_new(serial, serial);
 #endif
 			file_vopen(terminal, 0, 0);

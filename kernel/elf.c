@@ -162,16 +162,24 @@ void elf_execve(vnode_t * f, process_t * p, char * argv[], char * envp[])
 		p->as = tree_new(0, TREE_TREAP);
 		vmap_set_asid(p->as);
 
-		/* Map header temporarily to 0x00001000 */
-		struct Elf32_Ehdr * ehdr = (struct Elf32_Ehdr *)0x00001000;
-		segment_t * seg = vm_segment_vnode(ehdr, vnode_get_size(f), SEGMENT_U | SEGMENT_P, f, 0);
-		map_putpp(p->as, ehdr, seg);
+		/* Read in the header */
+		struct Elf32_Ehdr ehdr[1];
+		size_t read = vnode_read(f, 0, ehdr, sizeof(ehdr[0]));
+		if (read != sizeof(ehdr[0])) {
+			KTHROW(Exception, "Unsupported executable format");
+		}
+
 		int supported = elf_check_supported(ehdr);
 		if (!supported) {
 			KTHROW(Exception, "Unsupported executable format");
 		}
 
-		Elf32_Phdr * phdr = (Elf32_Phdr *)(((char*)ehdr) + ehdr->e_phoff);
+		Elf32_Phdr * phdr = tcalloc(ehdr->e_phnum, sizeof(*phdr));
+		read = vnode_read(f, ehdr->e_phoff, phdr, ehdr->e_phnum * sizeof(*phdr));
+		if (read != ehdr->e_phnum * sizeof(*phdr)) {
+			KTHROW(Exception, "Unsupported executable format");
+		}
+
 		if (sizeof(*phdr) != ehdr->e_phentsize) {
 			KTHROW(Exception, "Unsupported executable format");
 		}
@@ -224,11 +232,8 @@ void elf_execve(vnode_t * f, process_t * p, char * argv[], char * envp[])
 			}
 		}
 
-		/* Remove our temporary header - FIXME: Unmap segment */
-		map_removepp(p->as, ehdr);
-
 		/* Create a stack */
-		seg = vm_segment_anonymous(stackbot, stacktop-stackbot, SEGMENT_U | SEGMENT_R | SEGMENT_W);
+		segment_t * seg = vm_segment_anonymous(stackbot, stacktop-stackbot, SEGMENT_U | SEGMENT_R | SEGMENT_W);
 		map_putpp(p->as, stackbot, seg);
 
 		/* Create a heap */

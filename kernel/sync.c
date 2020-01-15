@@ -63,7 +63,7 @@ static void monitor_mark(void * p)
 }
 
 static slab_type_t monitors[1] = {SLAB_TYPE(sizeof(monitor_t), monitor_mark, 0)};
-map_t * locktable;
+static GCROOT map_t * locktable;
 static mutex_t locktablelock;
 
 static int contended;
@@ -231,7 +231,6 @@ static monitor_t * thread_monitor_get(void * p)
 	mutex_lock(&locktablelock);
 	if (0 == locktable) {
 		locktable = tree_new(0, TREE_SPLAY);
-		thread_gc_root(locktable);
 	}
 
 	monitor_t * lock = map_getpp(locktable, p);
@@ -365,5 +364,4 @@ void sync_init()
 {
 	INIT_ONCE();
 	locktable = tree_new(0, TREE_SPLAY);
-	thread_gc_root(locktable);
 }

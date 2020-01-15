@@ -59,6 +59,16 @@ qemu: all .gdbinit
 run: all
 	$(QEMU) $(QEMU_OPTS) -m $(QEMU_MEM) -s -kernel $(KERNEL) -initrd $(INITRD_TAR)
 
+run-gcoverhead: all
+	$(QEMU) -enable-kvm $(QEMU_OPTS) -m $(QEMU_MEM) -kernel $(KERNEL) -initrd $(INITRD_TAR) &
+	$(QEMU) -enable-kvm $(QEMU_OPTS) -m 10$(QEMU_MEM) -kernel $(KERNEL) -initrd $(INITRD_TAR)
+
+qemu-kvm: all .gdbinit
+	$(QEMU) -enable-kvm $(QEMU_OPTS) -m $(QEMU_MEM) -s -S -kernel $(KERNEL) -initrd $(INITRD_TAR)
+
+run-kvm: all
+	$(QEMU) -enable-kvm $(QEMU_OPTS) -m $(QEMU_MEM) -s -kernel $(KERNEL) -initrd $(INITRD_TAR)
+
 includes::
 	mkdir -p lib
 	$(MAKEHEADERS) $(SRCS_C) $(ARCH_USYSCALL_C) $(PDCLIB_TWCOS_SRCS_C)

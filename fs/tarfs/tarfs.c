@@ -405,6 +405,12 @@ static size_t tarfs_get_size(vnode_t * vnode)
 	return tnode->size;
 }
 
+static void tarfs_set_size(vnode_t * vnode, size_t size)
+{
+	tarfsnode_t * tnode = container_of(vnode, tarfsnode_t, vnode);
+	KTHROW(ReadOnlyFileException, "tarfs is read-only");
+}
+
 vnode_t * tarfs_open(dev_t * dev)
 {
 	static vfs_ops_t ops = {

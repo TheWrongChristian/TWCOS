@@ -26,7 +26,7 @@ static arena_t * arena_create(size_t size)
 	arena->base = arena->state = vm_kas_get_aligned(size, ARCH_PAGE_SIZE);
 	arena->seg = vm_segment_anonymous(arena->base, size, SEGMENT_R | SEGMENT_W);
 	arena->top  = arena->base + size;
-	map_putpp(kas, arena->seg->base, arena->seg);
+	vm_kas_add(arena->seg);
 
 	return arena;
 }
