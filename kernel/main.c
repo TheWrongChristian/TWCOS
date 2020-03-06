@@ -41,6 +41,8 @@ void kernel_main() {
 	/* Initialize console interface */
 	arch_init();
 
+	char * str = sym_lookup(kernel_main);
+
 	KTRY {
 		/* Initialize subsystems */
 		thread_init();
