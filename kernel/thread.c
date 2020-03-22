@@ -293,14 +293,11 @@ static GCROOT void ** roots;
 void thread_gc()
 {
 	// thread_cleanlocks();
-	extern char gcroot_start[];
-	extern char gcroot_end[];
-
 #if GCPROFILE
 	timerspec_t start = timer_uptime();
 #endif
 	slab_gc_begin();
-	slab_gc_mark_range(gcroot_start, gcroot_end);
+	slab_gc();
 	slab_gc_end();
 #if GCPROFILE
 	static timerspec_t gctime = 0;
