@@ -84,6 +84,8 @@ void kernel_main() {
 		char ** strs = ssplit("/a/path/file/name", '/');
 #endif
 		bitarray_test();
+		vnode_t * devfsroot = devfs_open(NULL);
+		vnode_t * input = vnode_get_vnode(devfsroot, "input");
 		if (initrd) {
 			process_t * p = process_get();
 			p->root = p->cwd = tarfs_open(dev_static(initrd, initrdsize));
