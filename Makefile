@@ -52,12 +52,15 @@ clean::
 	echo break kernel_main | tee -a .gdbinit
 
 QEMU_OPTS=-d cpu_reset,guest_errors -serial stdio
-QEMU_MEM=1536k
+QEMU_MEM=4m
 qemu: all .gdbinit
 	$(QEMU) $(QEMU_OPTS) -m $(QEMU_MEM) -s -S -kernel $(KERNEL) -initrd $(INITRD_TAR)
 
 run: all
 	$(QEMU) $(QEMU_OPTS) -m $(QEMU_MEM) -s -kernel $(KERNEL) -initrd $(INITRD_TAR)
+
+system: all
+	$(QEMU) $(QEMU_OPTS) -m $(QEMU_MEM) -s -cdrom boot.iso
 
 run-gcoverhead: all
 	$(QEMU) -enable-kvm $(QEMU_OPTS) -m $(QEMU_MEM) -kernel $(KERNEL) -initrd $(INITRD_TAR) &
