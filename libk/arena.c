@@ -15,6 +15,11 @@ typedef struct arena_s
 
 typedef void * arena_state;
 
+#define ARENA_CONCAT(a, b) a ## b
+#define ARENA_VAR(line) AUTOLOCK_CONCAT(s,line)
+#define ARENA_AUTOSTATE(arena) arena_state ARENA_VAR(__LINE__) = 0; while((ARENA_VAR(__LINE__)=arena_autostate(arena, ARENA_VAR(__LINE__) )))
+
+
 #endif
 
 static void arena_mark(void * p);
@@ -37,6 +42,16 @@ static void arena_mark(void * p)
 
 	slab_gc_mark(arena->seg);
 	slab_gc_mark_range(arena->base, arena->state);
+}
+
+arena_state arena_autostate(arena_t * arena, arena_state state)
+{
+	if (state) {
+		arena_setstate(arena, state);
+		return 0;
+	} else {
+		return arena_getstate(arena);
+	}
 }
 
 void * arena_alloc(arena_t * arena, size_t size)

@@ -8,7 +8,7 @@
 
 typedef int64_t inode_t;
 
-struct vfs_ops_t {
+struct vnode_ops_t {
 	/* vnode operations */
 	vmpage_t * (*get_page)(vnode_t * vnode, off_t offset);
 	void (*put_page)(vnode_t * vnode, off_t offset, vmpage_t * page);
@@ -19,10 +19,12 @@ struct vfs_ops_t {
 	/* Stream read/write */
 	size_t (*read)(vnode_t * vnode, off_t offset, void * buf, size_t len);
 	size_t (*write)(vnode_t * vnode, off_t offset, void * buf, size_t len);
+};
 
+struct vfs_ops_t {
 	/* vnode Open/close */
 	vnode_t * (*get_vnode)(vnode_t * dir, const char * name);
-	void (*put_vnode)(vnode_t * vnode);
+	void (*put_vnode)(vnode_t * dir, const char * name, vnode_t * vnode);
 
 	/* Directory operations */
 	inode_t (*namei)(vnode_t * dir, const char * name);
@@ -43,6 +45,7 @@ struct vnode_t {
 };
 
 typedef struct fs_t {
+	vnode_ops_t * vnodeops;
 	vfs_ops_t * fsops;
 };
  
@@ -101,7 +104,7 @@ vmpage_t * vnode_get_page( vnode_t * vnode, off_t offset )
 		page_cache_key_t * newkey = malloc(sizeof(*newkey));
 		newkey->vnode = vnode;
 		newkey->offset = offset;
-		vmpage = vnode->fs->fsops->get_page(vnode, offset);
+		vmpage = vnode->fs->vnodeops->get_page(vnode, offset);
 		map_putpp(page_cache, newkey, vmpage);
 	}
 
@@ -110,17 +113,17 @@ vmpage_t * vnode_get_page( vnode_t * vnode, off_t offset )
 
 void vnode_put_page( vnode_t * vnode, off_t offset, vmpage_t * vmpage )
 {
-	vnode->fs->fsops->put_page(vnode, offset, vmpage);
+	vnode->fs->vnodeops->put_page(vnode, offset, vmpage);
 }
 
 size_t vnode_get_size(vnode_t * vnode)
 {
-	return vnode->fs->fsops->get_size(vnode);
+	return vnode->fs->vnodeops->get_size(vnode);
 }
 
 void vnode_set_size(vnode_t * vnode, size_t size)
 {
-	return vnode->fs->fsops->set_size(vnode, size);
+	return vnode->fs->vnodeops->set_size(vnode, size);
 }
 
 vnode_t * vnode_get_vnode( vnode_t * dir, const char * name )
@@ -130,7 +133,7 @@ vnode_t * vnode_get_vnode( vnode_t * dir, const char * name )
 
 void vnode_close(vnode_t * vnode)
 {
-	vnode->fs->fsops->close(vnode);
+	vnode->fs->vnodeops->close(vnode);
 }
 
 typedef struct file_buffer_s {
@@ -230,8 +233,8 @@ static ssize_t vnode_readwrite( vnode_t * vnode, off_t offset, void * buf, size_
 
 ssize_t vnode_write(vnode_t * vnode, off_t offset, void * buf, size_t len)
 {
-	if (vnode->fs->fsops->write) {
-		return vnode->fs->fsops->write(vnode, offset, buf, len);
+	if (vnode->fs->vnodeops->write) {
+		return vnode->fs->vnodeops->write(vnode, offset, buf, len);
 	} else {
 		return vnode_readwrite(vnode, offset, buf, len, 1);
 	}
@@ -239,8 +242,8 @@ ssize_t vnode_write(vnode_t * vnode, off_t offset, void * buf, size_t len)
 
 ssize_t vnode_read(vnode_t * vnode, off_t offset, void * buf, size_t len)
 {
-	if (vnode->fs->fsops->read) {
-		return vnode->fs->fsops->read(vnode, offset, buf, len);
+	if (vnode->fs->vnodeops->read) {
+		return vnode->fs->vnodeops->read(vnode, offset, buf, len);
 	} else {
 		return vnode_readwrite(vnode, offset, buf, len, 0);
 	}
@@ -256,6 +259,51 @@ void vnode_init(vnode_t * vnode, vnode_type type, fs_t * fs)
 	vnode->type = type;
 	vnode->fs = fs;
 	vnode->ref = 1;
+}
+
+
+/*
+ * Virtual filesystem tree
+ */
+#if INTERFACE
+
+struct vfstree_t {
+	map_t * vnodes;
+	map_t * tree;
+	inode_t inext;
+
+	fs_t fs;
+};
+
+struct vfstree_node_t {
+	struct vfstree_t * tree;
+	inode_t inode;
+	vnode_t vnode;
+};
+
+struct vfstree_dirent_t {
+	vnode_t * dir;
+	char * name;
+};
+
+#endif
+
+vnode_t * vfstree_get_vnode(map_t * tree, vnode_t * dir, const char * name) 
+{
+	vnode_t * vnode = 0;
+
+	ARENA_AUTOSTATE(NULL) {
+		map_compound_key_t * key = map_compound_tkey("ps", dir, name);
+		vnode = map_getpp(tree, key);
+	}
+
+	return vnode;
+}
+
+void vfstree_put_vnode(map_t * tree, vnode_t * dir, const char * name, vnode_t * vnode) 
+{
+	map_compound_key_t * key = map_compound_key("ps", dir, name);
+	map_putpp(tree, key, vnode);
 }
 
 void vfs_test(vnode_t * root)

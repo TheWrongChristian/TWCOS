@@ -413,14 +413,17 @@ static void tarfs_set_size(vnode_t * vnode, size_t size)
 
 vnode_t * tarfs_open(dev_t * dev)
 {
-	static vfs_ops_t ops = {
+	static vnode_ops_t vnops = {
 		get_page: tarfs_get_page,
-		get_vnode: tarfs_get_vnode,
 		get_size: tarfs_get_size
+	};
+	static vfs_ops_t ops = {
+		get_vnode: tarfs_get_vnode,
 	};
 
 	tarfs_t * tarfs = malloc(sizeof(*tarfs));
 	tarfs->dev = dev;
+	tarfs->fs.vnodeops = &vnops;
 	tarfs->fs.fsops = &ops;
 	tarfs_scan(tarfs);
 

@@ -329,7 +329,7 @@ static void map_compound_key_add( map_compound_key_t * key, void * p, size_t siz
 }
 #endif
 
-static map_compound_key_t * map_compound_key_process( map_compound_key_t * key, const char * fmt, va_list ap)
+static size_t map_compound_key_process( map_compound_key_t * key, const char * fmt, va_list ap)
 {
 	const char * f = fmt;
 	int len = 0;
@@ -350,37 +350,38 @@ static map_compound_key_t * map_compound_key_process( map_compound_key_t * key, 
 			case '4':
 				i32 = va_arg(ap, uint32_t);
 				if (buf) {
-					i32 = (i32 << 8) | (i32 >> 24); *buf++ = (i32) & 0xff;
-					i32 = (i32 << 8) | (i32 >> 24); *buf++ = (i32) & 0xff;
-					i32 = (i32 << 8) | (i32 >> 24); *buf++ = (i32) & 0xff;
-					i32 = (i32 << 8) | (i32 >> 24); *buf++ = (i32) & 0xff;
+					*buf++=(i32>>24) & 0xff;
+					*buf++=(i32>>16) & 0xff;
+					*buf++=(i32>>8) & 0xff;
+					*buf++=(i32) & 0xff;
 				}
 				len += 4;
 				break;
 			case '8':
 				i64 = va_arg(ap, int64_t);
 				if (buf) {
-#if 0
-					int shift = 64;
-					do {
-						shift -= 8;
-						*buf++ = (i64 >> shift) & 0xff;
-					} while(shift);
-#endif
-					i64 = (i64 << 8) | (i64 >> 56); *buf++ = (i64) & 0xff;
-					i64 = (i64 << 8) | (i64 >> 56); *buf++ = (i64) & 0xff;
-					i64 = (i64 << 8) | (i64 >> 56); *buf++ = (i64) & 0xff;
-					i64 = (i64 << 8) | (i64 >> 56); *buf++ = (i64) & 0xff;
-					i64 = (i64 << 8) | (i64 >> 56); *buf++ = (i64) & 0xff;
-					i64 = (i64 << 8) | (i64 >> 56); *buf++ = (i64) & 0xff;
-					i64 = (i64 << 8) | (i64 >> 56); *buf++ = (i64) & 0xff;
-					i64 = (i64 << 8) | (i64 >> 56); *buf++ = (i64) & 0xff;
+					*buf++=(i32>>56) & 0xff;
+					*buf++=(i32>>48) & 0xff;
+					*buf++=(i32>>40) & 0xff;
+					*buf++=(i32>>32) & 0xff;
+					*buf++=(i32>>24) & 0xff;
+					*buf++=(i32>>16) & 0xff;
+					*buf++=(i32>>8) & 0xff;
+					*buf++=(i32) & 0xff;
 				}
 				len += 8;
 				break;
 			default:
 				kernel_panic("Unknown key specifier at position %d: %s\n", f-fmt, fmt);
 				break;
+			}
+		} else if ('p' == *f) {
+			uintptr_t p = va_arg(ap, uintptr_t);
+			for(int i=sizeof(p)*8; i>0; i-=8) {
+				len++;
+				if (buf) {
+					*buf++=(p>>(i-8));
+				}
 			}
 		} else if ('s' == *f) {
 			char * s = va_arg(ap, char *);
@@ -399,12 +400,9 @@ static map_compound_key_t * map_compound_key_process( map_compound_key_t * key, 
 
 	if (key) {
 		key->buflen = len;
-	} else {
-		key = malloc(sizeof(*key) + len);
-		key->buflen = len;
 	}
 
-	return key;
+	return sizeof(*key)+len;
 }
 
 map_compound_key_t * map_compound_key( const char * fmt, ... )
@@ -412,8 +410,26 @@ map_compound_key_t * map_compound_key( const char * fmt, ... )
 	va_list ap;
 
 	va_start(ap, fmt);
-	map_compound_key_t * key = map_compound_key_process(0, fmt, ap);
+	size_t keylen = map_compound_key_process(0, fmt, ap);
 	va_end(ap);
+	map_compound_key_t * key = malloc(keylen);
+	key->buflen = keylen-sizeof(*key);
+	va_start(ap, fmt);
+	map_compound_key_process(key, fmt, ap);
+	va_end(ap);
+
+	return key;
+}
+
+map_compound_key_t * map_compound_tkey( const char * fmt, ... )
+{
+	va_list ap;
+
+	va_start(ap, fmt);
+	size_t keylen = map_compound_key_process(0, fmt, ap);
+	va_end(ap);
+	map_compound_key_t * key = tmalloc(keylen);
+	key->buflen = keylen-sizeof(*key);
 	va_start(ap, fmt);
 	map_compound_key_process(key, fmt, ap);
 	va_end(ap);

@@ -102,8 +102,8 @@ size_t dev_write(vnode_t * vnode, off_t offset, void * buf, size_t len)
 
 vnode_t * dev_vnode(dev_t * dev)
 {
-	static vfs_ops_t ops = { read: dev_read, write: dev_write };
-	static fs_t devfs = { fsops: &ops };
+	static vnode_ops_t ops = { read: dev_read, write: dev_write };
+	static fs_t devfs = { vnodeops: &ops };
 	dev_vnode_t * vnode = calloc(1, sizeof(*vnode));
 	
 	vnode_init(&vnode->vnode, VNODE_DEV, &devfs);
