@@ -6,6 +6,7 @@ TOOLS=$(TOP)/tools/bin
 HOSTCC=gcc
 CROSS=i686-elf-
 CC=ccache $(TOOLS)/$(CROSS)gcc
+CXX=ccache $(TOOLS)/$(CROSS)g++
 # CC=$(TOOLS)/$(CROSS)gcc
 LD=$(TOOLS)/$(CROSS)ld
 AS=$(TOOLS)/$(CROSS)as
@@ -19,6 +20,7 @@ COPTS=-g -DDEBUG
 KOPTS:=-ffreestanding
 UOPTS:=
 CFLAGS=$(COPTS) -pipe -std=gnu99 $(KOPTS) $(UOPTS) -Wall -I$(TOP)/arch/$(ARCH)/include -I$(TOP)/include
+CXXFLAGS=$(COPTS) -pipe $(KOPTS) $(UOPTS) -Wall -I$(TOP)/arch/$(ARCH)/include -I$(TOP)/include
 ASFLAGS=-g
 
 OBJS=$(SRCS_S:.S=.o) $(SRCS_C:.c=.o)
