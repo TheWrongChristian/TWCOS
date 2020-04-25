@@ -33,7 +33,7 @@ struct vfs_ops_t {
 
 	/* Filesystem mount/umount */
 	vnode_t * (*open)(vnode_t * dev);
-	void (*idle)(fs_t * fs);
+	void (*idle)(vnode_t * root);
 };
 
 enum vnode_type { VNODE_REGULAR, VNODE_DIRECTORY, VNODE_DEV, VNODE_FIFO, VNODE_SOCKET };
@@ -185,7 +185,7 @@ static ssize_t vnode_readwrite( vnode_t * vnode, off_t offset, void * buf, size_
 	char * cto = buf;
 
 	/* Deal with file size limit */
-	off_t size = vnode_get_size(vnode);
+	size_t size = vnode_get_size(vnode);
 	if (write) {
 		/* Extend the file if we're going beyond EOF */
 		if (offset+len > size) {
@@ -325,7 +325,7 @@ void vfs_test(vnode_t * root)
 
 	vnode_t * init = vnode_get_vnode(shell, "init");
 #endif
-	vnode_t * init = file_namev("/user/shell/init");
+	vnode_t * init = file_namev("/sbin/init");
 	if (0 == init) {
 		kernel_panic("init is null");
 	}

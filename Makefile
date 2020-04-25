@@ -27,6 +27,8 @@ subdir := build
 include $(subdir)/tools.mk
 subdir := arch/$(ARCH)
 include $(subdir)/subdir.mk
+subdir := initrd
+include $(subdir)/subdir.mk
 subdir := user
 include $(subdir)/subdir.mk
 

@@ -106,13 +106,13 @@ void kernel_main() {
 			file_dup(0);
 
 #if 1
-			char * argv[]={"/user/shell/init", NULL};
+			char * argv[]={"/sbin/init", NULL};
 #else
 			char * argv[]={"user/picol/picol", "/user/picol/script.tcl", NULL};
 #endif
 			char * envp[]={"HOME=/", NULL};
 			process_execve(argv[0], argv, envp);	
-			kernel_panic("Unable to exec %s", "/user/shell/init");
+			kernel_panic("Unable to exec %s", "/sbin/init");
 			/* testshell_run(); */
 		}
 
