@@ -32,9 +32,9 @@ cross-configure-gcc:
 cross-configure: cross-configure-binutils cross-configure-gcc
 
 cross-build-binutils:
-	( cd $(BINUTILS_BUILD) && make all install )
+	make -C $(BINUTILS_BUILD) all install
 
 cross-build-gcc:
-	( cd $(GCC_BUILD) && make all install )
+	make -C $(GCC_BUILD) all-gcc all-target-libgcc install-gcc install-target-libgcc
 
 cross-build: cross-build-binutils cross-build-gcc
