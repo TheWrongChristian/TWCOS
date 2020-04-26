@@ -529,10 +529,10 @@ void dev_console_submit( dev_t * dev, buf_op_t * op )
 	op->status = DEV_BUF_OP_COMPLETE;
 }
 
-dev_t * console_dev()
+vnode_t * console_dev()
 {
 	static dev_ops_t ops = { submit: dev_console_submit };
 	static dev_t dev = { .ops = &ops };
 
-	return &dev;
+	return dev_vnode(&dev);
 }

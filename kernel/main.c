@@ -99,7 +99,7 @@ void kernel_main() {
 		if (0 == process_fork()) {
 			/* Open stdin/stdout/stderr */
 #if 1
-			vnode_t * console = dev_vnode(console_dev());
+			vnode_t * console = file_namev("/devfs/console");
 			vnode_t * terminal = terminal_new(console, console);
 #else
 			vnode_t * serial = ns16550_open(0x3f8, 4);

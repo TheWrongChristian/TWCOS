@@ -48,6 +48,9 @@ vnode_t * devfs_open(void)
 				vnode_t * dir = devfs_dirnode(devfs);
 				vfstree_put_vnode(devfs->tree, devfs->root, toplevels[i], dir);
 			}
+
+			/* console */
+			vfstree_put_vnode(devfs->tree, devfs->root, "console", console_dev());
 		}
 	}
 
