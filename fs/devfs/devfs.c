@@ -23,7 +23,7 @@ static vnode_t * devfs_dirnode(devfs_t * devfs)
 	return vnode;
 }
 
-vnode_t * devfs_open(dev_t * dev)
+vnode_t * devfs_open(void)
 {
 	static devfs_t * devfs = 0;
 	static int lock=0;

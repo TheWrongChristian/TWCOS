@@ -178,34 +178,33 @@ static char * tarfs_fullname(tarfs_header_t * h)
 static void tarfs_add_node( tarfs_t * fs, const char * fullname, tarfsnode_t * vnode )
 {
 	/* Skip over any leading / */
-	if ('/' == *fullname) {
+	while('/' == *fullname) {
 		fullname++;
 	}
 
 	/* Start scanning from root */
 	inode_t dnode = 1;
-	char ** dirs = ssplit(dirname(tstrdup(fullname)), '/');
-	for( int i=0; dirs[i]; i++ ) {
-		if (*dirs[i]) {
-			tarfs_dirent_t dirent = { dnode, dirs[i] };
-			inode_t inode = map_getpi(fs->tree, &dirent);
-			if (0 == inode) {
-				/* Fake a directory */
-				tarfsnode_t * dir = malloc(sizeof(*dir));
-				vnode_init(&dir->vnode, VNODE_DIRECTORY, &fs->fs);
-				inode = dir->inode = fs->inext++;
-				tarfs_dirent_t * newdirent = malloc(sizeof(*newdirent));
-				newdirent->dir = dnode;
-				newdirent->name = strdup(dirs[i]);
-				map_putpi(fs->tree, newdirent, dir->inode);
-				map_putip(fs->vnodes, dir->inode, &dir->vnode);
-			}
-			dnode = inode;
+	char ** names = path_split(fullname);
+	char * file = names[0];
+	for( int i=0; names[i+1]; i++ ) {
+		file = names[i+1];
+		tarfs_dirent_t dirent = { dnode, names[i] };
+		inode_t inode = map_getpi(fs->tree, &dirent);
+		if (0 == inode) {
+			/* Fake a directory */
+			tarfsnode_t * dir = malloc(sizeof(*dir));
+			vnode_init(&dir->vnode, VNODE_DIRECTORY, &fs->fs);
+			inode = dir->inode = fs->inext++;
+			tarfs_dirent_t * newdirent = malloc(sizeof(*newdirent));
+			newdirent->dir = dnode;
+			newdirent->name = strdup(names[i]);
+			map_putpi(fs->tree, newdirent, dir->inode);
+			map_putip(fs->vnodes, dir->inode, &dir->vnode);
 		}
+		dnode = inode;
 	}
 
 	/* dnode is the directory, file is the new file name */
-	char * file = basename(tstrdup(fullname));
 	tarfs_dirent_t dirent = { dnode, file };
 	inode_t inode = map_getpi(fs->tree, &dirent);
 	if (inode) {
@@ -216,10 +215,10 @@ static void tarfs_add_node( tarfs_t * fs, const char * fullname, tarfsnode_t * v
 		tarfs_dirent_t * newdirent = malloc(sizeof(*newdirent));
 		newdirent->dir = dnode;
 		newdirent->name = strdup(file);
-		inode = fs->inext++;
+		vnode->inode = fs->inext++;
 
-		map_putip(fs->vnodes, inode, &vnode->vnode);
-		map_putpi(fs->tree, newdirent, inode);
+		map_putip(fs->vnodes, vnode->inode, &vnode->vnode);
+		map_putpi(fs->tree, newdirent, vnode->inode);
 	}
 }
 
@@ -240,6 +239,10 @@ static void tarfs_directory( tarfs_t * fs, tarfs_header_t * h )
 {
 	char * fullname = tarfs_fullname(h);
 	kernel_printk("Directory: %s\n", fullname);
+
+	tarfsnode_t * node = calloc(1, sizeof(*node));
+	vnode_init(&node->vnode, VNODE_DIRECTORY, &fs->fs);
+	tarfs_add_node(fs, fullname, node);
 }
 
 static void tarfs_symlink( tarfs_t * fs, tarfs_header_t * h )

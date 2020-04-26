@@ -306,6 +306,46 @@ void vfstree_put_vnode(map_t * tree, vnode_t * dir, const char * name, vnode_t *
 	map_putpp(tree, key, vnode);
 }
 
+static GCROOT map_t * mounts=0;
+static rwlock_t mountslock[]={0};
+
+void vfs_mount(vnode_t * dir, vnode_t * root)
+{
+	WRITER_AUTOLOCK(mountslock) {
+		if (0==mounts) {
+			mounts=splay_new(0);
+		}
+
+		vnode_t * existing = map_putpp(mounts, dir, root);
+	}
+}
+
+void vfs_umount(vnode_t * dir)
+{
+	WRITER_AUTOLOCK(mountslock) {
+		if (0==mounts) {
+			mounts=splay_new(0);
+		}
+
+		map_removepp(mounts, dir);
+	}
+}
+
+vnode_t * vfs_reparse(vnode_t * dir)
+{
+	vnode_t * out=0;
+	READER_AUTOLOCK(mountslock) {
+		if (0==mounts) {
+			rwlock_escalate(mountslock);
+			mounts=splay_new(0);
+		}
+
+		out = map_getpp(mounts, dir);
+	}
+
+	return out ? out : dir;
+}
+
 void vfs_test(vnode_t * root)
 {
 	if (0 == root) {

@@ -82,15 +82,19 @@ void kernel_main() {
 			testshell_run(terminal);
 		}
 		char ** strs = ssplit("/a/path/file/name", '/');
-#endif
 		bitarray_test();
-		vnode_t * devfsroot = devfs_open(NULL);
+		vnode_t * devfsroot = devfs_open();
 		vnode_t * input = vnode_get_vnode(devfsroot, "input");
+#endif
 		if (initrd) {
 			process_t * p = process_get();
 			p->root = p->cwd = tarfs_open(dev_static(initrd, initrdsize));
-			vfs_test(p->root);
+			vnode_t * devfs = file_namev("/devfs");
+			if (devfs) {
+				vfs_mount(devfs, devfs_open());
+			}
 		}
+
 		/* Create process 1 - init */
 		if (0 == process_fork()) {
 			/* Open stdin/stdout/stderr */
@@ -112,7 +116,7 @@ void kernel_main() {
 #endif
 			char * envp[]={"HOME=/", NULL};
 			process_execve(argv[0], argv, envp);	
-			kernel_panic("Unable to exec %s", "/sbin/init");
+			kernel_panic("Unable to exec %s", argv[0]);
 			/* testshell_run(); */
 		}
 
