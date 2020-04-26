@@ -2,15 +2,15 @@ ifndef TOP
 TOP=..
 endif
 
-TOOLS=$(TOP)/tools/bin
+TOOLS=$(TOP)/tools
 HOSTCC=gcc
 CROSS=i686-elf-
-CC=ccache $(TOOLS)/$(CROSS)gcc
+CC=ccache $(TOOLS)/bin/$(CROSS)gcc
 CXX=ccache $(TOOLS)/$(CROSS)g++
 # CC=$(TOOLS)/$(CROSS)gcc
-LD=$(TOOLS)/$(CROSS)ld
-AS=$(TOOLS)/$(CROSS)as
-AR=$(TOOLS)/$(CROSS)ar
+LD=$(TOOLS)/bin/$(CROSS)ld
+AS=$(TOOLS)/bin/$(CROSS)as
+AR=$(TOOLS)/bin/$(CROSS)ar
 CP=cp -f
 MAKEHEADERS=$(TOP)/build/makeheaders
 

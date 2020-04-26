@@ -315,3 +315,7 @@ BOOTSTRAP_CODE multiboot_memory_map_t * multiboot_mmap(int index)
 	return 0;
 }
 
+void multiboot_copy(multiboot_info_t * to)
+{
+	memcpy(to, info, sizeof(*to));
+}

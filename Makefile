@@ -54,7 +54,7 @@ clean::
 	echo break kernel_main | tee -a .gdbinit
 
 QEMU_OPTS=-d cpu_reset,guest_errors -serial stdio
-QEMU_MEM=4m
+QEMU_MEM=8m
 qemu: all .gdbinit
 	$(QEMU) $(QEMU_OPTS) -m $(QEMU_MEM) -s -S -kernel $(KERNEL) -initrd $(INITRD_TAR)
 

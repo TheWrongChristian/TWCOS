@@ -45,3 +45,5 @@ clean::
 	$(RM) $(TOP)/lib/libsyscall.a $(TOP)/lib/crt0.o $(LIBC_OBJS_C)
 
 QEMU=qemu-system-i386
+TARGET=i686-elf
+CROSS=$(TARGET)-

@@ -84,6 +84,8 @@ int arch_is_heap_pointer(void *p)
 void * initrd=0;
 size_t initrdsize=0;
 
+static multiboot_info_t info[]={0};
+
 void arch_init()
 {
 	INIT_ONCE();
@@ -93,6 +95,9 @@ void arch_init()
 	void * modstart = 0;
 	size_t modsize = 0;
 	int pcount = 0;
+
+	/* Copy for reference */
+	multiboot_copy(info);
 
 	multiboot_module_t * mod = multiboot_mod(0);
 	if (mod) {
