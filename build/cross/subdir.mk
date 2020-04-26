@@ -3,6 +3,9 @@ BINUTILS_VERSION=2.34
 MIRROR=http://www.mirrorservice.org/sites/sourceware.org/pub/
 GCC_DOWNLOAD=$(MIRROR)/gcc/releases/gcc-$(GCC_VERSION)/gcc-$(GCC_VERSION).tar.xz
 BINUTILS_DOWNLOAD=$(MIRROR)/binutils/releases/binutils-$(BINUTILS_VERSION).tar.xz
+GCC_BUILD=$(TOP)/gcc-build
+BINUTILS_BUILD=$(TOP)/binutils-build
+CONFIGURE_OPTIONS=--prefix=$(TOOLS) --target=$(TARGET) --disable-nls
 
 cross:: unpack cross-configure cross-build
 
@@ -19,17 +22,19 @@ unpack:: gcc-$(GCC_VERSION).tar.xz binutils-$(BINUTILS_VERSION).tar.xz
 	tar xJf binutils-$(BINUTILS_VERSION).tar.xz
 
 cross-configure-binutils:
-	( cd binutils-$(BINUTILS_VERSION) && ./configure --prefix=$(TOOLS) --target=$(TARGET) && make all install )
+	mkdir -p $(BINUTILS_BUILD)
+	( cd $(BINUTILS_BUILD) && ../binutils-$(BINUTILS_VERSION)/configure $(CONFIGURE_OPTIONS) --with-sysroot)
 
 cross-configure-gcc:
-	( cd gcc-$(GCC_VERSION) && ./configure --prefix=$(TOOLS) --target=$(TARGET) --enable-languages=c --without-headers && make all install )
+	mkdir -p $(GCC_BUILD)
+	( cd $(GCC_BUILD) && ../gcc-$(GCC_VERSION)/configure $(CONFIGURE_OPTIONS) --disable-libssp --enable-languages=c --without-headers --disable-libquadmath )
 
 cross-configure: cross-configure-binutils cross-configure-gcc
 
 cross-build-binutils:
-	( cd binutils-$(BINUTILS_VERSION) && make all install )
+	( cd $(BINUTILS_BUILD) && make all install )
 
 cross-build-gcc:
-	( cd binutils-$(GCC_VERSION) && make all install )
+	( cd $(GCC_BUILD) && make all install )
 
 cross-build: cross-build-binutils cross-build-gcc
