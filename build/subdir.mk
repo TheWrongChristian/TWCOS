@@ -7,3 +7,9 @@ $(subdir)/makeheaders: $(subdir)/makeheaders.c
 
 clean::
 	$(RM) $(subdir)/makeheaders
+
+builddir:=$(subdir)
+
+subdir:=$(builddir)/cross
+include $(subdir)/subdir.mk
+
