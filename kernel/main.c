@@ -98,22 +98,13 @@ void kernel_main() {
 		/* Create process 1 - init */
 		if (0 == process_fork()) {
 			/* Open stdin/stdout/stderr */
-#if 1
 			vnode_t * console = file_namev("/devfs/console");
 			vnode_t * terminal = terminal_new(console, console);
-#else
-			vnode_t * serial = ns16550_open(0x3f8, 4);
-			vnode_t * terminal = terminal_new(serial, serial);
-#endif
 			file_vopen(terminal, 0, 0);
 			file_dup(0);
 			file_dup(0);
 
-#if 1
 			char * argv[]={"/sbin/init", NULL};
-#else
-			char * argv[]={"user/picol/picol", "/user/picol/script.tcl", NULL};
-#endif
 			char * envp[]={"HOME=/", NULL};
 			process_execve(argv[0], argv, envp);	
 			kernel_panic("Unable to exec %s", argv[0]);
