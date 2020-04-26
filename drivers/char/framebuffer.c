@@ -4,7 +4,7 @@
 
 #endif
 
-void * fb_create(uintptr_t addr, size_t width, size_t height, size_t pitch)
+void * fb_create(uintptr_t addr, size_t pitch, size_t height)
 {
 	/* Physical page address */
 	page_t paddr = addr >> ARCH_PAGE_SIZE_LOG2;
