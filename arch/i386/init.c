@@ -123,8 +123,11 @@ void arch_init()
 				uint32_t page = mmap->addr >> ARCH_PAGE_SIZE_LOG2;
 				uint32_t count = mmap->len >> ARCH_PAGE_SIZE_LOG2;
 
-				page_add_range(page, count);
-				pcount += count;
+				/* Only handle page ranges under 4GB */
+				if (page+count<1<<20) {
+					page_add_range(page, count);
+					pcount += count;
+				}
 			}
 		} else {
 			break;
@@ -135,7 +138,7 @@ void arch_init()
 	heapend = ARCH_PAGE_ALIGN(data_start + (64<<20));
 	vm_kas_start(heapend);
 
-	vmobject_t * heapobject = vm_object_heap(pcount);
+	vmobject_t * heapobject = vm_object_heap(nextalloc, heapend);
 	i386_init();
 	vmap_init();
 	bootstrap_finish();
@@ -147,31 +150,6 @@ void arch_init()
 	for(page_t p=pstart; p<pend; p++) {
 		page_reserve(p);
 	}
-#if 0
-	for(i=0;;i++) {
-		multiboot_memory_map_t * mmap = multiboot_mmap(i);
-
-		if (mmap) {
-			if (MULTIBOOT_MEMORY_AVAILABLE == mmap->type) {
-				/*
-				 * Add the memory to the pool of available
-				 * memory.
-				 */
-				uint32_t page = mmap->addr >> ARCH_PAGE_SIZE_LOG2;
-				uint32_t count = mmap->len >> ARCH_PAGE_SIZE_LOG2;
-				int i;
-
-				for(i=0; i<count; i++, page++) {
-					if (page<pstart || page > pend) {
-						page_free(page);
-					}
-				}
-			}
-		} else {
-			break;
-		}
-	}
-#endif
 	heap = vm_segment_heap(nextalloc, heapobject);
 	vm_init();
 	page_t code_page = ((uintptr_t)code_start - koffset) >> ARCH_PAGE_SIZE_LOG2;
@@ -181,28 +159,9 @@ void arch_init()
 	vm_kas_add(heap);
 	pci_scan();
 
-#if 0
-	vmap_mapn(0, 0xa0, (char*)koffset, 0, 0, 0);
-	vmap_map(0, (void*)0x100000, 0x100, 0, 0);
-	for(i=0;;i++) {
-		multiboot_memory_map_t * mmap = multiboot_mmap(i);
-
-		if (mmap) {
-			kernel_printk("Map %d -\t0x%x\t(%d)\t%s\n", i, (int)mmap->addr, (int)mmap->len, mem_type(mmap->type) );
-		} else {
-			break;
-		}
-	}
-#endif
 	kernel_printk("Bootstrap end - %p\n", nextalloc);
 	sti();
 	kernel_startlogging(1);
-
-#if 0
-	address_info_t info[1];
-	vm_resolve_address(kas, info);
-	kasvmpage = vmobject_get_page(info->seg->dirty, info->offset);
-#endif
 }
 
 #if INTERFACE
