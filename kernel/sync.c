@@ -40,6 +40,8 @@ struct rwlock_t {
 #define SPIN_AUTOLOCK(lock) int AUTOLOCK_VAR(__LINE__) = 0; while((AUTOLOCK_VAR(__LINE__) =spin_autolock(lock, AUTOLOCK_VAR(__LINE__) )))
 #define MUTEX_AUTOLOCK(lock) int AUTOLOCK_VAR(__LINE__) = 0; while((AUTOLOCK_VAR(__LINE__) =mutex_autolock(lock, AUTOLOCK_VAR(__LINE__) )))
 #define MONITOR_AUTOLOCK(lock) int AUTOLOCK_VAR(__LINE__) = 0; while((AUTOLOCK_VAR(__LINE__) =monitor_autolock(lock, AUTOLOCK_VAR(__LINE__) )))
+#define READER_AUTOLOCK(lock) int AUTOLOCK_VAR(__LINE__) = 0; while((AUTOLOCK_VAR(__LINE__) =rwlock_autolock(lock, AUTOLOCK_VAR(__LINE__), 0)))
+#define WRITER_AUTOLOCK(lock) int AUTOLOCK_VAR(__LINE__) = 0; while((AUTOLOCK_VAR(__LINE__) =rwlock_autolock(lock, AUTOLOCK_VAR(__LINE__), 1)))
 
 #endif
 
@@ -116,6 +118,23 @@ int monitor_autolock(monitor_t * lock, int state)
                 state = 0;
         } else {
                 monitor_enter(lock);
+                state = 1;
+        }
+
+        return state;
+} 
+
+int rwlock_autolock(monitor_t * lock, int state, int write)
+{
+        if (state) {
+		rwlock_unlock(lock);
+                state = 0;
+        } else {
+		if (write) {
+			rwlock_write(lock);
+		} else {
+			rwlock_read(lock);
+		}
                 state = 1;
         }
 

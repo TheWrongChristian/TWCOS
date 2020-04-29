@@ -48,6 +48,31 @@ void * memset(void *s, int c, size_t n)
 	return s;
 }
 
+void *memmove(void *dest, const void *src, size_t n)
+{
+	const char * cs = src;
+	char * cd = dest;
+	int overlap;
+
+	if (cs<cd) {
+		overlap=(cs+n>=cd);
+	} else if (cs>cd) {
+		overlap=0;
+	} else {
+		/* No move at all! */
+		return cd;
+	}
+
+	if (overlap) {
+		/* Slow byte copy version */
+		for(int i=n-1; i>=0; i--) {
+			cd[i] = cs[i];
+		}
+	} else {
+		return memcpy(dest, src, n);
+	}
+}
+
 void *memcpy(void *dest, const void *src, size_t n)
 {
 	const char * cs = src;
@@ -89,9 +114,9 @@ int memcmp(const void *s1, const void *s2, size_t n)
 	const char * c1 = s1;
 	const char * c2 = s2;
 	for(int i=0; i<n; i++) {
-		if (*c1<*c2) {
+		if (c1[i]<c2[i]) {
 			return -1;
-		} else if (*c1>*c2) {
+		} else if (c1[i]>c2[i]) {
 			return 1;
 		}
 	}

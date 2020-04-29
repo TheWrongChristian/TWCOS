@@ -145,17 +145,32 @@ void file_close(int fd)
 	file_set(fd, 0);
 }
 
+char ** path_split(const char * filename)
+{
+	char ** names = ssplit(filename, '/');
+
+	int n=0;
+	for(int i=0; names[i]; i++) {
+		if (*names[i]) {
+			names[n++]=names[i];
+		}
+	}
+	names[n] = 0;
+
+	return names;
+}
+
 vnode_t * file_namev(const char * filename)
 {
 	process_t * p = process_get();
 	vnode_t * v = ('/' == filename[0]) ? p->root : p->cwd;
-	char ** names = ssplit(filename, '/');
+	char ** names = path_split(filename);
 
 	for(int i=0; names[i]; i++) {
 		if (*names[i]) {
 			vnode_t * next = vnode_get_vnode(v, names[i]);
 			if (next) {
-				v = next;
+				v = vfs_reparse(next);
 			} else {
 				KTHROWF(FileNotFoundException, "File not found: %s", names[i]);
 			}

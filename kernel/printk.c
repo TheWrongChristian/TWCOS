@@ -13,8 +13,6 @@ struct kernel_logger_listener_t {
 
 #endif
 
-#define countof(arr) (sizeof(arr)/sizeof(arr[0]))
-
 static char msg_ring[32][128];
 static int msg_next=0;
 static int enabled=0;

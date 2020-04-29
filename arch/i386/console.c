@@ -195,7 +195,7 @@ void console_initialize()
 	console_row = 0;
 	console_column = 0;
 	console_color = make_color(COLOR_LIGHT_GREY, COLOR_BLACK);
-	console_buffer = fb_create(0xb8000, VGA_WIDTH, VGA_HEIGHT, 2*VGA_WIDTH);
+	console_buffer = fb_create(0xb8000, 2*VGA_HEIGHT, VGA_WIDTH);
 	for (size_t y = 0; y < VGA_HEIGHT; y++) {
 		for (size_t x = 0; x < VGA_WIDTH; x++) {
 			const size_t index = y * VGA_WIDTH + x;
@@ -529,10 +529,10 @@ void dev_console_submit( dev_t * dev, buf_op_t * op )
 	op->status = DEV_BUF_OP_COMPLETE;
 }
 
-dev_t * console_dev()
+vnode_t * console_dev()
 {
 	static dev_ops_t ops = { submit: dev_console_submit };
 	static dev_t dev = { .ops = &ops };
 
-	return &dev;
+	return dev_vnode(&dev);
 }

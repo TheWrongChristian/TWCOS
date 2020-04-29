@@ -41,6 +41,8 @@ void kernel_main() {
 	/* Initialize console interface */
 	arch_init();
 
+	char * str = sym_lookup(kernel_main);
+
 	KTRY {
 		/* Initialize subsystems */
 		thread_init();
@@ -80,35 +82,32 @@ void kernel_main() {
 			testshell_run(terminal);
 		}
 		char ** strs = ssplit("/a/path/file/name", '/');
-#endif
 		bitarray_test();
+		vnode_t * devfsroot = devfs_open();
+		vnode_t * input = vnode_get_vnode(devfsroot, "input");
+#endif
 		if (initrd) {
 			process_t * p = process_get();
 			p->root = p->cwd = tarfs_open(dev_static(initrd, initrdsize));
-			vfs_test(p->root);
+			vnode_t * devfs = file_namev("/devfs");
+			if (devfs) {
+				vfs_mount(devfs, devfs_open());
+			}
 		}
+
 		/* Create process 1 - init */
 		if (0 == process_fork()) {
 			/* Open stdin/stdout/stderr */
-#if 1
-			vnode_t * console = dev_vnode(console_dev());
+			vnode_t * console = file_namev("/devfs/console");
 			vnode_t * terminal = terminal_new(console, console);
-#else
-			vnode_t * serial = ns16550_open(0x3f8, 4);
-			vnode_t * terminal = terminal_new(serial, serial);
-#endif
 			file_vopen(terminal, 0, 0);
 			file_dup(0);
 			file_dup(0);
 
-#if 1
-			char * argv[]={"/user/shell/init", NULL};
-#else
-			char * argv[]={"user/picol/picol", "/user/picol/script.tcl", NULL};
-#endif
+			char * argv[]={"/sbin/init", NULL};
 			char * envp[]={"HOME=/", NULL};
 			process_execve(argv[0], argv, envp);	
-			kernel_panic("Unable to exec %s", "/user/shell/init");
+			kernel_panic("Unable to exec %s", argv[0]);
 			/* testshell_run(); */
 		}
 
