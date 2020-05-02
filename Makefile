@@ -1,11 +1,12 @@
-TOP=$(CURDIR)
-
-ARCH=i386
-
 all::
 
 .PHONY: userlibs
 .PHONY: clean
+.PHONY: all
+
+TOP=$(CURDIR)
+
+ARCH=i386
 
 OBJS=$(SRCS_S:.S=.o) $(SRCS_C:.c=.o)
 SRCS_C :=

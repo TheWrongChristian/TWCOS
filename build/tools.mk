@@ -26,8 +26,8 @@ ASFLAGS=-g
 OBJS=$(SRCS_S:.S=.o) $(SRCS_C:.c=.o)
 
 %.d: %.c %.h
-	$(CC) $(CFLAGS) -M -MF $@ -MT $(@:.d=.o) -MG $<
+	-$(CC) $(CFLAGS) -M -MF $@ -MT $(@:.d=.o) -MG $<
 %.d: %.S
-	$(CC) $(CFLAGS) -M -MF $@ -MT $(@:.d=.o) -MG $<
+	-$(CC) $(CFLAGS) -M -MF $@ -MT $(@:.d=.o) -MG $<
 
 .PHONY: clean
