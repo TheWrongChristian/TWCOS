@@ -284,7 +284,7 @@ BOOTSTRAP_DATA multiboot_header header = {
 	.mode_type = 0,
 	.width = 800,
 	.height = 600,
-	.depth = 32,
+	.depth = 24,
 };
 
 BOOTSTRAP_DATA static multiboot_info_t * info;
