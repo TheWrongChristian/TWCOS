@@ -5,7 +5,7 @@
 
 struct framebuffer_t
 {
-	char * mem;
+	uint8_t * mem;
 	int width;
 	int pitch;
 	int height;
@@ -50,13 +50,18 @@ void * fb_create(uintptr_t addr, size_t pitch, size_t height)
 	return p;
 }
 
+uint32_t fb_color_rgb(int red, int green, int blue)
+{
+	return red<<16 + green<<8 + blue;
+}
+
 static GCROOT psf_font_t * consolefont=0;
 void fb_set_consolefont(psf_font_t * font)
 {
 	consolefont=font;
 }
 
-void fb_render_bitmap_bpp8(uint8_t * p, uint8_t bitmap, uint8_t fgcolor, uint8_t bgcolor)
+static void fb_render_bitmap_bpp8(uint8_t * p, uint8_t bitmap, uint8_t fgcolor, uint8_t bgcolor)
 {
 	*p++=(bitmap & 0x80>>0) ? fgcolor : bgcolor;
 	*p++=(bitmap & 0x80>>1) ? fgcolor : bgcolor;
@@ -68,7 +73,7 @@ void fb_render_bitmap_bpp8(uint8_t * p, uint8_t bitmap, uint8_t fgcolor, uint8_t
 	*p++=(bitmap & 0x80>>7) ? fgcolor : bgcolor;
 }
 
-void fb_render_bitmap_bpp16(uint16_t * p, uint8_t bitmap, uint16_t fgcolor, uint16_t bgcolor)
+static void fb_render_bitmap_bpp16(uint16_t * p, uint8_t bitmap, uint16_t fgcolor, uint16_t bgcolor)
 {
 	*p++=(bitmap & 0x80>>0) ? fgcolor : bgcolor;
 	*p++=(bitmap & 0x80>>1) ? fgcolor : bgcolor;
@@ -80,7 +85,34 @@ void fb_render_bitmap_bpp16(uint16_t * p, uint8_t bitmap, uint16_t fgcolor, uint
 	*p++=(bitmap & 0x80>>7) ? fgcolor : bgcolor;
 }
 
-void fb_render_bitmap_bpp32(uint32_t * p, uint8_t bitmap, uint32_t fgcolor, uint32_t bgcolor)
+static void fb_render_color_bpp24(uint8_t * p, uint32_t color)
+{
+	*p++ = (color>>16) & 0xff;
+	*p++ = (color>>8) & 0xff;
+	*p++ = (color) & 0xff;
+}
+
+static void fb_render_bitmap_bpp24(uint8_t * p, uint8_t bitmap, uint32_t fgcolor, uint32_t bgcolor)
+{
+	fb_render_color_bpp24(p, (bitmap & 0x80>>0) ? fgcolor : bgcolor);
+	p+=3;
+	fb_render_color_bpp24(p, (bitmap & 0x80>>1) ? fgcolor : bgcolor);
+	p+=3;
+	fb_render_color_bpp24(p, (bitmap & 0x80>>2) ? fgcolor : bgcolor);
+	p+=3;
+	fb_render_color_bpp24(p, (bitmap & 0x80>>3) ? fgcolor : bgcolor);
+	p+=3;
+	fb_render_color_bpp24(p, (bitmap & 0x80>>4) ? fgcolor : bgcolor);
+	p+=3;
+	fb_render_color_bpp24(p, (bitmap & 0x80>>5) ? fgcolor : bgcolor);
+	p+=3;
+	fb_render_color_bpp24(p, (bitmap & 0x80>>6) ? fgcolor : bgcolor);
+	p+=3;
+	fb_render_color_bpp24(p, (bitmap & 0x80>>7) ? fgcolor : bgcolor);
+	p+=3;
+}
+
+static void fb_render_bitmap_bpp32(uint32_t * p, uint8_t bitmap, uint32_t fgcolor, uint32_t bgcolor)
 {
 	*p++=(bitmap & 0x80>>0) ? fgcolor : bgcolor;
 	*p++=(bitmap & 0x80>>1) ? fgcolor : bgcolor;
@@ -102,8 +134,7 @@ void fb_render_char(framebuffer_t * fb, int cx, int cy, int c, int fgcolor, int 
 		return;
 	}
 
-	uint8_t  * pbitmap=(uint8_t*)font;
-	pbitmap += sizeof(*font);
+	uint8_t * pbitmap=(uint8_t*)(font+1);
 	pbitmap += c*font->height;
 
 	uint8_t  * start=fb->mem;
@@ -132,6 +163,14 @@ void fb_render_char(framebuffer_t * fb, int cx, int cy, int c, int fgcolor, int 
 		for(int i=0; i<font->height; i++)
 		{
 			fb_render_bitmap_bpp32((uint32_t*)start, *pbitmap++, fgcolor, bgcolor);
+			start += fb->pitch;
+		}
+		break;
+	case 24:
+		start += 24*cx;
+		for(int i=0; i<font->height; i++)
+		{
+			fb_render_bitmap_bpp24((uint32_t*)start, *pbitmap++, fgcolor, bgcolor);
 			start += fb->pitch;
 		}
 		break;
