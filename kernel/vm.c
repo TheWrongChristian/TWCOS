@@ -715,7 +715,7 @@ void * vm_kas_get_aligned( size_t size, size_t align )
 
 void * vm_kas_get( size_t size )
 {
-	return vm_kas_get_aligned(size, sizeof(intptr_t));
+	return vm_kas_get_aligned(size, ARCH_PAGE_SIZE);
 }
 
 static mutex_t vmpages_lock[1];
