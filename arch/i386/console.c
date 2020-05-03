@@ -329,6 +329,27 @@ static void console_scroll()
 	console_invalidate(console->width-1, console->height-1);
 }
 
+static uint32_t console_color(int color)
+{
+	int brightness=(color & 0x8) ? 0xff : 0x80;
+	int red=color & 0x4;
+	int green=color & 0x2;
+	int blue=color & 0x1;
+	uint32_t rgb = 0;
+	
+	if (red) {
+		rgb |= brightness<<16;
+	}
+	if (green) {
+		rgb |= brightness<<8;
+	}
+	if (blue) {
+		rgb |= brightness;
+	}
+
+	return rgb;
+}
+
 static void console_update_framebuffer()
 {
 	if (console->bitmapfb) {
@@ -337,8 +358,9 @@ static void console_update_framebuffer()
 				for(int x=console->left; x<console->right; x++) {
 					int i = y*console->width+x;
 					int c = console->buffer[i] & 0xff;
-					int fg = 0xffffff;
-					int bg = 0;
+					
+					int fg = console_color((console->buffer[i]>>8)&0xf);
+					int bg = console_color((console->buffer[i]>>12)&0xf);
 					if (x==console->column && y==console->row) {
 						fb_render_char(console->bitmapfb, x, y, c, bg, fg);
 					} else {
