@@ -18,13 +18,13 @@ static int msg_next=0;
 static int enabled=0;
 static char * msgs[countof(msg_ring)];
 
-stream_t * console = 0;
+stream_t * logging_stream = 0;
 
 void kernel_startlogging(int enable)
 {
 	enabled = enable;
-	if (0 == console) {
-		console = console_stream();
+	if (0 == logging_stream) {
+		logging_stream = console_stream();
 	}
 }
 

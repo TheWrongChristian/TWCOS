@@ -82,11 +82,10 @@ int arch_is_heap_pointer(void *p)
 void * initrd=0;
 size_t initrdsize=0;
 
-static multiboot_info_t info[]={0};
 
 void arch_init()
 {
-	INIT_ONCE();
+	multiboot_info_t info[]={0};
 
 	int i;
 	ptrdiff_t koffset = _bootstrap_nextalloc - _bootstrap_end;
@@ -141,6 +140,7 @@ void arch_init()
 	vmobject_t * heapobject = vm_object_heap(nextalloc, heapend);
 	i386_init();
 	vmap_init();
+
 	bootstrap_finish();
 
 	page_t pstart = ((uint32_t)&_bootstrap_start)>>ARCH_PAGE_SIZE_LOG2;
@@ -160,6 +160,10 @@ void arch_init()
 	pci_scan();
 
 	kernel_printk("Bootstrap end - %p\n", nextalloc);
+
+	/* Initialize the console */
+	console_initialize(info);
+
 	sti();
 	kernel_startlogging(1);
 }

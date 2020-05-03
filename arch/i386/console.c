@@ -34,20 +34,45 @@ static uint16_t make_vgaentry(char c, uint8_t color) {
 	uint16_t color16 = color;
 	return c16 | color16 << 8;
 }
- 
-static const size_t VGA_WIDTH = 80;
-static const size_t VGA_HEIGHT = 25;
- 
-static int console_row;
-static int console_column;
-static uint8_t console_color;
-static uint16_t* console_buffer;
+
+struct console_framebuffer
+{
+	/* Character FB */
+	uint16_t *buffer;
+	int width;
+	int height;
+	uint8_t color;
+
+	/* Current cursor position */
+	int column;
+	int row;
+
+	/* invalidated window */
+	int left;
+	int top;
+	int right;
+	int bottom;
+
+	/* Bitmap fb details - if set */
+	framebuffer_t * bitmapfb;
+} console[1];
+
+#if 0
+static const size_t console->width = 80;
+static const size_t console->height = 25;
+
+static int console->row;
+static int console->column;
+static uint8_t console->color;
+static uint16_t* console->buffer;
+#endif
 
 static GCROOT monitor_t * keyq_lock;
 static uint8_t keyq [256];
 #define keyq_ptr(i) ((i)%sizeof(keyq))
 static int keyhead;
 static int keytail;
+
 
 /*
  * PC keyboard input handler - emulate HID keyboard report
@@ -187,19 +212,54 @@ void keyb_thread()
 	}
 }
 
-void console_initialize()
+void console_initialize(multiboot_info_t * info)
 {
 	INIT_ONCE();
 
 	keyhead = keytail = 0;
-	console_row = 0;
-	console_column = 0;
-	console_color = make_color(COLOR_LIGHT_GREY, COLOR_BLACK);
-	console_buffer = fb_create(0xb8000, 2*VGA_HEIGHT, VGA_WIDTH);
-	for (size_t y = 0; y < VGA_HEIGHT; y++) {
-		for (size_t x = 0; x < VGA_WIDTH; x++) {
-			const size_t index = y * VGA_WIDTH + x;
-			console_buffer[index] = make_vgaentry(' ', console_color);
+
+	console->row = 0;
+	console->column = 0;
+	console->color = make_color(COLOR_LIGHT_GREY, COLOR_BLACK);
+	if (info->framebuffer_type == MULTIBOOT_FRAMEBUFFER_TYPE_RGB) {
+		psf_font_t * font=(psf_font_t*)drivers_char_font_psf;
+		static framebuffer_t fb[1];
+
+		fb_set_consolefont(font);
+
+		console->height = info->framebuffer_height/font->height;
+		console->width = info->framebuffer_width/8;
+		size_t fbsize = sizeof(*console->buffer)*console->width*console->height;
+		console->buffer = vm_kas_get(fbsize);
+		segment_t * seg = vm_segment_anonymous(console->buffer, fbsize, SEGMENT_R | SEGMENT_W);
+
+		/* Initialise bitmap fb */
+		console->bitmapfb = fb;
+		fb->mem = fb_create(info->framebuffer_addr, info->framebuffer_pitch, info->framebuffer_height);
+		fb->height = info->framebuffer_height;
+		fb->pitch = info->framebuffer_pitch;
+		fb->width = info->framebuffer_width;
+		fb->depth = info->framebuffer_bpp;
+	} else if (0==info->framebuffer_addr) {
+		/* QEMU run mode */
+		console->height = 25;
+		console->width = 80;
+		console->buffer = fb_create(0xb8000, 160, 25);
+	} else {
+		console->height = info->framebuffer_height;
+		console->width = info->framebuffer_width;
+		console->buffer = fb_create(info->framebuffer_addr, info->framebuffer_pitch, info->framebuffer_height);
+	}
+
+	console->left = 0;
+	console->right = console->width;
+	console->top = 0;
+	console->bottom = console->height;
+
+	for (size_t y = 0; y < console->height; y++) {
+		for (size_t x = 0; x < console->width; x++) {
+			const size_t index = y * console->width + x;
+			console->buffer[index] = make_vgaentry(' ', console->color);
 		}
 	}
 
@@ -221,86 +281,138 @@ void console_initialize()
 
 #if 0 
 static void console_setcolor(uint8_t color) {
-	console_color = color;
+	console->color = color;
 }
 #endif
- 
-static void console_putentryat(char c, uint8_t color, size_t x, size_t y) {
-	const size_t index = y * VGA_WIDTH + x;
-	static const int maxindex=VGA_WIDTH*VGA_HEIGHT;
-	if (index<maxindex) {
-		console_buffer[index] = make_vgaentry(c, color);
+
+static void console_invalidate(size_t x, size_t y)
+{
+	if (x<console->left) {
+		console->left=x;
 	}
+	if (x+1>console->right) {
+		console->right=x+1;
+	}
+	if (y<console->top) {
+		console->top=y;
+	}
+	if (y+1>console->bottom) {
+		console->bottom=y+1;
+	}
+}
+
+static void console_putentryat(char c, uint8_t color, size_t x, size_t y)
+{
+	const size_t index = y * console->width + x;
+	const int maxindex=console->width*console->height;
+	if (index<maxindex) {
+		console->buffer[index] = make_vgaentry(c, color);
+	}
+	console_invalidate(x, y);
 }
 
 static void console_scroll()
 {
 	/* Scroll up one line */
-	int i = VGA_WIDTH;
-	for(;i<VGA_HEIGHT * VGA_WIDTH;i++) {
-		console_buffer[i-VGA_WIDTH] = console_buffer[i];
+	int i = console->width;
+	for(;i<console->height * console->width;i++) {
+		console->buffer[i-console->width] = console->buffer[i];
 	}
 	/* Clear last line */
-	for(i=VGA_HEIGHT * VGA_WIDTH - VGA_WIDTH; i<VGA_HEIGHT * VGA_WIDTH; i++)
+	for(i=console->height * console->width - console->width; i<console->height * console->width; i++)
 	{
-		console_buffer[i] = make_vgaentry(' ', console_color);
+		console->buffer[i] = make_vgaentry(' ', console->color);
 	}
-	console_row--;
+	console->row--;
+
+	console_invalidate(0, 0);
+	console_invalidate(console->width-1, console->height-1);
+}
+
+static void console_update_framebuffer()
+{
+	if (console->bitmapfb) {
+		if (console->right>console->left && console->bottom>console->top) {
+			for(int y=console->top; y<console->bottom; y++) {
+				for(int x=console->left; x<console->right; x++) {
+					int i = y*console->width+x;
+					int c = console->buffer[i] & 0xff;
+					int fg = 0xffffff;
+					int bg = 0;
+					if (x==console->column && y==console->row) {
+						fb_render_char(console->bitmapfb, x, y, c, bg, fg);
+					} else {
+						fb_render_char(console->bitmapfb, x, y, c, fg, bg);
+					}
+				}
+			}
+		}
+		console->left = console->width;
+		console->right = 0;
+		console->top = console->height;
+		console->bottom = 0;
+	}
 }
 
 static void console_scrollup(int lines)
 {
 	/* Scroll up */
-	int i = VGA_WIDTH * lines;
-	for(;i<VGA_HEIGHT * VGA_WIDTH;i++) {
-		console_buffer[i-VGA_WIDTH * lines] = console_buffer[i];
+	int i = console->width * lines;
+	for(;i<console->height * console->width;i++) {
+		console->buffer[i-console->width * lines] = console->buffer[i];
 	}
 	/* Clear last lines */
-	for(i=VGA_HEIGHT * VGA_WIDTH - VGA_WIDTH; i<VGA_HEIGHT * lines; i++)
+	for(i=console->height * console->width - console->width; i<console->height * lines; i++)
 	{
-		console_buffer[i] = make_vgaentry(' ', console_color);
+		console->buffer[i] = make_vgaentry(' ', console->color);
 	}
-	console_row -= lines;
+	console->row -= lines;
 }
 
 static void console_scrolldown(int lines)
 {
 	/* Scroll down */
-	int i = (VGA_HEIGHT-lines) * VGA_WIDTH;
+	int i = (console->height-lines) * console->width;
 	for(;i>0;i--) {
-		console_buffer[i+VGA_WIDTH*lines-1] = console_buffer[i-1];
+		console->buffer[i+console->width*lines-1] = console->buffer[i-1];
 	}
 	/* Clear first lines */
-	for(i=0; i<lines * VGA_WIDTH; i++)
+	for(i=0; i<lines * console->width; i++)
 	{
-		console_buffer[i] = make_vgaentry(' ', console_color);
+		console->buffer[i] = make_vgaentry(' ', console->color);
 	}
-	console_row += lines;
+	console->row += lines;
 }
 
 static void console_cursor(int row, int col)
 {
-	unsigned short position=(row*VGA_WIDTH) + col;
+	if (console->bitmapfb) {
+		console_invalidate(console->column, console->row);
+		console->column = col;
+		console->row = row;
+	} else {
+		unsigned short position=(row*console->width) + col;
 
-	// cursor LOW port to vga INDEX register
-	outb(0x3D4, 0x0F);
-	outb(0x3D5, (unsigned char)(position&0xFF));
-	// cursor HIGH port to vga INDEX register
-	outb(0x3D4, 0x0E);
-	outb(0x3D5, (unsigned char )((position>>8)&0xFF));
+		// cursor LOW port to vga INDEX register
+		outb(0x3D4, 0x0F);
+		outb(0x3D5, (unsigned char)(position&0xFF));
+		// cursor HIGH port to vga INDEX register
+		outb(0x3D4, 0x0E);
+		outb(0x3D5, (unsigned char )((position>>8)&0xFF));
+	}
 }
 
 void console_clamp_screen()
 {
-	if (console_row<0) {
-		console_row = 0;
-	} else if (console_row>=VGA_HEIGHT) {
-		console_row = VGA_HEIGHT-1;
+	if (console->row<0) {
+		console->row = 0;
+	} else if (console->row>=console->height) {
+		console->row = console->height-1;
 	}
-	if (console_column<0) {
-		console_column = 0;
-	} else if (console_column>=VGA_WIDTH) {
-		console_column = VGA_WIDTH-1;
+	if (console->column<0) {
+		console->column = 0;
+	} else if (console->column>=console->width) {
+		console->column = console->width-1;
 	}
 }
 
@@ -337,32 +449,32 @@ void console_escape_interp(char * sequence)
 
 	switch(*s) {
 	case 'A':
-		console_row -= ARGd(0, 1);
+		console->row -= ARGd(0, 1);
 		break;
 	case 'B':
-		console_row += ARGd(0, 1);
+		console->row += ARGd(0, 1);
 		break;
 	case 'C':
-		console_column += ARGd(0, 1);
+		console->column += ARGd(0, 1);
 		break;
 	case 'D':
-		console_column -= ARGd(0, 1);
+		console->column -= ARGd(0, 1);
 		break;
 	case 'E':
-		console_column = 0;
-		console_row += ARGd(0, 1);
+		console->column = 0;
+		console->row += ARGd(0, 1);
 		break;
 	case 'F':
-		console_column = 0;
-		console_row -= ARGd(0, 1);
+		console->column = 0;
+		console->row -= ARGd(0, 1);
 		break;
 	case 'G':
-		console_column = ARGd(0, 1);
+		console->column = ARGd(0, 1);
 		break;
 	case 'H':
 	case 'f':
-		console_column = ARGd(0, 1)-1;
-		console_row = ARGd(1, 1)-1;
+		console->column = ARGd(0, 1)-1;
+		console->row = ARGd(1, 1)-1;
 		break;
 	case 'S':
 		console_scrollup(ARGd(0, 1));
@@ -417,42 +529,47 @@ void console_putchar_nocursor(char c)
 
 	switch(c) {
 	case '\n':
-		if (++console_row == VGA_HEIGHT) {
+		console_invalidate(console->column, console->row);
+		if (++console->row == console->height) {
 			console_scroll();
 		}
 		/* Fall through */
 	case '\r':
-		console_column = 0;
+		console_invalidate(console->column, console->row);
+		console->column = 0;
+		console_invalidate(console->column, console->row);
 		break;
 	case '\b':
-		console_column -= 1;
-		console_putentryat(' ', console_color, console_column, console_row);
-		if (console_column<0) {
-			console_column = 0;
+		console_invalidate(console->column, console->row);
+		console->column -= 1;
+		console_putentryat(' ', console->color, console->column, console->row);
+		if (console->column<0) {
+			console->column = 0;
 		}
 		break;
 	case '\t':
-		console_column += 8;
-		console_column &= ~7;
-		int i = console_column;
-		if (console_column>=VGA_WIDTH) {
+		console_invalidate(console->column, console->row);
+		console->column += 8;
+		console->column &= ~7;
+		int i = console->column;
+		if (console->column>=console->width) {
 			i=0;
-			console_column -= VGA_WIDTH;
-			if (++console_row == VGA_HEIGHT) {
+			console->column -= console->width;
+			if (++console->row == console->height) {
 				console_scroll();
 			}
 		}
 
-		for(;i<console_column; i++) {
-			console_putentryat(' ', console_color, console_column, console_row);
+		for(;i<console->column; i++) {
+			console_putentryat(' ', console->color, console->column, console->row);
 		}
 
 		break;
 	default:
-		console_putentryat(c, console_color, console_column, console_row);
-		if (++console_column == VGA_WIDTH) {
-			console_column = 0;
-			if (++console_row == VGA_HEIGHT) {
+		console_putentryat(c, console->color, console->column, console->row);
+		if (++console->column == console->width) {
+			console->column = 0;
+			if (++console->row == console->height) {
 				console_scroll();
 			}
 		}
@@ -461,14 +578,16 @@ void console_putchar_nocursor(char c)
 
 void console_putchar(char c) {
 	console_putchar_nocursor(c);
-	console_cursor(console_row, console_column);
+	console_cursor(console->row, console->column);
+	console_update_framebuffer();
 }
  
 void console_writestring(const char* data) {
 	for (; *data; ++data) {
 		console_putchar_nocursor(*data);
 	}
-	console_cursor(console_row, console_column);
+	console_cursor(console->row, console->column);
+	console_update_framebuffer();
 }
 
 /*
@@ -501,8 +620,6 @@ static stream_ops_t console_ops = {
 
 stream_t * console_stream()
 {
-	console_initialize();
-
         sconsole.stream.ops = &console_ops;
         sconsole.chars = 0;
 
