@@ -331,7 +331,7 @@ static void console_scroll()
 
 static uint32_t console_color(int color)
 {
-	int brightness=(color & 0x8) ? 0xff : 0x80;
+	int brightness=(color & 0x8) ? 0xff : 0xc0;
 	int red=color & 0x4;
 	int green=color & 0x2;
 	int blue=color & 0x1;
