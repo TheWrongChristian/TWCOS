@@ -57,16 +57,6 @@ struct console_framebuffer
 	framebuffer_t * bitmapfb;
 } console[1];
 
-#if 0
-static const size_t console->width = 80;
-static const size_t console->height = 25;
-
-static int console->row;
-static int console->column;
-static uint8_t console->color;
-static uint16_t* console->buffer;
-#endif
-
 static GCROOT monitor_t * keyq_lock;
 static uint8_t keyq [256];
 #define keyq_ptr(i) ((i)%sizeof(keyq))
@@ -115,24 +105,6 @@ static int keyq_translate(uint8_t scancode)
 {
 	return (scancode < sizeof(scancodes)/sizeof(scancodes[0])) ? scancodes[scancode] : 0;
 }
-
-#if 0
-static void keyq_press(uint8_t scancode)
-{
-	int key = keyq_translate(scancode);
-
-	switch(key) {
-	}
-}
-
-static void keyq_release(uint8_t scancode)
-{
-	int key = keyq_translate(scancode);
-
-	switch(key) {
-	}
-}
-#endif
 
 /*
  * Called in interrupt context
@@ -279,11 +251,9 @@ void console_initialize(multiboot_info_t * info)
 	add_irq(1, keyb_isr);
 }
 
-#if 0 
 static void console_setcolor(uint8_t color) {
 	console->color = color;
 }
-#endif
 
 static void console_invalidate(size_t x, size_t y)
 {
