@@ -16,7 +16,7 @@ MAKEHEADERS=$(TOP)/build/makeheaders
 
 include $(TOP)/build/param.mk
 
-COPTS=-Og -g -DDEBUG
+COPTS=-g -DDEBUG
 KOPTS:=-ffreestanding
 UOPTS:=
 CFLAGS=$(COPTS) -pipe -std=gnu99 $(KOPTS) $(UOPTS) -Wall -I$(TOP)/arch/$(ARCH)/include -I$(TOP)/include
