@@ -75,8 +75,8 @@ enum syscall_e {
 
 void i386_syscall(uint32_t intr, uint32_t * state)
 {
-	syscall_e sc = state[ISR_REG_EAX];
-	regs_e reg;
+	regs_e argreg=ISR_REG_EAX;
+	syscall_e sc = state[argreg];
 	reg_t retval = -1;
 
 	KTRY {

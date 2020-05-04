@@ -278,6 +278,11 @@ void slab_gc_begin()
 		LIST_NEXT(types, stype);
 	}
 	gcarena = arena_get();
+
+	/* Put the roots in the queue */
+	extern char gcroot_start[];
+	extern char gcroot_end[];
+	slab_gc_mark_range(gcroot_start, gcroot_end);
 }
 
 static slab_t * slab_get(void * p)
@@ -364,8 +369,6 @@ void slab_gc_mark_block(void ** block, size_t size)
 
 void slab_gc_end()
 {
-	slab_gc();
-
 	if (gc_stats.inuse >= gc_stats.peak) {
 		gc_stats.peak = gc_stats.inuse;
 	}

@@ -13,6 +13,7 @@ SRCS_S += $(ARCH_SRCS_S)
 SRCS_C += $(ARCH_SRCS_C)
 
 $(subdir)/asm.S: $(subdir)/isr.inc
+
 $(subdir)/isr.inc: $(subdir)/isr.sh
 	sh $< > $@
 
@@ -42,6 +43,8 @@ $(TOP)/lib/crti.o: $(ARCH_CRTi_O)
 	$(CP) $< $@
 
 clean::
-	$(RM) $(TOP)/lib/libsyscall.a $(TOP)/lib/crt0.o $(LIBC_OBJS_C)
+	$(RM) $(TOP)/lib/libsyscall.a $(TOP)/lib/crt0.o $(LIBC_OBJS_C) $(subdir)/isr.inc
 
 QEMU=qemu-system-i386
+TARGET=i686-elf
+CROSS=$(TARGET)-

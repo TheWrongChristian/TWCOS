@@ -277,11 +277,14 @@ struct multiboot_apm_info
 #endif /* ASM_FILE */
 #endif /* INTERFACE */
 
-BOOTSTRAP_DATA static multiboot_header header = {
+BOOTSTRAP_DATA multiboot_header header = {
 	.magic = MULTIBOOT_HEADER_MAGIC,
 	.flags = MULTIBOOT_PAGE_ALIGN | MULTIBOOT_MEMORY_INFO | MULTIBOOT_VIDEO_MODE,
 	.checksum = -(MULTIBOOT_HEADER_MAGIC + (MULTIBOOT_PAGE_ALIGN | MULTIBOOT_MEMORY_INFO | MULTIBOOT_VIDEO_MODE)),
-	.mode_type = 1
+	.mode_type = 0,
+	.width = 800,
+	.height = 600,
+	.depth = 24,
 };
 
 BOOTSTRAP_DATA static multiboot_info_t * info;
@@ -315,3 +318,7 @@ BOOTSTRAP_CODE multiboot_memory_map_t * multiboot_mmap(int index)
 	return 0;
 }
 
+void multiboot_copy(multiboot_info_t * to)
+{
+	memcpy(to, info, sizeof(*to));
+}

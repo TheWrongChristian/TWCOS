@@ -2,7 +2,6 @@
    designated as the entry point. */
 ENTRY(_start)
 
-
 kernel_offset = 0xf0000000;
 
 /* Tell where the various sections of the object files will be put in the final
@@ -44,6 +43,15 @@ SECTIONS
 	.rodata ALIGN(4K) : AT(ADDR(.rodata) - kernel_offset)
 	{
 		*(.rodata)
+	}
+
+
+	.symtab : AT(ADDR(.rodata) - kernel_offset)
+	{
+		sym_start = .;
+		*(.symtab)
+		str_start = .;
+		*(.strtab)
 	}
 
 	/* Read-write data (initialized) */

@@ -71,7 +71,58 @@ struct Elf32_Phdr
 	Elf32_Word align;
 };
 
+struct Elf32_Sym
+{
+        Elf32_Word      st_name;
+        Elf32_Addr      st_value;
+        Elf32_Word      st_size;
+        unsigned char   st_info;
+        unsigned char   st_other;
+        Elf32_Half      st_shndx;
+} ;
+
+#define ELF32_ST_BIND(info)          ((info) >> 4)
+#define ELF32_ST_TYPE(info)          ((info) & 0xf)
+#define ELF32_ST_INFO(bind, type)    (((bind)<<4)+((type)&0xf))
+
+enum StT_Bindings {
+	STB_LOCAL		= 0, // Local scope
+	STB_GLOBAL		= 1, // Global scope
+	STB_WEAK		= 2  // Weak, (ie. __attribute__((weak)))
+};
+ 
+enum StT_Types {
+	STT_NOTYPE		= 0, // No type
+	STT_OBJECT		= 1, // Variables, arrays, etc.
+	STT_FUNC		= 2  // Methods or functions
+};
+
+extern char str_start[];
+extern char sym_start[];
+#define nsyms ((str_start-sym_start)/sizeof(Elf32_Sym))
+
+
 #endif
+
+char * sym_lookup(void * p)
+{
+	static struct Elf32_Sym * syms=sym_start;
+	static GCROOT map_t * symbols=0;
+
+	if (0==symbols) {
+		symbols=tree_new(0, 0);
+		for(int i=0; i<nsyms; i++) {
+			if (STT_FUNC==ELF32_ST_TYPE(syms[i].st_info)) {
+				// Add function symbol
+				map_putpp(symbols, (void*)syms[i].st_value, (char*)str_start+syms[i].st_name);
+			}
+		}
+		map_optimize(symbols);
+	}
+
+	return map_getpp_cond(symbols, p, MAP_LE);
+}
+
 
 exception_def ElfException = { "ElfException", &Exception };
 #define ERROR(msg) do {} while(0)

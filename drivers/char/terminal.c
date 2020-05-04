@@ -133,7 +133,7 @@ static void terminal_thread(vnode_terminal_t * terminal)
 
 vnode_t * terminal_new(vnode_t * input, vnode_t * output)
 {
-	static vfs_ops_t ops = { read: terminal_read, write: terminal_write };
+	static vnode_ops_t ops = { read: terminal_read, write: terminal_write };
 	static fs_t fs = { &ops };
 	vnode_terminal_t * terminal = calloc(1, sizeof(*terminal));
 

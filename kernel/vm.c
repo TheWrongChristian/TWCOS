@@ -460,7 +460,7 @@ static vmobject_t * vm_heap_put_page(vmobject_t * object, off_t offset, vmpage_t
 	return 0;
 }
 
-vmobject_t * vm_object_heap(int pcount)
+vmobject_t * vm_object_heap(char * heapstart, char * heapend)
 {
 	static vmobject_ops_t heap_ops = {
 		get_page: vm_heap_get_page,
@@ -468,9 +468,9 @@ vmobject_t * vm_object_heap(int pcount)
 	};
 	static vmobject_heap_t heap = {vmobject: {&heap_ops}};
 	if (!heap.pages) {
-		heap.pcount = pcount;
-		heap.pages = bootstrap_alloc(sizeof(*heap.pages)*pcount);
-		for(int i=0; i<pcount; i++) {
+		heap.pcount = (heapend-heapstart)>>ARCH_PAGE_SIZE_LOG2;
+		heap.pages = bootstrap_alloc(sizeof(*heap.pages)*heap.pcount);
+		for(int i=0; i<heap.pcount; i++) {
 			heap.pages[i] = 0;
 		}
 	}
@@ -715,7 +715,7 @@ void * vm_kas_get_aligned( size_t size, size_t align )
 
 void * vm_kas_get( size_t size )
 {
-	return vm_kas_get_aligned(size, sizeof(intptr_t));
+	return vm_kas_get_aligned(size, ARCH_PAGE_SIZE);
 }
 
 static mutex_t vmpages_lock[1];

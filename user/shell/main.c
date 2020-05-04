@@ -57,7 +57,7 @@ int main(int argc, char * argv[], char * envp[])
 			waitpid(0, &status, 0);
 		}
 	} else {
-		printf("Hello world from pid %d\r", getpid());
+		printf("\033[48;5;2mHello world from pid\033[48;5;0m %d\r", getpid());
 		fflush(stdout);
 		execve(argv[0], argv, envp);
 	}

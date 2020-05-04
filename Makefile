@@ -1,11 +1,12 @@
-TOP=$(CURDIR)
-
-ARCH=i386
-
 all::
 
 .PHONY: userlibs
 .PHONY: clean
+.PHONY: all
+
+TOP=$(CURDIR)
+
+ARCH=i386
 
 OBJS=$(SRCS_S:.S=.o) $(SRCS_C:.c=.o)
 SRCS_C :=
@@ -28,6 +29,8 @@ include $(subdir)/tools.mk
 subdir := arch/$(ARCH)
 include $(subdir)/subdir.mk
 subdir := user
+include $(subdir)/subdir.mk
+subdir := initrd
 include $(subdir)/subdir.mk
 
 all:: boot.iso
@@ -52,12 +55,18 @@ clean::
 	echo break kernel_main | tee -a .gdbinit
 
 QEMU_OPTS=-d cpu_reset,guest_errors -serial stdio
-QEMU_MEM=1536k
+QEMU_MEM=8m
 qemu: all .gdbinit
 	$(QEMU) $(QEMU_OPTS) -m $(QEMU_MEM) -s -S -kernel $(KERNEL) -initrd $(INITRD_TAR)
 
 run: all
 	$(QEMU) $(QEMU_OPTS) -m $(QEMU_MEM) -s -kernel $(KERNEL) -initrd $(INITRD_TAR)
+
+system: all
+	$(QEMU) $(QEMU_OPTS) -m $(QEMU_MEM) -s -cdrom boot.iso
+
+system-qemu: all
+	$(QEMU) $(QEMU_OPTS) -m $(QEMU_MEM) -s -S -cdrom boot.iso
 
 run-gcoverhead: all
 	$(QEMU) -enable-kvm $(QEMU_OPTS) -m $(QEMU_MEM) -kernel $(KERNEL) -initrd $(INITRD_TAR) &
