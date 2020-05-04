@@ -418,7 +418,7 @@ void console_escape_interp(char * sequence)
 
 	char * s = sequence;
 	int args = 0;
-	int arg[3] = {0};
+	int arg[5] = {0};
 
 	CHECK('\033', *s++);
 	CHECK('[', *s++);
@@ -473,6 +473,21 @@ void console_escape_interp(char * sequence)
 		break;
 	case 'T':
 		console_scrolldown(ARGd(0, 1));
+		break;
+	case 'm':
+		if (38==ARG(0) && 5==ARGd(1,5)) {
+			console->color &= 0xf0;
+			console->color |= ARGd(2,7);
+		} else if (48==ARG(0) && 5==ARGd(1,5)) {
+			console->color &= 0xf;
+			console->color |= ARGd(2,0) << 4;
+		} else if (ARG(0)>=30 && ARG(0)<38) {
+			console->color &= 0xf0;
+			console->color |= ARG(0)-30;
+		} else if (ARG(0)>=40 && ARG(0)<48) {
+			console->color &= 0xf;
+			console->color |= ARG(0)-40;
+		}
 		break;
 	}
 	console_clamp_screen();
