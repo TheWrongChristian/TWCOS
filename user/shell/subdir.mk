@@ -1,9 +1,8 @@
 INIT_SRCS_C := $(subdir)/main.c $(subdir)/tokenizer.c
 INIT_OBJS_C := $(INIT_SRCS_C:.c=.o)
 
-INIT=$(INITRD_INITRD_SBIN)/init
-
-all:: $(INIT)
+INIT := $(subdir)/init
+INITRD_SBIN += $(INIT)
 
 includes::
 	$(MAKEHEADERS) $(INIT_SRCS_C)
