@@ -57,16 +57,6 @@ struct console_framebuffer
 	framebuffer_t * bitmapfb;
 } console[1];
 
-#if 0
-static const size_t console->width = 80;
-static const size_t console->height = 25;
-
-static int console->row;
-static int console->column;
-static uint8_t console->color;
-static uint16_t* console->buffer;
-#endif
-
 static GCROOT monitor_t * keyq_lock;
 static uint8_t keyq [256];
 #define keyq_ptr(i) ((i)%sizeof(keyq))
@@ -115,24 +105,6 @@ static int keyq_translate(uint8_t scancode)
 {
 	return (scancode < sizeof(scancodes)/sizeof(scancodes[0])) ? scancodes[scancode] : 0;
 }
-
-#if 0
-static void keyq_press(uint8_t scancode)
-{
-	int key = keyq_translate(scancode);
-
-	switch(key) {
-	}
-}
-
-static void keyq_release(uint8_t scancode)
-{
-	int key = keyq_translate(scancode);
-
-	switch(key) {
-	}
-}
-#endif
 
 /*
  * Called in interrupt context
@@ -279,11 +251,9 @@ void console_initialize(multiboot_info_t * info)
 	add_irq(1, keyb_isr);
 }
 
-#if 0 
 static void console_setcolor(uint8_t color) {
 	console->color = color;
 }
-#endif
 
 static void console_invalidate(size_t x, size_t y)
 {
@@ -329,6 +299,27 @@ static void console_scroll()
 	console_invalidate(console->width-1, console->height-1);
 }
 
+static uint32_t console_color(int color)
+{
+	int brightness=(color & 0x8) ? 0xff : 0xc0;
+	int red=color & 0x4;
+	int green=color & 0x2;
+	int blue=color & 0x1;
+	uint32_t rgb = 0;
+	
+	if (red) {
+		rgb |= brightness<<16;
+	}
+	if (green) {
+		rgb |= brightness<<8;
+	}
+	if (blue) {
+		rgb |= brightness;
+	}
+
+	return rgb;
+}
+
 static void console_update_framebuffer()
 {
 	if (console->bitmapfb) {
@@ -337,8 +328,9 @@ static void console_update_framebuffer()
 				for(int x=console->left; x<console->right; x++) {
 					int i = y*console->width+x;
 					int c = console->buffer[i] & 0xff;
-					int fg = 0xffffff;
-					int bg = 0;
+					
+					int fg = console_color((console->buffer[i]>>8)&0xf);
+					int bg = console_color((console->buffer[i]>>12)&0xf);
 					if (x==console->column && y==console->row) {
 						fb_render_char(console->bitmapfb, x, y, c, bg, fg);
 					} else {
@@ -426,7 +418,7 @@ void console_escape_interp(char * sequence)
 
 	char * s = sequence;
 	int args = 0;
-	int arg[3] = {0};
+	int arg[5] = {0};
 
 	CHECK('\033', *s++);
 	CHECK('[', *s++);
@@ -481,6 +473,21 @@ void console_escape_interp(char * sequence)
 		break;
 	case 'T':
 		console_scrolldown(ARGd(0, 1));
+		break;
+	case 'm':
+		if (38==ARG(0) && 5==ARGd(1,5)) {
+			console->color &= 0xf0;
+			console->color |= ARGd(2,7);
+		} else if (48==ARG(0) && 5==ARGd(1,5)) {
+			console->color &= 0xf;
+			console->color |= ARGd(2,0) << 4;
+		} else if (ARG(0)>=30 && ARG(0)<38) {
+			console->color &= 0xf0;
+			console->color |= ARG(0)-30;
+		} else if (ARG(0)>=40 && ARG(0)<48) {
+			console->color &= 0xf;
+			console->color |= ARG(0)-40;
+		}
 		break;
 	}
 	console_clamp_screen();
