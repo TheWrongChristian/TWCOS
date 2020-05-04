@@ -139,11 +139,11 @@ void fb_render_char(framebuffer_t * fb, int cx, int cy, int c, int fgcolor, int 
 
 	uint8_t  * start=fb->mem;
 	start += fb->pitch*cy*font->height;
+	start += fb->depth*cx;
 
 	switch(fb->depth)
 	{
 	case 8:
-		start += 8*cx;
 		for(int i=0; i<font->height; i++)
 		{
 			fb_render_bitmap_bpp8(start, *pbitmap++, fgcolor, bgcolor);
@@ -151,7 +151,6 @@ void fb_render_char(framebuffer_t * fb, int cx, int cy, int c, int fgcolor, int 
 		}
 		break;
 	case 16:
-		start += 16*cx;
 		for(int i=0; i<font->height; i++)
 		{
 			fb_render_bitmap_bpp16((uint16_t*)start, *pbitmap++, fgcolor, bgcolor);
@@ -159,7 +158,6 @@ void fb_render_char(framebuffer_t * fb, int cx, int cy, int c, int fgcolor, int 
 		}
 		break;
 	case 32:
-		start += 32*cx;
 		for(int i=0; i<font->height; i++)
 		{
 			fb_render_bitmap_bpp32((uint32_t*)start, *pbitmap++, fgcolor, bgcolor);
@@ -167,7 +165,6 @@ void fb_render_char(framebuffer_t * fb, int cx, int cy, int c, int fgcolor, int 
 		}
 		break;
 	case 24:
-		start += 24*cx;
 		for(int i=0; i<font->height; i++)
 		{
 			fb_render_bitmap_bpp24((uint32_t*)start, *pbitmap++, fgcolor, bgcolor);
