@@ -40,10 +40,6 @@ void testshell_consumer(void * arg, token_t * token)
 
 void testshell_run()
 {
-	thread_set_name(0, "Testshell");
-
-	testshell_puts("Test shell\n");
-
 	widget_t * button_frame = wframe(packtop);
 	widget_t * button1 = wbutton("Button 1");
 	widget_t * button2 = wbutton("Biiiiig Button 2");
@@ -70,14 +66,6 @@ void testshell_run()
 		timer_sleep(100000);
 	}
 #endif
-
-	pid_t pid = fork();
-	if (0 == pid) {
-		extern char user_start[];
-		segment_t * s = vm_segment_direct((void*)0x100000, 0x1000, 0x1f, 0x100);
-		map_putpp(process_get()->as, (void*)0x100000, s);
-		arch_startuser(user_start, 0);
-	}
 
 	while(1) {
 		char * cmd = testshell_read();
