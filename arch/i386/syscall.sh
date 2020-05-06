@@ -2,9 +2,6 @@ output_header () {
 	cat <<EOF
 #include "syscall.h"
 
-
-#include "syscall.h"
-
 #if INTERFACE
 
 #include <stdint.h>
@@ -120,17 +117,11 @@ output_syscall ()
 	syscall=$1
 	name=$2
 	shift 2
-	cat <<EOF
-		/*
-		 * args($#): "$@"
-		 */
-EOF
 	case $# in
 	0)
 		cat <<EOF
-		case $1:
-			/* no args syscall */
-			retval = sys_$2();
+		case $syscall:
+			retval = sys_$name();
 			break;
 EOF
 		;;

@@ -1,6 +1,8 @@
 ARCH_SRCS_S := $(subdir)/asm.S $(subdir)/setjmp.S
 ARCH_SRCS_C := $(subdir)/console.c $(subdir)/multiboot.c $(subdir)/init.c $(subdir)/vmap.c $(subdir)/i386.c $(subdir)/pci.c $(subdir)/isa.c $(subdir)/syscall.c # $(subdir)/usyscall.c
-ARCH_USYSCALL_C := $(subdir)/usyscall.c
+ARCH_SYSCALL_SH := $(subdir)/syscall.sh
+ARCH_SYSCALL_LIST := $(subdir)/syscall.list
+ARCH_KSYSCALL_C := $(subdir)/ksyscall.c
 ARCH_CRT0_S := $(subdir)/crt0.S
 ARCH_CRT0_O := $(ARCH_CRT0_S:.S=.o)
 ARCH_CRT1_S := $(subdir)/crt1.S
@@ -11,6 +13,9 @@ ARCH_CRTn_S := $(subdir)/crtn.S
 ARCH_CRTn_O := $(ARCH_CRTn_S:.S=.o)
 SRCS_S += $(ARCH_SRCS_S)
 SRCS_C += $(ARCH_SRCS_C)
+
+$(ARCH_KSYSCALL_C): $(BUILD_SYSCALL_SH) $(ARCH_SYSCALL_SH) $(ARCH_SYSCALL_LIST)
+	bash $(BUILD_SYSCALL_SH) $(ARCH_SYSCALL_SH) < $(ARCH_SYSCALL_LIST) > $(ARCH_KSYSCALL_C)
 
 $(subdir)/asm.S: $(subdir)/isr.inc
 
