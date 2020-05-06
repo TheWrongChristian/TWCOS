@@ -1,0 +1,13 @@
+1	exit	int
+2	fork
+3	read	int	void*	size_t
+4	write	int	void*	size_t
+5	open	char*	int	int
+6	close	int
+7	waitpid	pid_t	int*	int
+8	creat	char*	int
+9	link	char*	char*
+10	unlink	char*
+11	execve	char*	char**	char**
+12	chdir	char*
+45	brk	void*
