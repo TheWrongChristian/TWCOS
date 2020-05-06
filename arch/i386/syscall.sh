@@ -117,23 +117,12 @@ output_syscall ()
 	syscall=$1
 	name=$2
 	shift 2
-	case $# in
-	0)
-		cat <<EOF
-		case $syscall:
-			retval = sys_$name();
-			break;
-EOF
-		;;
-	*)
-		args=$(join_args $(output_syscall_args "$@"))
-		cat <<EOF
+	args=$(join_args $(output_syscall_args "$@"))
+	cat <<EOF
 		case $syscall:
 			retval = sys_$name($args);
 			break;
 EOF
-		;;
-	esac
 }
 
 output_footer () {
