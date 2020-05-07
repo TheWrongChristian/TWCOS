@@ -1,12 +1,12 @@
 #include <sys/errno.h>
+#include <errno.h>
+
 #include "syscall.h"
 
 #if INTERFACE
 #include <stdint.h>
 
 #endif
-
-int errno;
 
 #if 0
 reg_t syscall_v(syscall_e sc)

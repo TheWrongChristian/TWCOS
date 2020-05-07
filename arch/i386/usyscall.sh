@@ -1,6 +1,7 @@
 output_header () {
         cat <<EOF
 #include <sys/errno.h>
+#include <errno.h>
 #include "usyscall.h"
 
 intptr_t syscall_0(int sc)
