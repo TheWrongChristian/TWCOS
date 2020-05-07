@@ -4,11 +4,11 @@
 
 output_header
 
-while read num name args
+while read num return name args
 do
 	if [ -n "$num" ]
 	then
-		output_syscall $num $name $args
+		output_syscall $num $return $name $args
 	fi
 done
 

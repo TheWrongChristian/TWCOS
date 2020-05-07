@@ -178,7 +178,7 @@ int elf_check_supported(Elf32_Ehdr *hdr) {
 }
 
 
-void elf_execve(vnode_t * f, process_t * p, char * argv[], char * envp[])
+int elf_execve(vnode_t * f, process_t * p, char * argv[], char * envp[])
 {
 	/* Temporary arena */
 	arena_state state = arena_getstate(0);
@@ -318,4 +318,6 @@ void elf_execve(vnode_t * f, process_t * p, char * argv[], char * envp[])
 
 		KRETHROW();
 	}
+
+	return 0;
 }

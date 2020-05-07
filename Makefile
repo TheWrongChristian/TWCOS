@@ -78,9 +78,9 @@ qemu-kvm: all .gdbinit
 run-kvm: all
 	$(QEMU) -enable-kvm $(QEMU_OPTS) -m $(QEMU_MEM) -s -kernel $(KERNEL) -initrd $(INITRD_TAR)
 
-includes::
+includes:: $(SRCS_C) $(ARCH_SYSCALL_C) $(ARCH_USYSCALL_C)
 	mkdir -p lib
-	$(MAKEHEADERS) $(SRCS_C) $(ARCH_USYSCALL_C) $(PDCLIB_TWCOS_SRCS_C)
+	$(MAKEHEADERS) $(SRCS_C) $(ARCH_SYSCALL_C) $(ARCH_USYSCALL_C) $(PDCLIB_TWCOS_SRCS_C)
 
 cflow:
 	cflow -d 4 -m kernel_main $(SRCS_C) $(LIBC_SRCS_C) $(INIT_SRCS_C)

@@ -1,3 +1,4 @@
+#include <sys/errno.h>
 #include "syscall.h"
 
 #if INTERFACE
@@ -7,6 +8,7 @@
 
 int errno;
 
+#if 0
 reg_t syscall_v(syscall_e sc)
 {
 	return syscall_0(sc);
@@ -84,6 +86,7 @@ static void * internal_brk(void * p)
 {
 	return (void*)syscall_p(sc_brk, p);
 }
+#endif
 
 int brk(void * p)
 {
@@ -107,6 +110,7 @@ void * sbrk(intptr_t incr)
 	return internal_brk(current + incr);
 }
 
+#if 0
 int open(const char *pathname, int flags, mode_t mode)
 {
 	return syscall_pii(sc_open, pathname, flags, mode);
@@ -121,3 +125,4 @@ int unlink(const char * path)
 {
 	return syscall_p(sc_unlink, path);
 }
+#endif
