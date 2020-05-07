@@ -179,7 +179,7 @@ pid_t process_getpid()
 	return 0;
 }
 
-void process_exit(int code)
+int process_exit(int code)
 {
 	process_t * current = process_get();
 	process_t * init = container_getprocess(current->container, 1);
@@ -213,6 +213,9 @@ void process_exit(int code)
 	}
 
 	thread_exit(0);
+
+	// Not reached
+	return 0;
 }
 
 static void process_waitpid_getzombie(void * p, map_key key, void * data)
@@ -266,12 +269,12 @@ pid_t process_waitpid(pid_t pid, int * wstatus, int options)
 	return child;
 }
 
-void process_execve(char * filename, char * argv[], char * envp[])
+int process_execve(char * filename, char * argv[], char * envp[])
 {
 	vnode_t * f = file_namev(filename);
 	process_t * p = arch_get_thread()->process;
 
-	elf_execve(f, p, argv, envp);
+	return elf_execve(f, p, argv, envp);
 }
 
 void * process_brk(void * p)
@@ -287,4 +290,21 @@ void * process_brk(void * p)
 	current->heap->size = (uintptr_t)p - (uintptr_t)current->heap->base;
 
 	return p;
+}
+
+int process_chdir(const char * path)
+{
+	process_t * p = arch_get_thread()->process;
+	vnode_t * d = file_namev(path);
+
+	if (d && VNODE_DIRECTORY==d->type) {
+		p->cwd = d;
+	}
+
+	return 0;
+}
+
+time_t process_time()
+{
+	return 0;
 }

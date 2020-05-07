@@ -1,5 +1,5 @@
 #include "file.h"
-
+#include <sys/errno.h>
 
 #if INTERFACE
 #include <stddef.h>
@@ -140,9 +140,11 @@ ssize_t file_write(int fd, void * buf, size_t count)
 	return retcode;
 }
 
-void file_close(int fd)
+int file_close(int fd)
 {
 	file_set(fd, 0);
+
+	return 0;
 }
 
 char ** path_split(const char * filename)
@@ -178,4 +180,14 @@ vnode_t * file_namev(const char * filename)
 	}
 
 	return v;
+}
+
+int file_create(const char * filename, mode_t mode)
+{
+	return -ENOSYS;
+}
+
+int file_unlink(const char * filename)
+{
+	return -ENOSYS;
 }

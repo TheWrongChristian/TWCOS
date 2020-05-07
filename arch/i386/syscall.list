@@ -1,0 +1,14 @@
+1	void	_exit	int
+2	pid_t	fork
+3	ssize_t	read	int	void*	size_t
+4	ssize_t	write	int	void*	size_t
+5	int	open	char*	int	mode_t
+6	int	close	int
+7	pid_t	waitpid	pid_t	int*	int
+8	int	creat	char*	mode_t
+10	int	unlink	char*
+11	int	execve	char*	char**	char**
+12	int	chdir	char*
+13	time_t	time	time_t*
+20	pid_t	getpid
+45	void*	internal_brk	void*

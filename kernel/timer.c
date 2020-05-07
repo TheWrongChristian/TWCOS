@@ -28,6 +28,8 @@ struct timer_event_t {
 	timer_event_t * next;
 };
 
+typedef intptr_t time_t;
+
 #endif
 
 static int timers_lock[1]={0};
