@@ -50,6 +50,7 @@ enum object_type_e { OBJECT_DIRECT, OBJECT_ANON, OBJECT_VNODE };
 
 struct vmobject_ops_t {
 	vmpage_t * (*get_page)(vmobject_t * object, off_t offset);
+	vmpage_t * (*poll_page)(vmobject_t * object, off_t offset);
 	vmpage_t * (*put_page)(vmobject_t * object, off_t offset, vmpage_t * page);
 	void (*release)(vmobject_t * object);
 	vmobject_t * (*clone)(vmobject_t * object);
@@ -256,6 +257,19 @@ void vm_page_fault(void * p, int write, int user, int present)
 
 	/* Invalid pointer */
 	vm_invalid_pointer(p, write, user, present);
+}
+
+vmpage_t * vmobject_poll_page(vmobject_t * object, off_t offset)
+{
+	if (object->ops->poll_page) {
+		vmpage_t * vmpage = object->ops->poll_page(object, offset);
+		if (vmpage) {
+			assert(vmpage->page);
+		}
+		return vmpage;
+	} else {
+		return vmobject_get_page(object, offset);
+	}
 }
 
 vmpage_t * vmobject_get_page(vmobject_t * object, off_t offset)
@@ -537,6 +551,13 @@ struct vmobject_vnode_t {
 	vnode_t * vnode;
 };
 
+static vmpage_t * vm_vnode_poll_page(vmobject_t * object, off_t offset)
+{
+	vmobject_vnode_t * vno = container_of(object, vmobject_vnode_t, vmobject);
+
+	return vnode_poll_page(vno->vnode, offset);
+}
+
 static vmpage_t * vm_vnode_get_page(vmobject_t * object, off_t offset)
 {
 	vmobject_vnode_t * vno = container_of(object, vmobject_vnode_t, vmobject);
@@ -555,6 +576,7 @@ static vmobject_t * vm_vnode_clone(vmobject_t * object)
 static vmobject_t * vm_object_vnode(vnode_t * vnode)
 {
 	static vmobject_ops_t vnode_ops = {
+		poll_page: vm_vnode_poll_page,
 		get_page: vm_vnode_get_page,
 		clone: vm_vnode_clone
 	};
@@ -569,10 +591,10 @@ void vm_segment_unmap(asid as, segment_t * seg)
 {
 	char * p = seg->base;
 	for(size_t offset=0; offset<seg->size; offset+=ARCH_PAGE_SIZE) {
-		vmpage_t * vmpage = vmobject_get_page(seg->dirty, offset);
+		vmpage_t * vmpage = vmobject_poll_page(seg->dirty, offset);
 		if (0 == vmpage) {
 			/* Handle case of page not in dirty pages */
-			vmpage = vmobject_get_page(seg->clean, offset);
+			vmpage = vmobject_poll_page(seg->clean, offset);
 		}
 		if (vmpage) {
 			/* Page might be mapped, unmap it */

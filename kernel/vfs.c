@@ -91,6 +91,13 @@ void page_cache_init()
 }
 
 
+vmpage_t * vnode_poll_page( vnode_t * vnode, off_t offset )
+{
+	offset = (off_t)ARCH_PAGE_ALIGN(offset);
+	page_cache_key_t key[] = {{ vnode, offset }};
+
+	return map_getpp(page_cache, key);
+}
 
 vmpage_t * vnode_get_page( vnode_t * vnode, off_t offset )
 {
