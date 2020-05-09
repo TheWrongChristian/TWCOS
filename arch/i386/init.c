@@ -48,9 +48,8 @@ extern char zero_end[];
 
 void * bootstrap_alloc(size_t size)
 {
-        void * m = (void*)nextalloc;
-        size += (ALIGNMENT-1);
-        size &= (~(ALIGNMENT-1));
+        nextalloc = PTR_ALIGN_NEXT(nextalloc,ALIGNMENT);
+	void * m = nextalloc;
         nextalloc += size;
 
         return m;
@@ -58,8 +57,7 @@ void * bootstrap_alloc(size_t size)
 
 static void bootstrap_finish()
 {
-	nextalloc += ARCH_PAGE_SIZE;
-	nextalloc = (char*)((uint32_t)nextalloc & ~(ARCH_PAGE_SIZE-1));
+        nextalloc = PTR_ALIGN_NEXT(nextalloc,ARCH_PAGE_SIZE);
 }
 
 void * arch_heap_page()
@@ -101,8 +99,7 @@ void arch_init()
 		modstart = (void*)(mod->mod_start+koffset);
 		modsize = mod->mod_end-mod->mod_start;
 		nextalloc = koffset + mod->mod_end;
-		nextalloc += ARCH_PAGE_SIZE;
-		nextalloc = (char*)((uint32_t)nextalloc & ~(ARCH_PAGE_SIZE-1));
+		nextalloc = PTR_ALIGN_NEXT(nextalloc,ARCH_PAGE_SIZE);
 	}
 
 	memset(zero_start, 0, zero_end-zero_start);
