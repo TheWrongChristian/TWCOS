@@ -38,8 +38,9 @@ void command_loop()
 
 	while(1) {
 #if 1
-		fgets(buf, sizeof(buf), stdin);
-		tokenizer_tokenize(t, buf, sizeof(buf), consumer, NULL);
+		if (fgets(buf, sizeof(buf), stdin)>0) {
+			tokenizer_tokenize(t, buf, sizeof(buf), consumer, NULL);
+		}
 #else
 		char str[]="for(int i=0; i<10; i++) { printf(\"\\\"\\n\\\"\");}";
 		tokenizer_tokenize(t, str, sizeof(str), consumer, NULL);
