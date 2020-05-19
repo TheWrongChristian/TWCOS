@@ -7,9 +7,7 @@
 #include <stddef.h>
 #include <stdint.h>
 
-typedef int mode_t;
-
-typedef int64_t ssize_t;
+#include <unistd.h>
 
 typedef struct file_t file_t;
 struct file_t {

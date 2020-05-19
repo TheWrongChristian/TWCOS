@@ -6,6 +6,7 @@
 #if INTERFACE
 #include <setjmp.h>
 #include <stdarg.h>
+#include <sys/types.h>
 
 typedef struct exception_def {
         const char * name;

@@ -27,7 +27,7 @@ cross-configure-binutils:
 
 cross-configure-gcc:
 	mkdir -p $(GCC_BUILD)
-	( cd $(GCC_BUILD) && ../gcc-$(GCC_VERSION)/configure $(CONFIGURE_OPTIONS) --disable-libssp --enable-languages=c --without-headers --disable-libquadmath )
+	( cd $(GCC_BUILD) && ../gcc-$(GCC_VERSION)/configure $(CONFIGURE_OPTIONS) --disable-libssp --enable-languages=c,c++ --without-headers --disable-libquadmath )
 
 cross-configure: cross-configure-binutils cross-configure-gcc
 

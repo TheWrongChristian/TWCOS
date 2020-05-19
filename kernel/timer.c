@@ -3,6 +3,7 @@
 #if INTERFACE
 
 #include <stdint.h>
+#include <unistd.h>
 
 typedef int64_t timerspec_t;
 
@@ -27,8 +28,6 @@ struct timer_event_t {
 
 	timer_event_t * next;
 };
-
-typedef intptr_t time_t;
 
 #endif
 

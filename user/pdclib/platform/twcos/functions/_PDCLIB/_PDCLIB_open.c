@@ -57,7 +57,7 @@ int _PDCLIB_open( const char * const filename, unsigned int mode )
     }
     else
     {
-        rc = open( filename, osmode );
+        rc = open( filename, osmode, 0 );
     }
     if ( rc == -1 )
     {

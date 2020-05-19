@@ -68,6 +68,7 @@ void *memmove(void *dest, const void *src, size_t n)
 		for(int i=n-1; i>=0; i--) {
 			cd[i] = cs[i];
 		}
+		return dest;
 	} else {
 		return memcpy(dest, src, n);
 	}

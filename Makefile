@@ -85,7 +85,10 @@ qemu-kvm: all .gdbinit
 run-kvm: all
 	$(QEMU) -enable-kvm $(QEMU_OPTS) -m $(QEMU_MEM) -s -kernel $(KERNEL) -initrd $(INITRD_TAR)
 
-includes:: $(SRCS_C) $(ARCH_SYSCALL_C) $(ARCH_USYSCALL_C)
+include/unistd.h: $(ARCH_USYSCALL_C)
+	$(MAKEHEADERS) -h $< > $@
+
+includes:: $(SRCS_C) $(ARCH_SYSCALL_C) $(ARCH_USYSCALL_C) include/unistd.h
 	mkdir -p lib
 	$(MAKEHEADERS) $(SRCS_C) $(ARCH_SYSCALL_C) $(ARCH_USYSCALL_C) $(PDCLIB_TWCOS_SRCS_C)
 

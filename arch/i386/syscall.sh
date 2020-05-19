@@ -1,6 +1,7 @@
 output_header () {
 	cat <<EOF
 #include <sys/errno.h>
+#include <unistd.h>
 #include "syscall.h"
 
 #if INTERFACE

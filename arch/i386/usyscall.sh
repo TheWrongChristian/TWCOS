@@ -1,10 +1,14 @@
 output_header () {
         cat <<EOF
-#include <sys/errno.h>
-#include <errno.h>
 #include "usyscall.h"
 
-intptr_t syscall_0(int sc)
+#if INTERFACE
+#include <stddef.h>
+#include <sys/errno.h>
+#include <sys/types.h>
+#endif
+
+static intptr_t syscall_0(int sc)
 {
 	intptr_t retcode;
 
@@ -18,7 +22,7 @@ intptr_t syscall_0(int sc)
 	return retcode;
 }
 
-intptr_t syscall_1(int sc, intptr_t a1)
+static intptr_t syscall_1(int sc, intptr_t a1)
 {
 	intptr_t retcode;
 
@@ -32,7 +36,7 @@ intptr_t syscall_1(int sc, intptr_t a1)
 	return retcode;
 }
 
-intptr_t syscall_2(int sc, intptr_t a1, intptr_t a2)
+static intptr_t syscall_2(int sc, intptr_t a1, intptr_t a2)
 {
 	intptr_t retcode;
 
@@ -46,7 +50,7 @@ intptr_t syscall_2(int sc, intptr_t a1, intptr_t a2)
 	return retcode;
 }
 
-intptr_t syscall_3(int sc, intptr_t a1, intptr_t a2, intptr_t a3)
+static intptr_t syscall_3(int sc, intptr_t a1, intptr_t a2, intptr_t a3)
 {
 	intptr_t retcode;
 
@@ -60,7 +64,7 @@ intptr_t syscall_3(int sc, intptr_t a1, intptr_t a2, intptr_t a3)
 	return retcode;
 }
 
-intptr_t syscall_4(int sc, intptr_t a1, intptr_t a2, intptr_t a3, intptr_t a4)
+static intptr_t syscall_4(int sc, intptr_t a1, intptr_t a2, intptr_t a3, intptr_t a4)
 {
 	intptr_t retcode;
 
@@ -74,7 +78,7 @@ intptr_t syscall_4(int sc, intptr_t a1, intptr_t a2, intptr_t a3, intptr_t a4)
 	return retcode;
 }
 
-intptr_t syscall_5(int sc, intptr_t a1, intptr_t a2, intptr_t a3, intptr_t a4, intptr_t a5)
+static intptr_t syscall_5(int sc, intptr_t a1, intptr_t a2, intptr_t a3, intptr_t a4, intptr_t a5)
 {
 	intptr_t retcode;
 

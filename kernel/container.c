@@ -2,6 +2,8 @@
 
 #if INTERFACE
 
+#include <sys/types.h>
+
 struct container_t {
         pid_t nextpid;
         map_t * pids;
