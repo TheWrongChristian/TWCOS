@@ -4,8 +4,8 @@ output_header () {
 
 #if INTERFACE
 #include <stddef.h>
-#include <sys/errno.h>
 #include <sys/types.h>
+#include <errno.h>
 #endif
 
 static intptr_t syscall_0(int sc)
@@ -143,5 +143,10 @@ EOF
 
 output_footer ()
 {
-	true
+        cat <<EOF
+void _exit(int rc)
+{
+	(void)doexit(rc);
+}
+EOF
 }

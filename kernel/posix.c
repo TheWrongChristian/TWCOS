@@ -1,6 +1,6 @@
 #if INTERFACE
 
-#define sys__exit process_exit
+#define sys_doexit process_exit
 #define sys_fork process_fork
 #define sys_read file_read
 #define sys_write file_write

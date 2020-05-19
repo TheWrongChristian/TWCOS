@@ -1,4 +1,4 @@
-1	void	_exit	int
+1	int	doexit	int
 2	pid_t	fork
 3	ssize_t	read	int	void*	size_t
 4	ssize_t	write	int	void*	size_t
