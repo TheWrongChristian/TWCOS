@@ -135,7 +135,7 @@ output_syscall ()
         cat <<EOF
 $returntype $name($args_list)
 {
-	return syscall_$#($args);
+	return ($returntype)syscall_$#($args);
 }
 
 EOF
@@ -144,9 +144,30 @@ EOF
 output_footer ()
 {
         cat <<EOF
+/* Some wrappers */
 void _exit(int rc)
 {
 	(void)doexit(rc);
 }
+
+unsigned sleep(time_t seconds)
+{
+	struct timespec inspec = {seconds, 0};
+	struct timespec outspec = {0};
+	int r = nanosleep(&inspec, &outspec);
+	if (r<0) {
+		return outspec.tv_sec;
+	}
+
+	return 0;
+}
+
+int usleep(useconds_t usec)
+{
+	struct timespec inspec = {usec/1000000, usec%1000};
+
+	return nanosleep(&inspec, 0);
+}
+
 EOF
 }

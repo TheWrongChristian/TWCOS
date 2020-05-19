@@ -12,3 +12,4 @@
 13	time_t	time	time_t*
 20	pid_t	getpid
 45	void*	internal_brk	void*
+162	int	nanosleep	ptimespec	ptimespec

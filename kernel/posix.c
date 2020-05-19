@@ -15,5 +15,6 @@
 #define sys_time process_time
 #define sys_internal_brk process_brk
 #define sys_getpid process_getpid
+#define sys_nanosleep timer_nanosleep
 
 #endif
