@@ -21,8 +21,9 @@
 static void idle() {
 	thread_set_priority(0, THREAD_IDLE);
 	while(1) {
-		thread_gc();
-		thread_preempt();
+		if (thread_preempt()) {
+			thread_gc();
+		}
 		arch_idle();
 	}
 }

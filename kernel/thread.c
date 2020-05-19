@@ -108,24 +108,24 @@ static void scheduler_unlock()
 	spin_unlock(&queuelock);
 }
 
-void thread_preempt()
+int thread_preempt()
 {
 	thread_t * this = arch_get_thread();
 	tpriority priority = this->priority;
 	scheduler_lock();
 	queue[priority] = thread_prequeue(queue[priority], this, THREAD_RUNNABLE);
 	scheduler_unlock();
-	thread_schedule();
+	return thread_schedule();
 }
 
-void thread_yield()
+int thread_yield()
 {
 	thread_t * this = arch_get_thread();
 	tpriority priority = this->priority;
 	scheduler_lock();
 	queue[priority] = thread_queue(queue[priority], this, THREAD_RUNNABLE);
 	scheduler_unlock();
-	thread_schedule();
+	return thread_schedule();
 }
 
 void thread_resume(thread_t * thread)
@@ -136,7 +136,7 @@ void thread_resume(thread_t * thread)
 	scheduler_unlock();
 }
 
-void thread_schedule()
+int thread_schedule()
 {
 	while(1) {
 		int i;
@@ -156,11 +156,12 @@ void thread_schedule()
 					}
 					arch_thread_switch(next);
 					current->accts[current->acct].tstart = timer_uptime();
+					return 1;
 				} else {
 					/* Restore thread state to running */
 					current->state = THREAD_RUNNING;
+					return 0;
 				}
-				return;
 			}
 		}
 		// kernel_printk("Empty run queue!\n");
