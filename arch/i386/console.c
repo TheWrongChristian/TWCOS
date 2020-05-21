@@ -111,7 +111,7 @@ static int keyq_translate(uint8_t scancode)
  */
 static void keyb_isr()
 {
-	uint8_t scancode = inb(0x60);
+	const uint8_t scancode = inb(0x60);
 	int head = keyhead;
 
 	MONITOR_AUTOLOCK(keyq_lock) {
@@ -165,13 +165,12 @@ void keyb_thread()
 {
 	while(1) {
 		MONITOR_AUTOLOCK(keyq_lock) {
-			uint8_t scancode = keyq_get();
+			const uint8_t scancode = keyq_get();
 
 			if (scancode) {
-				int release = scancode >> 7;
-				scancode &= 0x7f;
+				const int release = scancode >> 7;
 
-				int key = keyq_translate(scancode);
+				const int key = keyq_translate(scancode & 0x7f);
 				if (release) {
 					console_input(-key);
 				} else {
@@ -217,10 +216,11 @@ void console_initialize(multiboot_info_t * info)
 		console->height = 25;
 		console->width = 80;
 		console->buffer = fb_create(0xb8000, 160, 25);
-	} else {
+	} else if (info->framebuffer_type == MULTIBOOT_FRAMEBUFFER_TYPE_EGA_TEXT) {
 		console->height = info->framebuffer_height;
 		console->width = info->framebuffer_width;
 		console->buffer = fb_create(info->framebuffer_addr, info->framebuffer_pitch, info->framebuffer_height);
+	} else {
 	}
 
 	console->left = 0;
