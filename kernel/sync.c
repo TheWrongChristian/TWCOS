@@ -219,8 +219,10 @@ void monitor_leave(monitor_t * monitor)
 
 void monitor_wait(monitor_t * monitor)
 {
-	monitor->waiting = thread_queue(monitor->waiting, 0, THREAD_SLEEPING);
 	int count = monitor->lock->count;
+	assert(1==count);
+
+	monitor->waiting = thread_queue(monitor->waiting, 0, THREAD_SLEEPING);
 	mutex_unlock(monitor->lock);
 	thread_schedule();
 	mutex_lock(monitor->lock);
