@@ -305,12 +305,9 @@ int elf_execve(vnode_t * f, process_t * p, char * argv[], char * envp[])
 
 		arena_setstate(0, state);
 
-		/* By here, we're committed - Destroy old as */
-		vm_as_release(oldas);
 		arch_startuser((void*)ehdr->e_entry, stacktop);
 	} KCATCH(Exception) {
 		/* Restore old as */
-		vm_as_release(p->as);
 		p->as = oldas;
 		vmap_set_asid(p->as);
 

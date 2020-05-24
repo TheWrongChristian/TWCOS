@@ -331,11 +331,6 @@ static void vm_as_release_walk(void * p, void * key, void * data)
 	vmobject_release(seg->clean);
 }
 
-void vm_as_release(map_t * as)
-{
-	vmap_release_asid(as);
-}
-
 /*
  * Zero filled memory
  */
