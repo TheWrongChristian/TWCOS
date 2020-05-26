@@ -77,6 +77,8 @@ int arch_is_heap_pointer(void *p)
 	return ((char*)p)>=&_bootstrap_nextalloc && (char*)p<nextalloc;
 }
 
+void * modules[8]={0};
+size_t modulesizes[8]={0};
 void * initrd=0;
 size_t initrdsize=0;
 
@@ -87,25 +89,29 @@ void arch_init()
 
 	int i;
 	ptrdiff_t koffset = _bootstrap_nextalloc - _bootstrap_end;
-	void * modstart = 0;
-	size_t modsize = 0;
 	int pcount = 0;
 
 	/* Copy for reference */
 	multiboot_copy(info);
 
-	multiboot_module_t * mod = multiboot_mod(0);
-	if (mod) {
-		modstart = (void*)(mod->mod_start+koffset);
-		modsize = mod->mod_end-mod->mod_start;
-		nextalloc = koffset + mod->mod_end;
-		nextalloc = PTR_ALIGN_NEXT(nextalloc,ARCH_PAGE_SIZE);
+	memset(zero_start, 0, zero_end-zero_start);
+
+	/* Any multi-boot modules */
+	for(i=0; i<countof(modules); i++) {
+		multiboot_module_t * mod = multiboot_mod(i);
+		if (mod) {
+			modules[i] = (void*)(mod->mod_start+koffset);
+			modulesizes[i] = mod->mod_end-mod->mod_start;
+			nextalloc = koffset + mod->mod_end;
+			nextalloc = PTR_ALIGN_NEXT(nextalloc,ARCH_PAGE_SIZE);
+		} else {
+			break;
+		}
 	}
 
-	memset(zero_start, 0, zero_end-zero_start);
 	cli();
-	initrd = modstart;
-	initrdsize = modsize;
+	initrd = modules[0];
+	initrdsize = modulesizes[0];
 
 	for(i=0;;i++) {
 		multiboot_memory_map_t * mmap = multiboot_mmap(i);
