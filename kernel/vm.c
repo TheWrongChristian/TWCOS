@@ -40,6 +40,8 @@
 #include <stddef.h>
 #include <stdint.h>
 
+#include <sys/types.h>
+
 #define SEGMENT_R 0x1
 #define SEGMENT_W 0x2
 #define SEGMENT_X 0x4
@@ -49,9 +51,9 @@
 enum object_type_e { OBJECT_DIRECT, OBJECT_ANON, OBJECT_VNODE };
 
 struct vmobject_ops_t {
-	vmpage_t * (*get_page)(vmobject_t * object, off_t offset);
-	vmpage_t * (*poll_page)(vmobject_t * object, off_t offset);
-	vmpage_t * (*put_page)(vmobject_t * object, off_t offset, vmpage_t * page);
+	vmpage_t * (*get_page)(vmobject_t * object, off64_t offset);
+	vmpage_t * (*poll_page)(vmobject_t * object, off64_t offset);
+	vmpage_t * (*put_page)(vmobject_t * object, off64_t offset, vmpage_t * page);
 	void (*release)(vmobject_t * object);
 	vmobject_t * (*clone)(vmobject_t * object);
 };
@@ -60,26 +62,24 @@ struct vmobject_t {
 	vmobject_ops_t * ops;
 };
 
-typedef uint64_t off_t;
-
 struct segment_t {
 	void * base;
 	size_t size;
 	int perms;
 
 	/* Writes go to dirty object */
-	off_t dirty_offset;
+	off64_t dirty_offset;
 	vmobject_t * dirty;
 
 	/* Reads come from clean object, if they're not in dirty object */
-	off_t read_offset;
+	off64_t read_offset;
 	vmobject_t * clean;
 };
 
 struct address_info_t {
 	map_t * as;
 	segment_t * seg;
-	off_t offset;
+	off64_t offset;
 };
 
 #define VMPAGE_PINNED 0x1
@@ -194,7 +194,7 @@ void vm_page_fault(void * p, int write, int user, int present)
 
 	if (vm_resolve_address(p, info)) {
 		segment_t * seg = info->seg;
-		off_t offset = info->offset;
+		off64_t offset = info->offset;
 		map_t * as = info->as;
 
 		if (offset < seg->size) {
@@ -259,7 +259,7 @@ void vm_page_fault(void * p, int write, int user, int present)
 	vm_invalid_pointer(p, write, user, present);
 }
 
-vmpage_t * vmobject_poll_page(vmobject_t * object, off_t offset)
+vmpage_t * vmobject_poll_page(vmobject_t * object, off64_t offset)
 {
 	if (object->ops->poll_page) {
 		vmpage_t * vmpage = object->ops->poll_page(object, offset);
@@ -272,7 +272,7 @@ vmpage_t * vmobject_poll_page(vmobject_t * object, off_t offset)
 	}
 }
 
-vmpage_t * vmobject_get_page(vmobject_t * object, off_t offset)
+vmpage_t * vmobject_get_page(vmobject_t * object, off64_t offset)
 {
 	if (object->ops->get_page) {
 		vmpage_t * vmpage = object->ops->get_page(object, offset);
@@ -287,7 +287,7 @@ vmpage_t * vmobject_get_page(vmobject_t * object, off_t offset)
 	return 0;
 }
 
-vmpage_t * vmobject_put_page(vmobject_t * object, off_t offset, vmpage_t * vmpage)
+vmpage_t * vmobject_put_page(vmobject_t * object, off64_t offset, vmpage_t * vmpage)
 {
 	if (vmpage) {
 		assert(vmpage->page);
@@ -334,7 +334,7 @@ static void vm_as_release_walk(void * p, void * key, void * data)
 /*
  * Zero filled memory
  */
-static vmpage_t * vm_zero_get_page(vmobject_t * object, off_t offset)
+static vmpage_t * vm_zero_get_page(vmobject_t * object, off64_t offset)
 {
 	return vmpage_calloc();
 }
@@ -367,13 +367,13 @@ struct vmobject_anon_t {
 	map_t * pages;
 };
 
-static vmpage_t * vm_anon_get_page(vmobject_t * object, off_t offset)
+static vmpage_t * vm_anon_get_page(vmobject_t * object, off64_t offset)
 {
 	vmobject_anon_t * anon = container_of(object, vmobject_anon_t, vmobject);
 	return map_getip(anon->pages, offset >> ARCH_PAGE_SIZE_LOG2);
 }
 
-static vmpage_t * vm_anon_put_page(vmobject_t * object, off_t offset, vmpage_t * vmpage)
+static vmpage_t * vm_anon_put_page(vmobject_t * object, off64_t offset, vmpage_t * vmpage)
 {
 	vmobject_anon_t * anon = container_of(object, vmobject_anon_t, vmobject);
 	return map_putip(anon->pages, offset >> ARCH_PAGE_SIZE_LOG2, vmpage);
@@ -436,7 +436,7 @@ struct vmobject_heap_t {
 	page_t * pages;
 };
 
-static vmpage_t * vm_heap_get_page(vmobject_t * object, off_t offset)
+static vmpage_t * vm_heap_get_page(vmobject_t * object, off64_t offset)
 {
 	vmobject_heap_t * heap = container_of(object, vmobject_heap_t, vmobject);
 	int pageno = offset >> ARCH_PAGE_SIZE_LOG2;
@@ -454,7 +454,7 @@ static vmpage_t * vm_heap_get_page(vmobject_t * object, off_t offset)
 	return 0;
 }
 
-static vmobject_t * vm_heap_put_page(vmobject_t * object, off_t offset, vmpage_t * vmpage)
+static vmobject_t * vm_heap_put_page(vmobject_t * object, off64_t offset, vmpage_t * vmpage)
 {
 	vmobject_heap_t * heap = container_of(object, vmobject_heap_t, vmobject);
 	int pageno = offset >> ARCH_PAGE_SIZE_LOG2;
@@ -497,7 +497,7 @@ struct vmobject_direct_t {
 	size_t size;
 };
 
-static vmpage_t * vm_direct_get_page(vmobject_t * object, off_t offset)
+static vmpage_t * vm_direct_get_page(vmobject_t * object, off64_t offset)
 {
 	vmobject_direct_t * direct = container_of(object, vmobject_direct_t, vmobject);
 	if (offset<direct->size) {
@@ -546,14 +546,14 @@ struct vmobject_vnode_t {
 	vnode_t * vnode;
 };
 
-static vmpage_t * vm_vnode_poll_page(vmobject_t * object, off_t offset)
+static vmpage_t * vm_vnode_poll_page(vmobject_t * object, off64_t offset)
 {
 	vmobject_vnode_t * vno = container_of(object, vmobject_vnode_t, vmobject);
 
 	return vnode_poll_page(vno->vnode, offset);
 }
 
-static vmpage_t * vm_vnode_get_page(vmobject_t * object, off_t offset)
+static vmpage_t * vm_vnode_get_page(vmobject_t * object, off64_t offset)
 {
 	vmobject_vnode_t * vno = container_of(object, vmobject_vnode_t, vmobject);
 
@@ -598,7 +598,7 @@ void vm_segment_unmap(asid as, segment_t * seg)
 	}
 }
 
-segment_t * vm_segment_base( void * p, size_t size, int perms, vmobject_t * clean, off_t offset)
+segment_t * vm_segment_base( void * p, size_t size, int perms, vmobject_t * clean, off64_t offset)
 {
 	vm_init();
 	segment_t * seg = calloc(1, sizeof(*seg));
@@ -613,7 +613,7 @@ segment_t * vm_segment_base( void * p, size_t size, int perms, vmobject_t * clea
 	return seg;
 }
 
-segment_t * vm_segment_vnode(void * p, size_t size, int perms, vnode_t * vnode, off_t offset)
+segment_t * vm_segment_vnode(void * p, size_t size, int perms, vnode_t * vnode, off64_t offset)
 {
 	vmobject_t * vobject = vm_object_vnode(vnode);
 	segment_t * seg = vm_segment_base(p, size, perms, vobject, offset);
@@ -687,7 +687,7 @@ vmpage_t * vm_page_steal(void * p)
 
 	if (vm_resolve_address(p, info)) {
 		segment_t * seg = info->seg;
-		off_t offset = info->offset;
+		off64_t offset = info->offset;
 		map_t * as = info->as;
 
 		if (!(seg->perms & SEGMENT_P)) {

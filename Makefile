@@ -39,10 +39,11 @@ obj:
 	mkdir -p obj
 
 KERNEL=arch/$(ARCH)/kernel
-boot.iso: grub.cfg $(KERNEL) $(INITRD_TAR)
+boot.iso: grub.cfg $(KERNEL) $(INITRD_TAR) $(TEST_FAT)
 	mkdir -p isodir/boot/grub
 	cp $(KERNEL) isodir/boot/kernel
 	cp $(INITRD_TAR) isodir/boot/initrd
+	cp $(TEST_FAT) isodir/boot/test.fat
 	cp -f grub.cfg isodir/boot/grub/grub.cfg
 	grub-mkrescue -o boot.iso isodir
 
@@ -55,7 +56,7 @@ clean::
 	echo break kernel_main | tee -a .gdbinit
 
 QEMU_OPTS=-d cpu_reset,guest_errors -serial stdio
-QEMU_MEM=8m
+QEMU_MEM=12m
 qemu: all .gdbinit
 	$(QEMU) $(QEMU_OPTS) -m $(QEMU_MEM) -s -S -kernel $(KERNEL) -initrd $(INITRD_TAR)
 

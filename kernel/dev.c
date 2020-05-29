@@ -100,9 +100,25 @@ size_t dev_write(vnode_t * vnode, off_t offset, void * buf, size_t len)
 	return op.size;
 }
 
+static vmpage_t * dev_get_page(vnode_t * vnode, off_t offset)
+{
+	arena_state state = arena_getstate(NULL);
+	const void * p = arena_palloc(NULL, 1);
+	size_t read = dev_read(vnode, PTR_ALIGN(offset, ARCH_PAGE_SIZE), p, ARCH_PAGE_SIZE);
+	vmpage_t * vmpage = vm_page_steal(p);
+
+	arena_setstate(NULL, state);
+
+	return vmpage;
+}
+
+static void dev_put_page(vnode_t * vnode, off_t offset, vmpage_t * page)
+{
+}
+
 vnode_t * dev_vnode(dev_t * dev)
 {
-	static vnode_ops_t ops = { read: dev_read, write: dev_write };
+	static vnode_ops_t ops = { get_page: dev_get_page, read: dev_read, write: dev_write };
 	static fs_t devfs = { vnodeops: &ops };
 	dev_vnode_t * vnode = calloc(1, sizeof(*vnode));
 	

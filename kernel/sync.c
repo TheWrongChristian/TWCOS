@@ -124,7 +124,7 @@ int monitor_autolock(monitor_t * lock, int state)
         return state;
 } 
 
-int rwlock_autolock(monitor_t * lock, int state, int write)
+int rwlock_autolock(rwlock_t * lock, int state, int write)
 {
         if (state) {
 		rwlock_unlock(lock);

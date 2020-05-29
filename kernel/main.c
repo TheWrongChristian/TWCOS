@@ -87,6 +87,9 @@ void kernel_main() {
 		vnode_t * devfsroot = devfs_open();
 		vnode_t * input = vnode_get_vnode(devfsroot, "input");
 #endif
+		if (modules[1]) {
+			fatfs_open(dev_static(modules[1], modulesizes[1]));
+		}
 		if (initrd) {
 			process_t * p = process_get();
 			p->root = p->cwd = tarfs_open(dev_static(initrd, initrdsize));
