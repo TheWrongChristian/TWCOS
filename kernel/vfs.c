@@ -13,8 +13,8 @@ struct vnode_ops_t {
 	vmpage_t * (*get_page)(vnode_t * vnode, off_t offset);
 	void (*put_page)(vnode_t * vnode, off_t offset, vmpage_t * page);
 	void (*close)(vnode_t * vnode);
-	size_t (*get_size)(vnode_t * vnode);
-	void (*set_size)(vnode_t * vnode, size_t size);
+	off_t (*get_size)(vnode_t * vnode);
+	void (*set_size)(vnode_t * vnode, off_t size);
 
 	/* Stream read/write */
 	size_t (*read)(vnode_t * vnode, off_t offset, void * buf, size_t len);

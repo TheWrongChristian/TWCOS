@@ -42,7 +42,7 @@ struct tarfsnode_t {
 	/* Offset in tar file */
 	off_t offset;
 
-	size_t size;
+	off_t size;
 	inode_t inode;
 
 	vnode_t vnode;
@@ -401,14 +401,14 @@ static vnode_t * tarfs_get_vnode(vnode_t * dir, const char * name)
 	return map_getip(fs->vnodes, inode);
 }
 
-static size_t tarfs_get_size(vnode_t * vnode)
+static off_t tarfs_get_size(vnode_t * vnode)
 {
 	tarfsnode_t * tnode = container_of(vnode, tarfsnode_t, vnode);
 
 	return tnode->size;
 }
 
-static void tarfs_set_size(vnode_t * vnode, size_t size)
+static void tarfs_set_size(vnode_t * vnode, off_t size)
 {
 	tarfsnode_t * tnode = container_of(vnode, tarfsnode_t, vnode);
 	KTHROW(ReadOnlyFileException, "tarfs is read-only");
