@@ -224,7 +224,7 @@ void timer_sleep(timerspec_t usec)
 int timer_nanosleep(struct timespec * req, struct timespec * rem)
 {
 	/* TODO: Do this properly, filling in rem if required */
-	timer_sleep(req->tv_sec*1000000 + req->tv_nsec*1000);
+	timer_sleep(req->tv_sec*1000000 + req->tv_nsec/1000);
 
 	return 0;
 }

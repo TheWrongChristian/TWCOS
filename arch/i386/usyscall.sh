@@ -164,7 +164,7 @@ unsigned sleep(time_t seconds)
 
 int usleep(useconds_t usec)
 {
-	struct timespec inspec = {usec/1000000, usec%1000};
+	struct timespec inspec = {usec/1000000, (usec*1000)%1000000000};
 
 	return nanosleep(&inspec, 0);
 }
