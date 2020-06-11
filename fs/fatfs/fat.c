@@ -35,8 +35,8 @@ struct fatfs_t {
 	size_t clusters;
 	size_t rootsectors;
 	size_t clustersize;
-	off_t rootdir;
-	off_t dataarea;
+	off64_t rootdir;
+	off64_t dataarea;
 
 	/* System area */
 	void * sa;
@@ -50,14 +50,14 @@ typedef struct fatfsnode_t fatfsnode_t;
 struct fatfsnode_t {
 	map_t * extents;
 
-	off_t size;
+	off64_t size;
 
 	vnode_t vnode;
 };
 
 typedef struct fatfsextent_t fatfsextent_t;
 struct fatfsextent_t {
-	off_t offset;
+	off64_t offset;
 	cluster_t cluster;
 	size_t count;
 };
@@ -101,7 +101,7 @@ static void fatfs_free_extent(fatfs_t * fatfs, fatfsextent_t * extent)
 	map_putip(fatfs->free_extents, extent->cluster, extent);
 }
 
-static fatfsextent_t * fatfs_extent(off_t offset, cluster_t cluster, size_t count)
+static fatfsextent_t * fatfs_extent(off64_t offset, cluster_t cluster, size_t count)
 {
 	fatfsextent_t * extent = malloc(sizeof(*extent));
 	extent->offset = offset;
@@ -212,7 +212,7 @@ static unsigned fatfs_bpb_get(const byte * sector, size_t sectorsize, int offset
 	return fatfs_field_get(sector, sectorsize, bpbbase+offset, size);
 }
 
-static fatfsextent_t * fatfs_fat_extent(fatfs_t * fatfs, off_t offset, cluster_t start)
+static fatfsextent_t * fatfs_fat_extent(fatfs_t * fatfs, off64_t offset, cluster_t start)
 {
 	cluster_t cluster = start;
 	fatfsextent_t * extent = fatfs_extent(offset, cluster, 1);
@@ -226,7 +226,7 @@ static fatfsextent_t * fatfs_fat_extent(fatfs_t * fatfs, off_t offset, cluster_t
 	return extent;
 }
 
-static vnode_t * fatfs_node(fatfs_t * fatfs, vnode_type type, cluster_t start, off_t size)
+static vnode_t * fatfs_node(fatfs_t * fatfs, vnode_type type, cluster_t start, off64_t size)
 {
 	fatfsnode_t * node = calloc(1, sizeof(*node));
 	vnode_init(&node->vnode, type, &fatfs->fs);
@@ -235,7 +235,7 @@ static vnode_t * fatfs_node(fatfs_t * fatfs, vnode_type type, cluster_t start, o
 		node->extents = splay_new(0);
 		cluster_t cluster = start;
 		cluster_t eof = fatfs_cluster_next_get(fatfs, 1);
-		off_t offset=0;
+		off64_t offset=0;
 		do {
 			fatfsextent_t * extent = fatfs_fat_extent(fatfs, offset, cluster);
 			map_putip(node->extents, offset, extent);
@@ -256,7 +256,52 @@ static vnode_t * fatfs_node(fatfs_t * fatfs, vnode_type type, cluster_t start, o
 	return &node->vnode;
 }
 
-static vmpage_t * fatfs_get_page(vnode_t * vnode, off_t offset)
+static off64_t fatfs_cluster_offset(fatfs_t * fatfs, cluster_t cluster)
+{
+	return fatfs->dataarea+(cluster-2)*fatfs->clustersize;
+}
+
+static size_t fatfs_cluster_size(fatfs_t * fatfs, size_t count)
+{
+	return count*fatfs->clustersize;
+}
+
+static void fatfs_put_page(vnode_t * vnode, off64_t offset, vmpage_t * vmpage)
+{
+	fatfsnode_t * node = container_of(vnode, fatfsnode_t, vnode);
+	fatfs_t * fatfs = container_of(vnode->fs, fatfs_t, fs);
+	int writemax = node->size - offset;
+	if (writemax > ARCH_PAGE_SIZE) {
+		writemax = ARCH_PAGE_SIZE;
+	}
+
+	void * p = arena_pmap(NULL, vmpage);
+	ssize_t written = 0;
+	if (node->extents) {
+		while(written<writemax) {
+			fatfsextent_t * extent = map_getip_cond(node->extents, offset, MAP_LE);
+			if (extent) {
+				cluster_t skip = (offset - extent->offset)/fatfs->clustersize;
+				cluster_t base = extent->cluster + skip;
+				size_t towrite = (extent->count-skip)*fatfs->clustersize;
+				if (towrite>(writemax-written)) {
+					towrite = (writemax-written);
+				}
+				off64_t devoffset = fatfs->dataarea+(base-2)*fatfs->clustersize;
+				written += vnode_write(fatfs->device, devoffset, p, towrite);
+			} else {
+				/* EOF - no more to write */
+				/* FIXME: This means allocated clusters don't cover the file length */
+				written = writemax;
+			}
+		}
+	} else {
+		off64_t devoffset = fatfs->rootdir+offset;
+		written = vnode_write(fatfs->device, devoffset, p, writemax);
+	}
+}
+
+static vmpage_t * fatfs_get_page(vnode_t * vnode, off64_t offset)
 {
 	fatfsnode_t * node = container_of(vnode, fatfsnode_t, vnode);
 	fatfs_t * fatfs = container_of(vnode->fs, fatfs_t, fs);
@@ -279,7 +324,8 @@ static vmpage_t * fatfs_get_page(vnode_t * vnode, off_t offset)
 				if (toread>(readmax-read)) {
 					toread = (readmax-read);
 				}
-				read += vnode_read(fatfs->device, fatfs->dataarea+(base-2)*fatfs->clustersize, p, toread);
+				off64_t devoffset = fatfs->dataarea+(base-2)*fatfs->clustersize;
+				read += vnode_read(fatfs->device, devoffset, p, toread);
 			} else {
 				/* EOF - no more to read */
 				/* FIXME: This means allocated clusters don't cover the file length */
@@ -288,8 +334,8 @@ static vmpage_t * fatfs_get_page(vnode_t * vnode, off_t offset)
 		}
 		page = vm_page_steal(p);
 	} else {
-		off_t devoffset = fatfs->rootdir+offset;
-		read = vnode_read(fatfs->device, fatfs->rootdir+offset, p, readmax);
+		off64_t devoffset = fatfs->rootdir+offset;
+		read = vnode_read(fatfs->device, devoffset, p, readmax);
 		if (read==readmax) {
 			page = vm_page_steal(p);
 		}
@@ -300,26 +346,28 @@ static vmpage_t * fatfs_get_page(vnode_t * vnode, off_t offset)
 	return page;
 }
 
-static off_t fatfs_get_size(vnode_t * vnode)
+static void fatfs_set_size(vnode_t * vnode, off64_t size)
+{
+	fatfsnode_t * node = container_of(vnode, fatfsnode_t, vnode);
+
+	/* FIXME: Extend file in FAT */
+	node->size = size;;
+}
+
+static off64_t fatfs_get_size(vnode_t * vnode)
 {
 	fatfsnode_t * node = container_of(vnode, fatfsnode_t, vnode);
 
 	return node->size;
 }
 
-static int fatfs_cluster_to_sectors(fatfs_t * fatfs, cluster_t cluster, sector_t * start, size_t * count)
-{
-
-}
-
 static vnode_t * fatfs_get_vnode(vnode_t * dir, const char * name)
 {
-	fatfsnode_t * node = container_of(dir, fatfsnode_t, vnode);
 	fatfs_t * fatfs = container_of(dir->fs, fatfs_t, fs);
 	byte buf[FATFS_DIRENT_SIZE];
 	int dot = ('.' == name[0] && 0 == name[1]);
 	int dotdot = ('.' == name[0] && '.' == name[1] && 0 == name[2]);
-	off_t next = 0;
+	off64_t next = 0;
 
 	while(1) {
 		size_t read = vnode_read(dir, next, buf, countof(buf));
@@ -385,7 +433,7 @@ static vnode_t * fatfs_get_vnode(vnode_t * dir, const char * name)
 
 		/* Found an entry */
 		cluster_t cluster = fatfs_field_get(buf, countof(buf), 0x1a, 2);
-		off_t size = fatfs_field_get(buf, countof(buf), 0x1c, 4);
+		off64_t size = fatfs_field_get(buf, countof(buf), 0x1c, 4);
 		vnode_type directory = (buf[0xb] & 0x10) ? VNODE_DIRECTORY : VNODE_REGULAR;
 		return fatfs_node(fatfs, directory, cluster, size);
 	}
@@ -398,7 +446,9 @@ vnode_t * fatfs_open(dev_t * dev)
 {
 	static vnode_ops_t vnops = {
 		get_page: fatfs_get_page,
+		put_page: fatfs_put_page,
 		get_size: fatfs_get_size,
+		set_size: fatfs_set_size,
 	};
 	static vfs_ops_t ops = {
 		get_vnode: fatfs_get_vnode,

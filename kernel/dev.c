@@ -21,7 +21,7 @@ struct buf_op_t {
 	dev_op_status status;
 	int write;
 	void * p;
-	off_t offset;
+	off64_t offset;
 	size_t size;
 	monitor_t lock[1];
 };
@@ -78,7 +78,7 @@ typedef struct {
 	dev_t * dev;
 } dev_vnode_t;
 
-size_t dev_read(vnode_t * vnode, off_t offset, void * buf, size_t len)
+size_t dev_read(vnode_t * vnode, off64_t offset, void * buf, size_t len)
 {
 	dev_vnode_t * devnode = container_of(vnode, dev_vnode_t, vnode);
 	buf_op_t op = { write: 0, p: buf, offset: offset, size: len };
@@ -89,7 +89,7 @@ size_t dev_read(vnode_t * vnode, off_t offset, void * buf, size_t len)
 	return op.size;
 }
 
-size_t dev_write(vnode_t * vnode, off_t offset, void * buf, size_t len)
+size_t dev_write(vnode_t * vnode, off64_t offset, void * buf, size_t len)
 {
 	dev_vnode_t * devnode = container_of(vnode, dev_vnode_t, vnode);
 	buf_op_t op = { write: 1, p: buf, offset: offset, size: len };
@@ -100,7 +100,7 @@ size_t dev_write(vnode_t * vnode, off_t offset, void * buf, size_t len)
 	return op.size;
 }
 
-static vmpage_t * dev_get_page(vnode_t * vnode, off_t offset)
+static vmpage_t * dev_get_page(vnode_t * vnode, off64_t offset)
 {
 	arena_state state = arena_getstate(NULL);
 	const void * p = arena_palloc(NULL, 1);
@@ -112,7 +112,7 @@ static vmpage_t * dev_get_page(vnode_t * vnode, off_t offset)
 	return vmpage;
 }
 
-static void dev_put_page(vnode_t * vnode, off_t offset, vmpage_t * page)
+static void dev_put_page(vnode_t * vnode, off64_t offset, vmpage_t * page)
 {
 }
 

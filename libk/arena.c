@@ -81,12 +81,6 @@ void * arena_calloc(arena_t * arena, size_t size)
 
 void * arena_palloc(arena_t * arena, int pages)
 {
-#if 0
-	uintptr_t state = (uintptr_t)arena->state;
-	state += ARCH_PAGE_SIZE-1;
-	state &= ~(ARCH_PAGE_SIZE-1);
-	arena->state = (void*)state;
-#endif
 	if (0 == arena) {
 		arena = arena_thread_get();
 	}
@@ -96,6 +90,16 @@ void * arena_palloc(arena_t * arena, int pages)
 
 	/* Advance past the pages we want */
 	arena->state += pages * ARCH_PAGE_SIZE;
+
+	return p;
+}
+
+void * arena_pmap(arena_t * arena, vmpage_t * vmpage)
+{
+	void * p = arena_palloc(arena, 1);
+
+	/* Map the given page */
+	vm_page_replace(p, vmpage);
 
 	return p;
 }

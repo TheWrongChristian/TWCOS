@@ -10,15 +10,15 @@ typedef int64_t inode_t;
 
 struct vnode_ops_t {
 	/* vnode operations */
-	vmpage_t * (*get_page)(vnode_t * vnode, off_t offset);
-	void (*put_page)(vnode_t * vnode, off_t offset, vmpage_t * page);
+	vmpage_t * (*get_page)(vnode_t * vnode, off64_t offset);
+	void (*put_page)(vnode_t * vnode, off64_t offset, vmpage_t * page);
 	void (*close)(vnode_t * vnode);
-	off_t (*get_size)(vnode_t * vnode);
-	void (*set_size)(vnode_t * vnode, off_t size);
+	off64_t (*get_size)(vnode_t * vnode);
+	void (*set_size)(vnode_t * vnode, off64_t size);
 
-	/* Stream read/write */
-	size_t (*read)(vnode_t * vnode, off_t offset, void * buf, size_t len);
-	size_t (*write)(vnode_t * vnode, off_t offset, void * buf, size_t len);
+	/* Unbuffered read/write */
+	size_t (*read)(vnode_t * vnode, off64_t offset, void * buf, size_t len);
+	size_t (*write)(vnode_t * vnode, off64_t offset, void * buf, size_t len);
 };
 
 struct vfs_ops_t {
@@ -61,7 +61,7 @@ exception_def IOException = { "IOException", &FileException };
 
 typedef struct page_cache_key_t {
 	vnode_t * vnode;
-	off_t offset;
+	off64_t offset;
 } page_cache_key_t;
 
 static int page_cache_key_comp( map_key p1, map_key p2 )
@@ -82,6 +82,14 @@ static int page_cache_key_comp( map_key p1, map_key p2 )
 	}
 }
 
+static int page_cache_key_vnode_match(map_key p1, map_key p2)
+{
+	page_cache_key_t * k1 = (page_cache_key_t *)p1;
+	page_cache_key_t * k2 = (page_cache_key_t *)p2;
+
+	return (k1->vnode == k2->vnode);
+}
+
 static GCROOT map_t * page_cache;
 
 void page_cache_init()
@@ -92,17 +100,17 @@ void page_cache_init()
 }
 
 
-vmpage_t * vnode_poll_page( vnode_t * vnode, off_t offset )
+vmpage_t * vnode_poll_page( vnode_t * vnode, off64_t offset )
 {
-	offset = (off_t)ARCH_PAGE_ALIGN(offset);
+	offset = ROUNDDOWN(offset, ARCH_PAGE_SIZE);
 	page_cache_key_t key[] = {{ vnode, offset }};
 
 	return map_getpp(page_cache, key);
 }
 
-vmpage_t * vnode_get_page( vnode_t * vnode, off_t offset )
+vmpage_t * vnode_get_page( vnode_t * vnode, off64_t offset )
 {
-	offset = (off_t)ARCH_PAGE_ALIGN(offset);
+	offset = ROUNDDOWN(offset, ARCH_PAGE_SIZE);
 	page_cache_key_t key[] = {{ vnode, offset }};
 
 	vmpage_t * vmpage = map_getpp(page_cache, key);
@@ -119,12 +127,29 @@ vmpage_t * vnode_get_page( vnode_t * vnode, off_t offset )
 	return vmpage;
 }
 
-void vnode_put_page( vnode_t * vnode, off_t offset, vmpage_t * vmpage )
+void vnode_put_page( vnode_t * vnode, off64_t offset, vmpage_t * vmpage )
 {
 	vnode->fs->vnodeops->put_page(vnode, offset, vmpage);
 }
 
-size_t vnode_get_size(vnode_t * vnode)
+static void vnode_sync_page_walk(void * p, void * key, void * data)
+{
+	page_cache_key_t * prefix = (page_cache_key_t *)key;
+	vnode_put_page(prefix->vnode, prefix->offset, (vmpage_t*)data);
+}
+
+static int vnode_prefix(page_cache_key_t * prefix, page_cache_key_t * key)
+{
+	return prefix->vnode == key->vnode;
+}
+
+void vnode_sync(vnode_t * vnode)
+{
+	page_cache_key_t prefix = {vnode: vnode, offset: 0};
+	map_walkpp_prefix(page_cache, vnode_sync_page_walk, NULL, vnode_prefix, &prefix);
+}
+
+off64_t vnode_get_size(vnode_t * vnode)
 {
 	return vnode->fs->vnodeops->get_size(vnode);
 }
@@ -155,7 +180,7 @@ typedef struct file_buffer_s {
 static GCROOT file_buffer_t * bufs=0;
 static int bufslock[] = {0};
 
-static file_buffer_t * vnode_get_buffer(vnode_t * vnode, off_t offset)
+static file_buffer_t * vnode_get_buffer(vnode_t * vnode, off64_t offset)
 {
 	file_buffer_t * buf = 0;
 
@@ -169,7 +194,7 @@ static file_buffer_t * vnode_get_buffer(vnode_t * vnode, off_t offset)
 			buf->p = vm_kas_get_aligned(VFS_BUFFER_LEN, ARCH_PAGE_SIZE);
 		}
 		buf->vnode = vnode;
-		buf->seg = vm_segment_vnode(buf->p, VFS_BUFFER_LEN, SEGMENT_W | SEGMENT_R, vnode, PTR_ALIGN(offset, VFS_BUFFER_LEN));
+		buf->seg = vm_segment_vnode(buf->p, VFS_BUFFER_LEN, SEGMENT_W | SEGMENT_R, vnode, ROUNDDOWN(offset, VFS_BUFFER_LEN));
 		vm_kas_add(buf->seg);
 	}
 
@@ -187,13 +212,13 @@ static void vnode_put_buffer(file_buffer_t * buf)
 	}
 }
 
-static ssize_t vnode_readwrite( vnode_t * vnode, off_t offset, void * buf, size_t len, int write)
+static ssize_t vnode_readwrite( vnode_t * vnode, off64_t offset, void * buf, size_t len, int write)
 {
 	size_t processed = 0;
 	char * cto = buf;
 
 	/* Deal with file size limit */
-	size_t size = vnode_get_size(vnode);
+	off64_t size = vnode_get_size(vnode);
 	if (write) {
 		/* Extend the file if we're going beyond EOF */
 		if (offset+len > size) {
@@ -212,8 +237,8 @@ static ssize_t vnode_readwrite( vnode_t * vnode, off_t offset, void * buf, size_
 
 	while(processed<len) {
 		// Offsets to copy from the buffer
-		off_t from = offset + processed;
-		off_t to = PTR_ALIGN(offset+VFS_BUFFER_LEN, VFS_BUFFER_LEN);
+		off64_t from = offset + processed;
+		off64_t to = ROUNDDOWN(from + VFS_BUFFER_LEN, VFS_BUFFER_LEN);
 		if (to>offset+len) {
 			to = offset+len;
 		}
@@ -239,7 +264,7 @@ static ssize_t vnode_readwrite( vnode_t * vnode, off_t offset, void * buf, size_
 	return processed;
 }
 
-ssize_t vnode_write(vnode_t * vnode, off_t offset, void * buf, size_t len)
+ssize_t vnode_write(vnode_t * vnode, off64_t offset, void * buf, size_t len)
 {
 	if (vnode->fs->vnodeops->write) {
 		return vnode->fs->vnodeops->write(vnode, offset, buf, len);
@@ -248,7 +273,7 @@ ssize_t vnode_write(vnode_t * vnode, off_t offset, void * buf, size_t len)
 	}
 }
 
-ssize_t vnode_read(vnode_t * vnode, off_t offset, void * buf, size_t len)
+ssize_t vnode_read(vnode_t * vnode, off64_t offset, void * buf, size_t len)
 {
 	if (vnode->fs->vnodeops->read) {
 		return vnode->fs->vnodeops->read(vnode, offset, buf, len);
@@ -259,7 +284,7 @@ ssize_t vnode_read(vnode_t * vnode, off_t offset, void * buf, size_t len)
 
 void fs_idle(vnode_t * root)
 {
-	root->fs->fsops->idle(root->fs);
+	root->fs->fsops->idle(root);
 }
 
 void vnode_init(vnode_t * vnode, vnode_type type, fs_t * fs)

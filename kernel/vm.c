@@ -709,6 +709,32 @@ vmpage_t * vm_page_steal(void * p)
 	return 0;
 }
 
+vmpage_t * vm_page_replace(void * p, vmpage_t * vmpage)
+{
+	address_info_t info[1];
+
+	if (vm_resolve_address(p, info)) {
+		segment_t * seg = info->seg;
+		off64_t offset = info->offset;
+		map_t * as = info->as;
+
+		if (!(seg->perms & SEGMENT_P)) {
+			/* Can't push to non-private segments */
+			return 0;
+		}
+		
+		vmpage_t * old = vmobject_put_page(seg->dirty, offset, vmpage);
+		if (old) {
+			vmpage_unmap(old, as, p);
+		}
+		return old;
+	}
+
+	kernel_panic("Invalid pointer: %p\n", p);
+
+	return 0;
+}
+
 static void * kas_next;
 
 void vm_kas_start(void * p)

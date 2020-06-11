@@ -13,7 +13,7 @@ typedef struct file_t file_t;
 struct file_t {
 	int refs;
 
-	off_t fp;
+	off64_t fp;
 	vnode_t * vnode;
 };
 

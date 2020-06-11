@@ -13,6 +13,9 @@ typedef void (*walkip_func)(void * p, map_key key, void * data);
 typedef void (*walkpp_func)(void * p, void * key, void * data);
 typedef void (*walkpi_func)(void * p, void * key, map_data data);
 
+typedef int (*prefix_func)(map_key prefix, map_key key);
+typedef int (*prefixp_func)(void * prefix, void * key);
+
 #define MAP_PKEY(key) ((map_key)key)
 #define MAP_PDATA(data) ((map_data)data)
 
@@ -23,7 +26,6 @@ struct map_ops {
 	void (*destroy)( map_t * map );
 	void (*walk)( map_t * map, walk_func func, void *p );
 	void (*walk_range)( map_t * map, walk_func func, void *p, map_key from, map_key to );
-	void (*walk_prefix)( map_t * map, walk_func func, void *p, map_key prefix );
 	map_data (*put)( map_t * map, map_key key, map_data data );
 	map_data (*get)( map_t * map, map_key key, map_eq_test cond );
 	map_data (*remove)( map_t * map, map_key key );
@@ -60,37 +62,77 @@ void map_destroy( map_t * map )
 struct walk_wrapper
 {
 	union {
-		void * f;
+		walk_func walk;
 		walkip_func walkip;
 		walkpi_func walkpi;
 		walkpp_func walkpp;
-	} f;
+	};
+	union {
+		prefix_func prefix;
+		prefixp_func prefixp;
+	};
+	union {
+		map_key key_prefix;
+		void * key_prefixp;
+	};
 	void * p;
 };
 
 static void walk_walkip_func( void * p, map_key key, map_data data )
 {
 	struct walk_wrapper * w = (struct walk_wrapper*)p;
-	w->f.walkip(w->p, key, (void*)data);
+	w->walkip(w->p, key, (void*)data);
 }
 
 static void walk_walkpp_func( void * p, map_key key, map_data data )
 {
 	struct walk_wrapper * w = (struct walk_wrapper*)p;
-	w->f.walkpp(w->p, (void*)key, (void*)data);
+	w->walkpp(w->p, (void*)key, (void*)data);
 }
 
 static void walk_walkpi_func( void * p, map_key key, map_data data )
 {
 	struct walk_wrapper * w = (struct walk_wrapper*)p;
-	w->f.walkpi(w->p, (void*)key, data);
+	w->walkpi(w->p, (void*)key, data);
+}
+
+static void walk_walk_prefix_func( void * p, map_key key, map_data data )
+{
+	struct walk_wrapper * w = (struct walk_wrapper*)p;
+	if (w->prefix(w->key_prefix, key)) {
+		w->walk(w->p, key, data);
+	}
+}
+
+static void walk_walkip_prefix_func( void * p, map_key key, map_data data )
+{
+	struct walk_wrapper * w = (struct walk_wrapper*)p;
+	if (w->prefix(w->key_prefix, key)) {
+		w->walkip(w->p, key, (void*)data);
+	}
+}
+
+static void walk_walkpp_prefix_func( void * p, map_key key, map_data data )
+{
+	struct walk_wrapper * w = (struct walk_wrapper*)p;
+	if (w->prefixp(w->key_prefixp, (void*)key)) {
+		w->walkpp(w->p, (void*)key, (void*)data);
+	}
+}
+
+static void walk_walkpi_prefix_func( void * p, map_key key, map_data data )
+{
+	struct walk_wrapper * w = (struct walk_wrapper*)p;
+	if (w->prefixp(w->key_prefixp, (void*)key)) {
+		w->walkpi(w->p, (void*)key, data);
+	}
 }
 
 void map_walkip( map_t * map, walkip_func func, void * p )
 {
 	struct walk_wrapper wrapper = {
-		{ func },
-		p
+		walkip: func,
+		p: p
 	};
 	map->ops->walk(map, walk_walkip_func, &wrapper);
 }
@@ -98,8 +140,8 @@ void map_walkip( map_t * map, walkip_func func, void * p )
 void map_walkpp( map_t * map, walkpp_func func, void * p )
 {
 	struct walk_wrapper wrapper = {
-		{ func },
-		p
+		walkpp: func,
+		p: p
 	};
 	map->ops->walk(map, walk_walkpp_func, &wrapper);
 }
@@ -107,8 +149,8 @@ void map_walkpp( map_t * map, walkpp_func func, void * p )
 void map_walkpi( map_t * map, walkpi_func func, void * p )
 {
 	struct walk_wrapper wrapper = {
-		{ func },
-		p
+		walkpi: func,
+		p: p,
 	};
 	map->ops->walk(map, walk_walkpi_func, &wrapper);
 }
@@ -121,8 +163,8 @@ void map_walk( map_t * map, walk_func func, void * p )
 void map_walkip_range( map_t * map, walkip_func func, void * p, map_key from, map_key to )
 {
 	struct walk_wrapper wrapper = {
-		{ func },
-		p
+		walkip: func,
+		p: p,
 	};
 	map->ops->walk_range(map, walk_walkip_func, &wrapper, from, to);
 }
@@ -130,8 +172,8 @@ void map_walkip_range( map_t * map, walkip_func func, void * p, map_key from, ma
 void map_walkpp_range( map_t * map, walkpp_func func, void * p, void * from, void * to )
 {
 	struct walk_wrapper wrapper = {
-		{ func },
-		p
+		walkpp: func,
+		p: p,
 	};
 	map->ops->walk_range(map, walk_walkpp_func, &wrapper, (map_key)from, (map_key)to);
 }
@@ -139,8 +181,8 @@ void map_walkpp_range( map_t * map, walkpp_func func, void * p, void * from, voi
 void map_walkpi_range( map_t * map, walkpi_func func, void * p, void * from, void * to )
 {
 	struct walk_wrapper wrapper = {
-		{ func },
-		p
+		walkpi: func,
+		p: p,
 	};
 	map->ops->walk_range(map, walk_walkpi_func, &wrapper, (map_key)from, (map_key)to);
 }
@@ -150,22 +192,52 @@ void map_walk_range( map_t * map, walk_func func, void * p, map_key from, map_ke
 	map->ops->walk_range(map, func, p, from, to);
 }
 
-void map_walkpp_prefix( map_t * map, walkpp_func func, void * p, void * prefix)
+void map_walk_prefix( map_t * map, walk_func func, void * p, prefix_func prefix_func, map_key prefix)
 {
 	struct walk_wrapper wrapper = {
-		{ func },
-		p
+		walk: func,
+		prefix: prefix_func,
+		key_prefix: prefix,
+		p: p,
 	};
-	map->ops->walk_prefix(map, walk_walkpp_func, &wrapper, (map_key)prefix);
+	map_key from = prefix;
+	map->ops->walk_range(map, walk_walk_prefix_func, &wrapper, from, 0);
 }
 
-void map_walkpi_prefix( map_t * map, walkpi_func func, void * p, void * prefix)
+void map_walkip_prefix( map_t * map, walkpp_func func, void * p, prefix_func prefix_func, map_key prefix)
 {
 	struct walk_wrapper wrapper = {
-		{ func },
-		p
+		walk: func,
+		prefix: prefix_func,
+		key_prefix: prefix,
+		p: p,
 	};
-	map->ops->walk_prefix(map, walk_walkpi_func, &wrapper, (map_key)prefix);
+	map_key from = prefix;
+	map->ops->walk_range(map, walk_walk_prefix_func, &wrapper, from, 0);
+}
+
+void map_walkpi_prefix( map_t * map, walkpi_func func, void * p, prefixp_func prefix_func, void * prefix)
+{
+	struct walk_wrapper wrapper = {
+		walk: func,
+		prefixp: prefix_func,
+		key_prefixp: prefix,
+		p: p,
+	};
+	void * from = prefix;
+	map->ops->walk_range(map, walk_walk_prefix_func, &wrapper, from, 0);
+}
+
+void map_walkpp_prefix( map_t * map, walkpp_func func, void * p, prefixp_func prefix_func, void * prefix)
+{
+	struct walk_wrapper wrapper = {
+		walk: func,
+		prefixp: prefix_func,
+		key_prefixp: prefix,
+		p: p,
+	};
+	void * from = prefix;
+	map->ops->walk_range(map, walk_walk_prefix_func, &wrapper, from, 0);
 }
 
 map_data map_put( map_t * map, map_key key, map_data data )
@@ -360,14 +432,14 @@ static size_t map_compound_key_process( map_compound_key_t * key, const char * f
 			case '8':
 				i64 = va_arg(ap, int64_t);
 				if (buf) {
-					*buf++=(i32>>56) & 0xff;
-					*buf++=(i32>>48) & 0xff;
-					*buf++=(i32>>40) & 0xff;
-					*buf++=(i32>>32) & 0xff;
-					*buf++=(i32>>24) & 0xff;
-					*buf++=(i32>>16) & 0xff;
-					*buf++=(i32>>8) & 0xff;
-					*buf++=(i32) & 0xff;
+					*buf++=(i64>>56) & 0xff;
+					*buf++=(i64>>48) & 0xff;
+					*buf++=(i64>>40) & 0xff;
+					*buf++=(i64>>32) & 0xff;
+					*buf++=(i64>>24) & 0xff;
+					*buf++=(i64>>16) & 0xff;
+					*buf++=(i64>>8) & 0xff;
+					*buf++=(i64) & 0xff;
 				}
 				len += 8;
 				break;

@@ -386,6 +386,7 @@ void tree_walk( map_t * map, walk_func func, void * p )
         tree_t * tree = container_of(map, tree_t, map);
 	node_t * start = tree_node_first(tree);
 	node_t * end = tree_node_last(tree);
+
         tree_walk_nodes(start, end, func, p);
 }
 
@@ -393,8 +394,8 @@ static node_t * tree_get_node( tree_t * tree, map_key key, map_eq_test cond );
 void tree_walk_range( map_t * map, walk_func func, void * p, map_key from, map_key to )
 {
         tree_t * tree = container_of(map, tree_t, map);
-	node_t * start = tree_get_node(tree, from, MAP_GE);
-	node_t * end = tree_get_node(tree, to, MAP_LT);
+	node_t * start = (from) ? tree_get_node(tree, from, MAP_GE) : tree_node_first(tree);
+	node_t * end = (to) ? tree_get_node(tree, to, MAP_LT) : tree_node_last(tree);
 
         tree_walk_nodes(start, end, func, p);
 }

@@ -40,9 +40,9 @@ struct tarfs_header_t {
 
 struct tarfsnode_t {
 	/* Offset in tar file */
-	off_t offset;
+	off64_t offset;
 
-	off_t size;
+	off64_t size;
 	inode_t inode;
 
 	vnode_t vnode;
@@ -151,7 +151,7 @@ static int tarfs_validate( tarfs_header_t * h )
 	return 1;
 }
 
-static void tarfs_readblock( tarfs_t * fs, off_t offset, void * buf )
+static void tarfs_readblock( tarfs_t * fs, off64_t offset, void * buf )
 {
 	/* Round down offset */
 	offset &= ~(TAR_BLOCKSIZE-1);
@@ -222,7 +222,7 @@ static void tarfs_add_node( tarfs_t * fs, const char * fullname, tarfsnode_t * v
 	}
 }
 
-static void tarfs_regularfile( tarfs_t * fs, tarfs_header_t * h, off_t offset )
+static void tarfs_regularfile( tarfs_t * fs, tarfs_header_t * h, off64_t offset )
 {
 	char * fullname = tarfs_fullname(h);
 
@@ -251,7 +251,7 @@ static void tarfs_symlink( tarfs_t * fs, tarfs_header_t * h )
 	kernel_printk("Symlink  : %s\n", fullname);
 }
 
-static off_t tarfs_nextheader( tarfs_header_t * h, off_t offset )
+static off64_t tarfs_nextheader( tarfs_header_t * h, off64_t offset )
 {
 	offset += TAR_BLOCKSIZE;
 
@@ -302,7 +302,7 @@ static void tarfs_scan( tarfs_t * fs )
 	map_putip(fs->vnodes, 1, &root->vnode);
 
 	fs->inext = 2; /* 1 is the root inode */
-	off_t offset = 0;
+	off64_t offset = 0;
 	arena_t * arena = arena_get();
 	void * buf = arena_alloc(arena, TAR_BLOCKSIZE);
 	arena_state state = arena_getstate(arena);
@@ -351,7 +351,7 @@ static void tarfs_scan( tarfs_t * fs )
 	arena_free(arena);
 }
 
-static vmpage_t * tarfs_get_page(vnode_t * vnode, off_t offset)
+static vmpage_t * tarfs_get_page(vnode_t * vnode, off64_t offset)
 {
 	tarfsnode_t * tnode = container_of(vnode, tarfsnode_t, vnode);
 	tarfs_t * tfs = container_of(vnode->fs, tarfs_t, fs);
@@ -386,7 +386,7 @@ static vmpage_t * tarfs_get_page(vnode_t * vnode, off_t offset)
 	return vmpage;
 }
 
-static void tarfs_put_page(vnode_t * vnode, off_t offset, page_t page)
+static void tarfs_put_page(vnode_t * vnode, off64_t offset, page_t page)
 {
 	KTHROW(ReadOnlyFileException, "tarfs is read-only");
 }
@@ -401,14 +401,14 @@ static vnode_t * tarfs_get_vnode(vnode_t * dir, const char * name)
 	return map_getip(fs->vnodes, inode);
 }
 
-static off_t tarfs_get_size(vnode_t * vnode)
+static off64_t tarfs_get_size(vnode_t * vnode)
 {
 	tarfsnode_t * tnode = container_of(vnode, tarfsnode_t, vnode);
 
 	return tnode->size;
 }
 
-static void tarfs_set_size(vnode_t * vnode, off_t size)
+static void tarfs_set_size(vnode_t * vnode, off64_t size)
 {
 	tarfsnode_t * tnode = container_of(vnode, tarfsnode_t, vnode);
 	KTHROW(ReadOnlyFileException, "tarfs is read-only");
