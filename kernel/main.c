@@ -54,6 +54,7 @@ void kernel_main() {
 		process_init();
 		timer_init(arch_timer_ops());
 		cache_test();
+		utf8_test();
 #if 0
 		vnode_t * root = tarfs_test();
 		vfs_test(root);
