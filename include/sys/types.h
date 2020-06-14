@@ -34,8 +34,8 @@ typedef struct dirent * pdirent;
 
 /* Directory entries */
 struct dirent64 {
-	ino_t d_ino;
-	off_t d_off;
+	ino64_t d_ino;
+	off64_t d_off;
 	size_t d_reclen;
 	char d_name[0];
 };
