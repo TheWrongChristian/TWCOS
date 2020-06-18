@@ -62,6 +62,15 @@ struct fatfsextent_t {
 	size_t count;
 };
 
+typedef struct fatfslfn_t fatfslfn_t;
+struct fatfslfn_t {
+	off_t offset;
+	byte checksum;
+	ucs16_t lfn[256];
+};
+
+typedef int (*fatfs_dir_walk_t)(vnode_t * dir, void * p, off_t offset, byte * buf, fatfslfn_t * lfn);
+
 #define FAT12LIMIT 4084
 #define FAT16LIMIT 65524
 #define DEFAULT_SECTOR_SIZE	512
@@ -361,8 +370,23 @@ static off64_t fatfs_get_size(vnode_t * vnode)
 	return node->size;
 }
 
-static int fatfs_lfn_dirent_update(ucs16_t * lfn, byte * buf)
+static int fatfs_lfn_dirent_update(fatfslfn_t * lfn, off_t offset, byte * buf)
 {
+	/* Skip any entries that won't be LFN entries */
+	switch(buf[0]) {
+	case 5:
+	case 0xe5:
+		/* Deleted entry */
+	case '.':
+		/* Dot entry */
+	case 0:
+		/* Last entry */
+		lfn->offset = 0;
+		lfn->checksum = 0;
+		lfn->lfn[0] = 0;
+		return 0;
+	}
+
 	cluster_t cluster = fatfs_field_get(buf, FATFS_DIRENT_SIZE, 0x1a, 2);
 	off64_t size = fatfs_field_get(buf, FATFS_DIRENT_SIZE, 0x1c, 4);
 
@@ -372,30 +396,39 @@ static int fatfs_lfn_dirent_update(ucs16_t * lfn, byte * buf)
 		int last = (buf[0] & 0x60) == 0x40;
 		if (last) {
 			/* Ensure the lfn is terminated */
-			lfn[13*(sequence+1)] = 0;
+			lfn->lfn[13*(sequence+1)] = 0;
+			/* Checksum */
+			lfn->checksum = buf[0xd];
+			/* Offset of first (last) entry */
+			lfn->offset = offset;
+		} else {
+			/* Checksum */
+			if (lfn->checksum != buf[0xd]) {
+				/* Checksum mismatch */
+				lfn->offset = 0;
+				lfn->checksum = 0;
+				lfn->lfn[0] = 0;
+				return 0;
+			}
 		}
 
 		/* Each LFN entry provides 13 characters */
-		int offset = 13*(sequence-1);
-		memcpy(lfn+offset, buf+1, 10);
-		memcpy(lfn+offset+5, buf+0xe, 12);
-		memcpy(lfn+offset+11, buf+0x1c, 4);
-
+		int lfnoffset = 13*(sequence-1);
+		memcpy(lfn->lfn+lfnoffset, buf+1, 10);
+		memcpy(lfn->lfn+lfnoffset+5, buf+0xe, 12);
+		memcpy(lfn->lfn+lfnoffset+11, buf+0x1c, 4);
 		return 1;
 	}
 
 	return 0;
 }
 
-static vnode_t * fatfs_get_vnode(vnode_t * dir, const char * name)
+static int fatfs_walk_directory(vnode_t * dir, off_t offset, fatfs_dir_walk_t cb, void * p)
 {
-	fatfs_t * fatfs = container_of(dir->fs, fatfs_t, fs);
 	byte buf[FATFS_DIRENT_SIZE];
-	int dot = ('.' == name[0] && 0 == name[1]);
-	int dotdot = ('.' == name[0] && '.' == name[1] && 0 == name[2]);
-	off64_t next = 0;
-	ucs16_t * lfn = tmalloc(256*sizeof(*lfn));
-	lfn[0] = 0;
+	off64_t next = offset;
+	fatfslfn_t * lfn = tmalloc(sizeof(*lfn));
+	lfn->lfn[0] = 0;
 
 	while(1) {
 		size_t read = vnode_read(dir, next, buf, countof(buf));
@@ -403,80 +436,112 @@ static vnode_t * fatfs_get_vnode(vnode_t * dir, const char * name)
 			/* Short read - not found */
 			return 0;
 		}
-		next += read;
-
-		switch(buf[0]) {
-		case 0:
-			/* Last entry - not found */
-			return 0;
-		case 5:
-		case 0xe5:
-			/* Deleted entry, move onto next entry */
-			continue;
-		case '.':
-			/* Dot entry */
-			if (dot && ' ' == buf[1]) {
-				/* Current directory */
-				return dir;
-			} else if (dotdot && '.' == buf[1] && ' ' == buf[2]) {
-				/* Parent directory */
-				return 0;
-			}
-			continue;
-		}
 
 		/* Check for a LFN entry */
-		if (0==fatfs_lfn_dirent_update(lfn, buf)) {
-			/* Enough room for 8.3 filename */
-			char filename[8+1+3+1];
-			char ext[3+1];
-		
-			for(int i=0; i<8; i++) {
-				filename[i] = buf[i];
+		if (0==fatfs_lfn_dirent_update(lfn, next, buf)) {
+			/* Not a LFN record */
+			if (cb(dir, p, next, buf, lfn)) {
+				/* Callback has signalled an end to the walk */
+				return 1;
 			}
-			filename[8] = 0;
-			/* Trim trailing spaces */
-			for(int i=7; i>=0 && ' ' == filename[i]; i--) {
-				filename[i] = 0;
-			}
-			for(int i=0; i<3; i++) {
-				ext[i] = buf[i+8];
-			}
-			ext[3] = 0;
-			/* Trim trailing spaces */
-			for(int i=2; i>=0 && ' ' == ext[i]; i--) {
-				ext[i] = 0;
-			}
-			if (ext[0]) {
-				int len=strlen(filename);
-				filename[len++] = '.';
-				for(int i=0; i<4; i++) {
-					filename[len+i] = ext[i];
-				}
-			}
-			if (strcmp(filename, name)) {
-				/* Check LFN */
-				arena_state state = arena_getstate(NULL);
-				unsigned char * utf8 = tmalloc(256+128);
-				utf8_from_ucs16(utf8, 256+128, lfn, 256);
-				int lfnmatch = 0==strcmp(name, utf8);
-				arena_setstate(NULL, state);
-				if (!lfnmatch) {
-					/* No match (reset lfn) */
-					lfn[0] = 0;
-					continue;
-				}
-			}
-
-			/* Found the entry */
-			cluster_t cluster = fatfs_field_get(buf, countof(buf), 0x1a, 2);
-			off64_t size = fatfs_field_get(buf, countof(buf), 0x1c, 4);
-			vnode_type directory = (buf[0xb] & 0x10) ? VNODE_DIRECTORY : VNODE_REGULAR;
-			return fatfs_node(fatfs, directory, cluster, size);
 		}
+
+		/* Move to next record */
+		next += read;
 	}
 
 	return 0;
+}
+
+typedef struct fatfs_find_file_walk_t fatfs_find_file_walk_t;
+struct fatfs_find_file_walk_t {
+	/* Offset of the entry in the directory */
+	off_t lfnoffset;
+	off_t offset;
+
+	/* Name we're looking for */
+	const char * name;
+
+	/* Resulting vnode if found */
+	vnode_t * node;
+};
+
+static int fatfs_find_file_walk(vnode_t * dir, void * p, off_t offset, byte * buf, fatfslfn_t * lfn)
+{
+	/* Skip any entries that won't be LFN entries */
+	switch(buf[0]) {
+	case 5:
+	case 0xe5:
+		/* Deleted entry */
+		return 0;
+	case 0:
+		/* Last entry */
+		return 1;
+	}
+
+	fatfs_find_file_walk_t * info = (fatfs_find_file_walk_t*)p;
+
+	/* Enough room for 8.3 filename */
+	char filename[8+1+3+1];
+
+	int i;
+	for(i=0; i<8; i++) {
+		filename[i] = buf[i];
+	}
+	filename[8] = 0;
+
+	/* Trim trailing spaces */
+	for(i=7; i>=0 && ' ' == filename[i]; i--) {
+		filename[i] = 0;
+	}
+	if (i<0 || filename[i]) {
+		i++;
+	}
+
+	if (' ' != buf[8]) {
+		filename[i++] = '.';
+		filename[i++] = buf[8];
+		filename[i++] = (' ' == buf[9]) ? 0 : buf[9];
+		filename[i++] = (' ' == buf[10]) ? 0 : buf[10];
+	}
+
+	if (strcmp(filename, info->name)) {
+		/* Check LFN */
+		arena_state state = arena_getstate(NULL);
+		unsigned char * utf8 = tmalloc(256+128);
+		utf8_from_ucs16(utf8, 256+128, lfn->lfn, 256);
+		int lfnmatch = 0==strcmp(info->name, utf8);
+		arena_setstate(NULL, state);
+		if (!lfnmatch) {
+			/* No match (reset lfn) */
+			lfn->lfn[0] = 0;
+			return 0;
+		}
+	}
+
+	/* Found the entry */
+	fatfs_t * fatfs = container_of(dir->fs, fatfs_t, fs);
+	cluster_t cluster = fatfs_field_get(buf, FATFS_DIRENT_SIZE, 0x1a, 2);
+	off64_t size = fatfs_field_get(buf, FATFS_DIRENT_SIZE, 0x1c, 4);
+	vnode_type directory = (buf[0xb] & 0x10) ? VNODE_DIRECTORY : VNODE_REGULAR;
+
+	info->node = fatfs_node(fatfs, directory, cluster, size);
+	info->offset = offset;
+	info->lfnoffset = lfn->offset;
+
+	return 1;
+}
+
+static vnode_t * fatfs_get_vnode(vnode_t * dir, const char * name)
+{
+	if ('.' == name[0] && 0 == name[1]) {
+		return dir;
+	} else {
+		fatfs_find_file_walk_t info = { name: name };
+		fatfs_walk_directory(dir, 0, fatfs_find_file_walk, &info);
+
+		return info.node;
+	}
 }
 
 
