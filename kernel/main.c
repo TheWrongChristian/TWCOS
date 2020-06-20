@@ -91,14 +91,7 @@ void kernel_main() {
 		vnode_t * input = vnode_get_vnode(devfsroot, "input");
 #endif
 		if (modules[1]) {
-			vnode_t * dir = fatfs_open(dev_static(modules[1], modulesizes[1]));
-			vnode_t * file = vnode_get_vnode(dir, "FAT.C");
-			vnode_t * lfn = vnode_get_vnode(dir, "Long name FAT entry.c");
-			off64_t size = vnode_get_size(file);
-			char * buf = arena_alloc(NULL, size);
-			vnode_read(file, 0, buf, size);
-			vnode_write(file, 0, buf, size);
-			vnode_sync(file);
+			fatfs_test(dev_static(modules[1], modulesizes[1]));
 		}
 		if (initrd) {
 			process_t * p = process_get();

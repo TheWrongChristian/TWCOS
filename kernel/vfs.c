@@ -30,7 +30,7 @@ struct vfs_ops_t {
 	inode_t (*namei)(vnode_t * dir, const char * name);
 	void (*link)(vnode_t * fromdir, const char * fromname, vnode_t * todir, const char * toname);
 	void (*unlink)(vnode_t * dir, const char * name);
-	int (*getdents)(vnode_t * dir, struct dirent * buf, size_t bufsize);
+	int (*getdents)(vnode_t * dir, off64_t offset, struct dirent * buf, size_t bufsize);
 
 	/* Filesystem mount/umount */
 	vnode_t * (*open)(vnode_t * dev);
@@ -379,9 +379,24 @@ vnode_t * vfs_reparse(vnode_t * dir)
 	return out ? out : dir;
 }
 
+void * vfs_dirent64(ino64_t ino, ino64_t offset, const char * name, char type)
+{
+	struct dirent64 * dirent;
+	size_t reclen = ROUNDUP(sizeof(*dirent) + strlen(name) + 1 + 1, sizeof(dirent->d_ino));
+
+	dirent = tmalloc(reclen);
+	dirent->d_ino = ino;
+	dirent->d_off = offset;
+	dirent->d_reclen = reclen;
+	/* FIXME : Use strcpy */
+	memcpy(dirent->d_name, name, strlen(name));
+
+	return dirent;
+}
+
 int vfs_getdents(vnode_t * dir, struct dirent * buf, size_t bufsize)
 {
-	return (dir->fs->fsops->getdents) ? dir->fs->fsops->getdents(dir, buf, bufsize) : 0;
+	return (dir->fs->fsops->getdents) ? dir->fs->fsops->getdents(dir, 0, buf, bufsize) : 0;
 }
 
 void vfs_test(vnode_t * root)

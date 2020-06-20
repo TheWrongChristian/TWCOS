@@ -1,6 +1,7 @@
 #include "slab.h"
 
 #if INTERFACE
+#include <sys/types.h>
 #include <stddef.h>
 #include <stdint.h>
 

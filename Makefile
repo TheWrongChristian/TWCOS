@@ -11,6 +11,12 @@ ARCH=i386
 OBJS=$(SRCS_S:.S=.o) $(SRCS_C:.c=.o)
 SRCS_C :=
 SRCS_S :=
+SYS_H := \
+ include/sys/times.h \
+ include/sys/stat.h \
+ include/sys/time.h \
+ include/sys/types.h \
+ include/sys/errno.h
 
 subdir := build
 include $(subdir)/subdir.mk
@@ -86,12 +92,12 @@ qemu-kvm: all .gdbinit
 run-kvm: all
 	$(QEMU) -enable-kvm $(QEMU_OPTS) -m $(QEMU_MEM) -s -kernel $(KERNEL) -initrd $(INITRD_TAR)
 
-include/unistd.h: $(ARCH_USYSCALL_C)
-	$(MAKEHEADERS) -h $< > $@
+include/unistd.h: $(SYS_H) $(ARCH_USYSCALL_C)
+	$(MAKEHEADERS) -h $^ > $@
 
-includes:: $(SRCS_C) $(ARCH_SYSCALL_C) $(ARCH_USYSCALL_C) include/unistd.h
+includes:: $(SYS_H) $(SRCS_C) $(ARCH_SYSCALL_C) $(ARCH_USYSCALL_C) include/unistd.h $(PDCLIB_TWCOS_SRCS_C)
 	mkdir -p lib
-	$(MAKEHEADERS) $(SRCS_C) $(ARCH_SYSCALL_C) $(ARCH_USYSCALL_C) $(PDCLIB_TWCOS_SRCS_C)
+	$(MAKEHEADERS) $(SRCS_C) $(ARCH_SYSCALL_C) $(ARCH_USYSCALL_C)
 
 cflow:
 	cflow -d 4 -m kernel_main $(SRCS_C) $(LIBC_SRCS_C) $(INIT_SRCS_C)
@@ -103,7 +109,7 @@ cxref:
 	cxref -html-src $(SRCS_C) $(SRCS_C:.c=.h)
 
 ctags:
-	ctags $(SRCS_C) $(LIBC_SRCS_C) $(INIT_SRCS_C)
+	ctags $(SYS_H) $(SRCS_C) $(LIBC_SRCS_C) $(INIT_SRCS_C)
 
 cppcheck:
 	cppcheck $(SRCS_C)
