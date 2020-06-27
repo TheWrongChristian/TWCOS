@@ -96,6 +96,8 @@ void kernel_main() {
 		if (initrd) {
 			process_t * p = process_get();
 			p->root = p->cwd = tarfs_open(dev_static(initrd, initrdsize));
+			char * buf = arena_alloc(NULL, 1024);
+			int read = vfs_getdents(p->root, 0, buf, 1024);
 			vnode_t * devfs = file_namev("/devfs");
 			if (devfs) {
 				vfs_mount(devfs, devfs_open());

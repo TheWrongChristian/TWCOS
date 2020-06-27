@@ -389,14 +389,14 @@ void * vfs_dirent64(ino64_t ino, ino64_t offset, const char * name, char type)
 	dirent->d_off = offset;
 	dirent->d_reclen = reclen;
 	/* FIXME : Use strcpy */
-	memcpy(dirent->d_name, name, strlen(name));
+	memcpy(dirent->d_name, name, strlen(name)+1);
 
 	return dirent;
 }
 
-int vfs_getdents(vnode_t * dir, struct dirent * buf, size_t bufsize)
+int vfs_getdents(vnode_t * dir, off64_t offset, struct dirent64 * buf, size_t bufsize)
 {
-	return (dir->fs->fsops->getdents) ? dir->fs->fsops->getdents(dir, 0, buf, bufsize) : 0;
+	return (dir->fs->fsops->getdents) ? dir->fs->fsops->getdents(dir, offset, buf, bufsize) : 0;
 }
 
 void vfs_test(vnode_t * root)

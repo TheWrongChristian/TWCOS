@@ -180,6 +180,17 @@ vnode_t * file_namev(const char * filename)
 	return v;
 }
 
+int file_getdents(int fd, void * buf, size_t bufsize)
+{
+	file_t * file = file_get(fd);
+	int rv = vfs_getdents(file->vnode, file->fp, buf, bufsize);
+	if (rv>0) {
+		file->fp += rv;
+	}
+
+	return rv;
+}
+
 int file_create(const char * filename, mode_t mode)
 {
 	return -ENOSYS;

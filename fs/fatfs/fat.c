@@ -688,7 +688,7 @@ void fatfs_test(dev_t * dev)
 	vnode_read(file, 0, buf, size);
 	vnode_write(file, 0, buf, size);
 	vnode_sync(file);
-	int read = vfs_getdents(dir, buf, size);
+	int read = vfs_getdents(dir, 0, buf, size);
 	for(int i=0; i<read; ) {
 		struct dirent64 *dirent = buf+i;
 		i += dirent->d_reclen;

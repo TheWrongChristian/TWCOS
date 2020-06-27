@@ -274,7 +274,13 @@ static int tarfs_dirent_cmp(void * p1, void * p2)
 
 	int dir_diff = d1->dir-d2->dir;
 	if (0 == dir_diff) {
-		return strcmp(d1->name, d2->name);
+		if (0 == d1->name && d2->name) {
+			return -1;
+		} else if (0 == d1->name && d2->name) {
+			return 1;
+		} else {
+			return strcmp(d1->name, d2->name);
+		}
 	}
 
 	return dir_diff;
@@ -401,6 +407,58 @@ static vnode_t * tarfs_get_vnode(vnode_t * dir, const char * name)
 	return map_getip(fs->vnodes, inode);
 }
 
+typedef uint8_t byte;
+typedef struct tarfs_getdents_walk_t tarfs_getdents_walk_t;
+struct tarfs_getdents_walk_t {
+	off64_t startoffset;
+	off64_t offset;
+	byte * buf;
+	byte * next;
+	size_t bufsize;
+};
+
+static int tarfs_getdents_walk(void * p, void * key, map_data data)
+{
+	tarfs_getdents_walk_t * info = (tarfs_getdents_walk_t*)p;
+	off64_t offset = info->offset++;
+
+	if (offset<info->startoffset) {
+		return 0;
+	}
+
+	tarfs_dirent_t * tarfsdirent = (tarfs_dirent_t*)key;
+	ino64_t inode = data;
+	size_t bufleft = info->bufsize - (info->next - info->buf);
+	struct dirent64 * dirent = vfs_dirent64(inode, offset, tarfsdirent->name, 0);
+
+	if (dirent->d_reclen<bufleft) {
+		memcpy(info->next, dirent, dirent->d_reclen);
+		info->next += dirent->d_reclen;
+		return 0;
+	}
+
+	/* No room left */
+	return 1;
+}
+
+static int tarfs_getdents_prefix(void * prefix, void * key)
+{
+	tarfs_dirent_t * dirent = (tarfs_dirent_t*)key;
+	tarfs_dirent_t * prefixdirent = (tarfs_dirent_t*)prefix;
+
+	return dirent->dir == prefixdirent->dir;
+}
+
+static int tarfs_getdents(vnode_t * dir, off64_t offset, struct dirent * buf, size_t bufsize)
+{
+	tarfsnode_t * tnode = container_of(dir, tarfsnode_t, vnode);
+	tarfs_t * fs = container_of(dir->fs, tarfs_t, fs);
+	tarfs_dirent_t prefix = { tnode->inode };
+	tarfs_getdents_walk_t info = { offset, 0, buf, buf, bufsize };
+
+	map_walkpi_prefix(fs->tree, tarfs_getdents_walk, &info, tarfs_getdents_prefix, &prefix);
+}
+
 static off64_t tarfs_get_size(vnode_t * vnode)
 {
 	tarfsnode_t * tnode = container_of(vnode, tarfsnode_t, vnode);
@@ -422,6 +480,7 @@ vnode_t * tarfs_open(dev_t * dev)
 	};
 	static vfs_ops_t ops = {
 		get_vnode: tarfs_get_vnode,
+		getdents: tarfs_getdents,
 	};
 
 	tarfs_t * tarfs = malloc(sizeof(*tarfs));
