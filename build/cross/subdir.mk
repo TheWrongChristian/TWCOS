@@ -8,7 +8,7 @@ BINUTILS_BUILD=$(TOP)/binutils-build
 CONFIGURE_OPTIONS=--prefix=$(TOOLS) --target=$(TARGET) --disable-nls
 
 apt-depend::
-	sudo apt install build-essential libgmp-dev libmpfr-dev libmpc-dev libisl-dev ccache texinfo
+	sudo apt install build-essential libgmp-dev libmpfr-dev libmpc-dev libisl-dev ccache texinfo xorriso mtools
 
 cross:: unpack cross-configure cross-build
 

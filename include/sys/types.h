@@ -6,7 +6,7 @@
 
 
 typedef int pid_t;
-typedef int time_t;
+typedef long time_t;
 typedef unsigned mode_t;
 typedef uintptr_t size_t;
 typedef intptr_t ssize_t;
