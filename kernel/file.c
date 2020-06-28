@@ -24,6 +24,7 @@ typedef long ssize_t;
 #endif
 
 exception_def FileNotFoundException = { "FileNotFoundException", &FileException };
+exception_def FileOverflowException = { "FileOverflowException", &FileException };
 
 static file_t * file_get(int fd)
 {
@@ -181,6 +182,35 @@ vnode_t * file_namev(const char * filename)
 }
 
 int file_getdents(int fd, void * buf, size_t bufsize)
+{
+	/* Do 64-bit getdents, then convert the records in place */
+	file_t * file = file_get(fd);
+	int rv = vfs_getdents(file->vnode, file->fp, buf, bufsize);
+	if (rv>0) {
+		pdirent dirent32 = buf;
+		pdirent64 dirent64 = buf;
+
+		for(int i=0; i<rv;) {
+			if (dirent64->d_ino <= UINT32_MAX && dirent64->d_off <= UINT32_MAX) {
+				dirent32->d_ino = dirent64->d_ino;
+				dirent32->d_off = dirent64->d_off;
+				dirent32->d_reclen = dirent64->d_reclen;
+				strcpy(dirent32->d_name, dirent64->d_name);
+			} else {
+				/* Overflow of a 64-bit type */
+				KTHROW(FileOverflowException, "32-bit overflow");
+			}
+			i += dirent32->d_reclen;
+			dirent32 = (pdirent)(((char*)buf)+i);
+			dirent64 = (pdirent)(((char*)buf)+i);
+		}
+		file->fp += rv;
+	}
+
+	return rv;
+}
+
+int file_getdents64(int fd, void * buf, size_t bufsize)
 {
 	file_t * file = file_get(fd);
 	int rv = vfs_getdents(file->vnode, file->fp, buf, bufsize);

@@ -16,6 +16,7 @@
 #define sys_internal_brk process_brk
 #define sys_getpid process_getpid
 #define sys_getdents file_getdents
+#define sys_getdents64 file_getdents64
 #define sys_nanosleep timer_nanosleep
 
 #endif

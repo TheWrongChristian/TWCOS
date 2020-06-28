@@ -14,3 +14,4 @@
 45	void*	internal_brk	void*
 141	int	getdents	int	pdirent	size_t
 162	int	nanosleep	ptimespec	ptimespec
+220	int	getdents64	int	pdirent64	size_t

@@ -420,20 +420,23 @@ struct tarfs_getdents_walk_t {
 static int tarfs_getdents_walk(void * p, void * key, map_data data)
 {
 	tarfs_getdents_walk_t * info = (tarfs_getdents_walk_t*)p;
-	off64_t offset = info->offset++;
-
-	if (offset<info->startoffset) {
-		return 0;
-	}
 
 	tarfs_dirent_t * tarfsdirent = (tarfs_dirent_t*)key;
 	ino64_t inode = data;
+	struct dirent64 * dirent = vfs_dirent64(inode, info->offset, tarfsdirent->name, 0);
+	if (dirent->d_off < info->startoffset) {
+		/* Already read this entry */
+		info->offset += dirent->d_reclen;
+		return 0;
+	}
+
 	size_t bufleft = info->bufsize - (info->next - info->buf);
-	struct dirent64 * dirent = vfs_dirent64(inode, offset, tarfsdirent->name, 0);
 
 	if (dirent->d_reclen<bufleft) {
+		/* New entry with sufficient space */
 		memcpy(info->next, dirent, dirent->d_reclen);
 		info->next += dirent->d_reclen;
+		info->offset += dirent->d_reclen;
 		return 0;
 	}
 
@@ -457,6 +460,8 @@ static int tarfs_getdents(vnode_t * dir, off64_t offset, struct dirent * buf, si
 	tarfs_getdents_walk_t info = { offset, 0, buf, buf, bufsize };
 
 	map_walkpi_prefix(fs->tree, tarfs_getdents_walk, &info, tarfs_getdents_prefix, &prefix);
+
+	return info.next - info.buf;
 }
 
 static off64_t tarfs_get_size(vnode_t * vnode)

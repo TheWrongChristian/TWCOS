@@ -155,6 +155,17 @@ int strlen(const char * s)
 	return l;
 }
 
+int strcpy(char * dest, const char * src)
+{
+	int i;
+	for(i=0; src[i]; i++) {
+		dest[i] = src[i];
+	}
+	dest[i] = 0;
+
+	return i;
+}
+
 char * strdup( const char * s)
 {
 	int len = strlen(s);
