@@ -7,6 +7,9 @@ GCC_BUILD=$(TOP)/gcc-build
 BINUTILS_BUILD=$(TOP)/binutils-build
 CONFIGURE_OPTIONS=--prefix=$(TOOLS) --target=$(TARGET) --disable-nls
 
+apt-depend::
+	sudo apt install build-essential libgmp-dev libmpfr-dev libmpc-dev libisl-dev ccache texinfo
+
 cross:: unpack cross-configure cross-build
 
 download:: gcc-$(GCC_VERSION).tar.xz binutils-$(BINUTILS_VERSION).tar.xz
