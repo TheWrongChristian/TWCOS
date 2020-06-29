@@ -27,10 +27,11 @@ struct vfs_ops_t {
 	void (*put_vnode)(vnode_t * dir, const char * name, vnode_t * vnode);
 
 	/* Directory operations */
+	vnode_t * (*newdir)(vnode_t * dir, const char * name);
 	inode_t (*namei)(vnode_t * dir, const char * name);
 	void (*link)(vnode_t * fromdir, const char * fromname, vnode_t * todir, const char * toname);
 	void (*unlink)(vnode_t * dir, const char * name);
-	int (*getdents)(vnode_t * dir, off64_t offset, struct dirent * buf, size_t bufsize);
+	int (*getdents)(vnode_t * dir, off64_t offset, struct dirent64 * buf, size_t bufsize);
 
 	/* Filesystem mount/umount */
 	vnode_t * (*open)(vnode_t * dev);
@@ -159,9 +160,19 @@ void vnode_set_size(vnode_t * vnode, size_t size)
 	return vnode->fs->vnodeops->set_size(vnode, size);
 }
 
-vnode_t * vnode_get_vnode( vnode_t * dir, const char * name )
+vnode_t * vnode_get_vnode( vnode_t * dir, const char * name)
 {
 	return dir->fs->fsops->get_vnode(dir, name);
+}
+
+void vnode_put_vnode( vnode_t * dir, const char * name, vnode_t * vnode)
+{
+	dir->fs->fsops->put_vnode(dir, name, vnode);
+}
+
+vnode_t * vnode_newdir(vnode_t * dir, const char * name)
+{
+	return dir->fs->fsops->newdir(dir, name);
 }
 
 void vnode_close(vnode_t * vnode)
@@ -287,11 +298,13 @@ void fs_idle(vnode_t * root)
 	root->fs->fsops->idle(root);
 }
 
-void vnode_init(vnode_t * vnode, vnode_type type, fs_t * fs)
+vnode_t * vnode_init(vnode_t * vnode, vnode_type type, fs_t * fs)
 {
 	vnode->type = type;
 	vnode->fs = fs;
 	vnode->ref = 1;
+
+	return vnode;
 }
 
 
@@ -301,42 +314,138 @@ void vnode_init(vnode_t * vnode, vnode_type type, fs_t * fs)
 #if INTERFACE
 
 struct vfstree_t {
-	map_t * vnodes;
 	map_t * tree;
-	inode_t inext;
 
+	vnode_t root;
 	fs_t fs;
 };
 
 struct vfstree_node_t {
-	struct vfstree_t * tree;
-	inode_t inode;
 	vnode_t vnode;
 };
 
 struct vfstree_dirent_t {
 	vnode_t * dir;
-	char * name;
+	const char * name;
 };
 
 #endif
 
-vnode_t * vfstree_get_vnode(map_t * tree, vnode_t * dir, const char * name) 
+vnode_t * vfstree_get_vnode(vnode_t * dir, const char * name) 
 {
+	vfstree_t * vfstree = container_of(dir->fs, vfstree_t, fs);
 	vnode_t * vnode = 0;
+	vfstree_dirent_t key = { dir, name };
 
-	ARENA_AUTOSTATE(NULL) {
-		map_compound_key_t * key = map_compound_tkey("ps", dir, name);
-		vnode = map_getpp(tree, key);
-	}
-
-	return vnode;
+	return map_getpp(vfstree->tree, &key);
 }
 
-void vfstree_put_vnode(map_t * tree, vnode_t * dir, const char * name, vnode_t * vnode) 
+void vfstree_put_vnode(vnode_t * dir, const char * name, vnode_t * vnode) 
 {
-	map_compound_key_t * key = map_compound_key("ps", dir, name);
-	map_putpp(tree, key, vnode);
+	vfstree_t * vfstree = container_of(dir->fs, vfstree_t, fs);
+	vfstree_dirent_t * key = malloc(sizeof(*key));
+	key->dir = dir;
+	key->name = strdup(name);
+	map_putpp(vfstree->tree, key, vnode);
+}
+
+static int vfstree_dirent_cmp(void * p1, void * p2)
+{
+	vfstree_dirent_t * d1 = p1;
+	vfstree_dirent_t * d2 = p2;
+
+	int dir_diff = d1->dir-d2->dir;
+	if (0 == dir_diff) {
+		if (0 == d1->name && d2->name) {
+			return -1;
+		} else if (0 == d1->name && d2->name) {
+			return 1;
+		} else {
+			return strcmp(d1->name, d2->name);
+		}
+	}
+
+	return dir_diff;
+}
+
+typedef uint8_t byte;
+typedef struct vfstree_getdents_walk_t vfstree_getdents_walk_t;
+struct vfstree_getdents_walk_t {
+	off64_t startoffset;
+	off64_t offset;
+	byte * buf;
+	byte * next;
+	size_t bufsize;
+};
+
+static int vfstree_getdents_walk(void * p, void * key, void * data)
+{
+	vfstree_getdents_walk_t * info = (vfstree_getdents_walk_t*)p;
+
+	vfstree_dirent_t * vfstreedirent = (vfstree_dirent_t*)key;
+	ino64_t inode = data;
+	struct dirent64 * dirent = vfs_dirent64(inode, info->offset, vfstreedirent->name, 0);
+	if (dirent->d_off < info->startoffset) {
+		/* Already read this entry */
+		info->offset += dirent->d_reclen;
+		return 0;
+	}
+
+	size_t bufleft = info->bufsize - (info->next - info->buf);
+
+	if (dirent->d_reclen<bufleft) {
+		/* New entry with sufficient space */
+		memcpy(info->next, dirent, dirent->d_reclen);
+		info->next += dirent->d_reclen;
+		info->offset += dirent->d_reclen;
+		return 0;
+	}
+
+	/* No room left */
+	return 1;
+}
+
+vnode_t * vfstree_newdir(vnode_t * dir, const char * name)
+{
+	vfstree_t * vfstree = container_of(dir->fs, vfstree_t, fs);
+	vnode_t * newdir = malloc(sizeof(*newdir));
+	vnode_put_vnode(dir, name, vnode_init(newdir, VNODE_DIRECTORY, &vfstree->fs));
+
+	return newdir;
+}
+
+static int vfstree_getdents_prefix(void * prefix, void * key)
+{
+	vfstree_dirent_t * dirent = (vfstree_dirent_t*)key;
+	vfstree_dirent_t * prefixdirent = (vfstree_dirent_t*)prefix;
+
+	return dirent->dir == prefixdirent->dir;
+}
+
+static int vfstree_getdents(vnode_t * dir, off64_t offset, struct dirent * buf, size_t bufsize)
+{
+	vfstree_node_t * tnode = container_of(dir, vfstree_node_t, vnode);
+	vfstree_t * fs = container_of(dir->fs, vfstree_t, fs);
+	vfstree_dirent_t prefix = { dir };
+	vfstree_getdents_walk_t info = { offset, 0, buf, buf, bufsize };
+
+	map_walkpi_prefix(fs->tree, vfstree_getdents_walk, &info, vfstree_getdents_prefix, &prefix);
+
+	return info.next - info.buf;
+}
+
+vnode_t * vfstree_new()
+{
+	static vfs_ops_t ops = {
+		.newdir = vfstree_newdir,
+		.get_vnode = vfstree_get_vnode,
+		.put_vnode = vfstree_put_vnode,
+		.getdents = vfstree_getdents,
+        };
+	vfstree_t * vfstree = malloc(sizeof(*vfstree));
+	vfstree->tree = splay_new(vfstree_dirent_cmp);
+	vfstree->fs.fsops = &ops;
+	return vnode_init(&vfstree->root, VNODE_DIRECTORY, &vfstree->fs);
 }
 
 static GCROOT map_t * mounts=0;
