@@ -62,6 +62,7 @@ int main(int argc, char * argv[], char * envp[])
 		char buf[1024];
 		int fd = open("/", 0, 0);
 		int read = getdents(fd, buf, sizeof(buf));
+		close(fd);
 		printf("\033[48;5;2mHello world from pid\033[48;5;0m %d\r", getpid());
 		fflush(stdout);
 		usleep((1+getpid()%10)*100000);
