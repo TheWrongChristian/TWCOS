@@ -100,10 +100,10 @@ includes:: $(SYS_H) $(SRCS_C) $(ARCH_SYSCALL_C) $(ARCH_USYSCALL_C) include/unist
 	$(MAKEHEADERS) $(SRCS_C) $(ARCH_SYSCALL_C) $(ARCH_USYSCALL_C)
 
 cflow:
-	cflow -d 4 -m kernel_main $(SRCS_C) $(LIBC_SRCS_C) $(INIT_SRCS_C)
+	cflow -m kernel_main $(SRCS_C)
 
 cflowr:
-	cflow -d 4 -r $(SRCS_C) $(LIBC_SRCS_C) $(INIT_SRCS_C)
+	cflow -d 9 -r $(SRCS_C) 
 
 cxref:
 	cxref -html-src $(SRCS_C) $(SRCS_C:.c=.h)
