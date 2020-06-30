@@ -5,6 +5,7 @@
 #include <stdint.h>
 #include <stddef.h>
 #include <stdint.h>
+#include <sys/types.h>
 
 typedef int64_t inode_t;
 

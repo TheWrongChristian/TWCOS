@@ -1,7 +1,8 @@
 #include "file.h"
-#include <sys/errno.h>
+
 
 #if INTERFACE
+#include <sys/errno.h>
 #include <stddef.h>
 
 #include <stddef.h>
@@ -202,7 +203,7 @@ int file_getdents(int fd, void * buf, size_t bufsize)
 			}
 			i += dirent32->d_reclen;
 			dirent32 = (pdirent)(((char*)buf)+i);
-			dirent64 = (pdirent)(((char*)buf)+i);
+			dirent64 = (pdirent64)(((char*)buf)+i);
 		}
 		file->fp += rv;
 	}

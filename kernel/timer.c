@@ -1,9 +1,9 @@
+#include <sys/types.h>
 #include "timer.h"
 
 #if INTERFACE
 
 #include <stdint.h>
-#include <unistd.h>
 
 typedef int64_t timerspec_t;
 
