@@ -18,12 +18,14 @@ include $(TOP)/build/param.mk
 
 COPTS=-g -DDEBUG
 KOPTS:=-ffreestanding
-UOPTS:=
-CFLAGS=$(COPTS) -pipe -std=gnu99 $(KOPTS) $(UOPTS) -Wall -I$(TOP)/arch/$(ARCH)/include -I$(TOP)/include
-CXXFLAGS=$(COPTS) -pipe $(KOPTS) $(UOPTS) -Wall -I$(TOP)/arch/$(ARCH)/include -I$(TOP)/include
+UOPTS:=-I$(TOP)/user/pdclib/include -I$(TOP)/user/pdclib/platform/twcos/include
+CFLAGS=$(COPTS) $(UOPTS) --sysroot=. -pipe -std=gnu99 -Wall -I$(TOP)/arch/$(ARCH)/include -I$(TOP)/include
+CXXFLAGS=$(COPTS) $(UOPTS) --sysroot=. -pipe -Wall -I$(TOP)/arch/$(ARCH)/include -I$(TOP)/include
 ASFLAGS=-g
 
 OBJS=$(SRCS_S:.S=.o) $(SRCS_C:.c=.o)
+
+$(OBJS): CFLAGS+=$(KOPTS)
 
 %.d: %.c %.h
 	-$(CC) $(CFLAGS) -M -MF $@ -MT $(@:.d=.o) -MG $<
