@@ -7,6 +7,7 @@
 
 typedef int pid_t;
 typedef long time_t;
+typedef long suseconds_t;
 typedef unsigned mode_t;
 typedef uintptr_t size_t;
 typedef intptr_t ssize_t;
@@ -16,11 +17,19 @@ typedef int64_t off64_t;
 typedef uint32_t ino_t;
 typedef uint64_t ino64_t;
 
+#ifndef __STDC_HOSTED__
+#define NEED_TIMESPEC 1
+#elif 0==__STDC_HOSTED__
+#define NEED_TIMESPEC 1
+#endif
+
+#ifdef NEED_TIMESPEC
 /* For nanosleep */
 struct timespec {
 	time_t tv_sec;        /* seconds */
 	long   tv_nsec;       /* nanoseconds */
 };
+#endif
 typedef struct timespec * ptimespec;
 
 /* Directory entries */
