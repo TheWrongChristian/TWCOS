@@ -174,4 +174,4 @@ $(TOP)/lib/libg.a: $(subdir)/dummy.o
 	$(AR) rcs $@ $<
 
 clean::
-	rm $(USERLIBS)
+	$(RM) $(USERLIBS)

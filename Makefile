@@ -3,6 +3,7 @@ all::
 .PHONY: userlibs
 .PHONY: clean
 .PHONY: all
+.PHONY: includes
 
 TOP=$(CURDIR)
 
