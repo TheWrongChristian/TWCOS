@@ -655,7 +655,7 @@ void dev_console_submit( dev_t * dev, buf_op_t * op )
 
 vnode_t * console_dev()
 {
-	static dev_ops_t ops = { submit: dev_console_submit };
+	static dev_ops_t ops = { .submit = dev_console_submit };
 	static dev_t dev = { .ops = &ops };
 
 	return dev_vnode(&dev);
