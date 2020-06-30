@@ -5,6 +5,8 @@ ARCH_USYSCALL_SH := $(subdir)/usyscall.sh
 ARCH_SYSCALL_LIST := $(subdir)/syscall.list
 ARCH_SYSCALL_C := $(subdir)/syscall.c
 ARCH_USYSCALL_C := $(subdir)/usyscall.c
+ARCH_CRT_S := $(subdir)/crt0.S $(subdir)/crt1.S $(subdir)/crti.S $(subdir)/crtn.S
+ARCH_CRT_O := $(ARCH_CRT_S:.S=.o)
 ARCH_CRT0_S := $(subdir)/crt0.S
 ARCH_CRT0_O := $(ARCH_CRT0_S:.S=.o)
 ARCH_CRT1_S := $(subdir)/crt1.S
@@ -33,9 +35,11 @@ $(subdir)/kernel: $(OBJS) $(LD_SCRIPT)
 	$(CC) -T $(LD_SCRIPT) -o $@ -ffreestanding -O2 -nostdlib $(OBJS) -lgcc
 
 # all:: $(TOP)/lib/libsyscall.a $(TOP)/lib/crt0.o
-all:: $(TOP)/lib/crt0.o $(TOP)/lib/crt1.o
+# all:: $(ARCH_CRT_O)
+#	$(CP) $(ARCH_CRT_O) $(TOP)/lib
 
 USERLIBS += $(TOP)/lib/crt0.o $(TOP)/lib/crt1.o $(TOP)/lib/crti.o $(TOP)/lib/crtn.o
+all:: $(USERLIBS)
 
 # $(TOP)/lib/libsyscall.a: $(USYSCALL_SRCS_O)
 # 	$(AR) rcs $@ $(USYSCALL_SRCS_O)

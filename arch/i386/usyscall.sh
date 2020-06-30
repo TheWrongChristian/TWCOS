@@ -1,11 +1,13 @@
 output_header () {
         cat <<EOF
-#include "usyscall.h"
+#define NEED_TIMESPEC 1
 
-#if INTERFACE
 #include <stddef.h>
 #include <sys/types.h>
 #include <errno.h>
+#include "usyscall.h"
+
+#if INTERFACE
 #endif
 
 static intptr_t syscall_0(int sc)
@@ -168,6 +170,29 @@ int usleep(useconds_t usec)
 
 	return nanosleep(&inspec, 0);
 }
+
+int brk(void * p)
+{
+	void * newbrk = internal_brk(p);
+
+	if (newbrk<p) {
+		errno = ENOMEM;
+		return -1;
+	}
+
+	return 0;
+}
+
+void * sbrk(intptr_t incr)
+{
+	char * current = internal_brk(0);
+	if (0 == incr) {
+		return current;
+	}
+
+	return internal_brk(current + incr);
+}
+
 
 EOF
 }
