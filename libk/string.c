@@ -155,7 +155,7 @@ int strlen(const char * s)
 	return l;
 }
 
-int strcpy(char * dest, const char * src)
+char * strcpy(char * dest, const char * src)
 {
 	int i;
 	for(i=0; src[i]; i++) {
@@ -163,7 +163,18 @@ int strcpy(char * dest, const char * src)
 	}
 	dest[i] = 0;
 
-	return i;
+	return dest;
+}
+
+char * strncpy(char * dest, const char * src, size_t maxlen)
+{
+	int i;
+	for(i=0; src[i] && i<maxlen; i++) {
+		dest[i] = src[i];
+	}
+	dest[i] = 0;
+
+	return dest;
 }
 
 char * strdup( const char * s)
