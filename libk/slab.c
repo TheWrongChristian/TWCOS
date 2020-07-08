@@ -411,6 +411,7 @@ void slab_gc_end()
 				if (stype->finalize) {
 					slab->type->finalize(SLAB_SLOT_USER(slab, slot));
 				}
+				debug_fillbuf(entry+1, slab->type->esize, 0xc0);
 				entry->seq = 0;
 				bitarray_set(slab->finalize, slot, 0);
 				bitarray_set(slab->available, slot, 1);
