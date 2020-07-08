@@ -50,8 +50,12 @@ static void node_mark(void * p)
 	slab_gc_mark(node->right);
 }
 
-static slab_type_t nodes[1] = { SLAB_TYPE(sizeof(node_t), node_mark, 0)};
-static slab_type_t trees[1] = { SLAB_TYPE(sizeof(tree_t), tree_mark, 0)};
+void debug_finalize(void * p)
+{
+}
+
+static slab_type_t nodes[1] = { SLAB_TYPE(sizeof(node_t), node_mark, debug_finalize)};
+static slab_type_t trees[1] = { SLAB_TYPE(sizeof(tree_t), tree_mark, debug_finalize)};
 
 /*
  * Rotate left:
@@ -407,15 +411,26 @@ static void node_verify( tree_t * tree, node_t * node )
 			return;
 		}
 
+		if (node->count == 1) {
+			assert(0 == node->left);
+			assert(0 == node->right);
+		}
+
+		int count = 1;
+
 		/* Check child linkage */
 		if (node->left) {
+			count += node->left->count;
 			assert(node == node->left->parent);
 			node_verify(tree, node->left);
 		}
 		if (node->right) {
+			count += node->right->count;
 			assert(node == node->right->parent);
 			node_verify(tree, node->right);
 		}
+
+		assert(count == node->count);
 	}
 }
 
@@ -514,7 +529,7 @@ static map_data tree_put( map_t * map, map_key key, map_data data )
                 }
         }
 
-        tree_verify(tree, NULL);
+        tree_verify(tree, node);
 
 	return 0;
 }

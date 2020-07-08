@@ -122,8 +122,6 @@ vnode_t * dev_vnode(dev_t * dev)
 	static fs_t devfs = { vnodeops: &ops };
 	dev_vnode_t * vnode = calloc(1, sizeof(*vnode));
 	
-	vnode_init(&vnode->vnode, VNODE_DEV, &devfs);
 	vnode->dev = dev;
-
-	return &vnode->vnode;
+	return vnode_init(&vnode->vnode, VNODE_DEV, &devfs);
 }

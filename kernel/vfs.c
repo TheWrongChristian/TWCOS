@@ -312,8 +312,8 @@ vnode_t * vnode_init(vnode_t * vnode, vnode_type type, fs_t * fs)
 /*
  * Virtual filesystem tree
  */
-#if INTERFACE
 
+typedef struct vfstree_t vfstree_t;
 struct vfstree_t {
 	map_t * tree;
 
@@ -321,16 +321,11 @@ struct vfstree_t {
 	fs_t fs;
 };
 
-struct vfstree_node_t {
-	vnode_t vnode;
-};
-
+typedef struct vfstree_dirent_t vfstree_dirent_t;
 struct vfstree_dirent_t {
 	vnode_t * dir;
 	const char * name;
 };
-
-#endif
 
 vnode_t * vfstree_get_vnode(vnode_t * dir, const char * name) 
 {
@@ -425,7 +420,6 @@ static int vfstree_getdents_prefix(void * prefix, void * key)
 
 static int vfstree_getdents(vnode_t * dir, off64_t offset, struct dirent * buf, size_t bufsize)
 {
-	vfstree_node_t * tnode = container_of(dir, vfstree_node_t, vnode);
 	vfstree_t * fs = container_of(dir->fs, vfstree_t, fs);
 	vfstree_dirent_t prefix = { dir };
 	vfstree_getdents_walk_t info = { offset, 0, buf, buf, bufsize };
@@ -444,7 +438,7 @@ vnode_t * vfstree_new()
 		.getdents = vfstree_getdents,
         };
 	vfstree_t * vfstree = malloc(sizeof(*vfstree));
-	vfstree->tree = splay_new(vfstree_dirent_cmp);
+	vfstree->tree = treap_new(vfstree_dirent_cmp);
 	vfstree->fs.fsops = &ops;
 	return vnode_init(&vfstree->root, VNODE_DIRECTORY, &vfstree->fs);
 }
@@ -498,8 +492,7 @@ void * vfs_dirent64(ino64_t ino, ino64_t offset, const char * name, char type)
 	dirent->d_ino = ino;
 	dirent->d_off = offset;
 	dirent->d_reclen = reclen;
-	/* FIXME : Use strcpy */
-	memcpy(dirent->d_name, name, strlen(name)+1);
+	strcpy(dirent->d_name, name);
 
 	return dirent;
 }
