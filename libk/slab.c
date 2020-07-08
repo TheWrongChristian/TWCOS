@@ -15,7 +15,6 @@ struct slab_type_t {
 	void (*mark)(void *);
 	void (*finalize)(void *);
 	mutex_t lock[1];
-	vmpage_t vmpage[1];
 };
 
 struct slab_weakref_t {
@@ -129,13 +128,15 @@ static slab_t * slab_new(slab_type_t * stype)
 		 * | slab_t |a|f|              data                |
 		 *  <-----------------page size------------------->
 		 * data + a + f = ARCH_PAGE_SIZE-sizeof(slab_t)
-		 * c*s + c/8+4 + c/8+4 = psz-slab_t = d
-		 * 8*c*s + c + 32 + c + 32 = 8*d
-		 * 8*c*s + 2*c = 8*d - 64
-		 * c*(8*s + 2) = 8*d - 64
-		 * c = (8*d - 64) / (8*s + 2)
+		 * c*s + (c+31)/8 + (c+31)/8 = psz-slab_t = d
+		 * c*s + (c+31)/4 = psz-slab_t = d
+		 * 4c*s + (c+31) = psz-slab_t = 4d
+		 * 4c*s + c + 31 = psz-slab_t = 4d
+		 * 4c*s + c = 4d - 31
+		 * c(4s + 1) = 4d - 31
+		 * c = (4d - 31) / (4s + 1)
 		 */
-		stype->count = (8*(ARCH_PAGE_SIZE-sizeof(slab_t))-64)/ (8 * stype->slotsize + 2);
+		stype->count = (4*(ARCH_PAGE_SIZE-sizeof(slab_t))-31) / (4 * stype->slotsize + 1);
 		slab_lock(0);
 		LIST_APPEND(types, stype);
 		slab_unlock();
@@ -205,6 +206,7 @@ void * slab_alloc_p(slab_type_t * stype)
 	while(slab) {
 		assert(stype == slab->type);
 		int slot = bitarray_firstset(slab->available, slab->type->count);
+		assert(slot<slab->type->count);
 		if (slot>=0) {
 			bitarray_set(slab->available, slot, 0);
 			bitarray_set(slab->finalize, slot, 0);
@@ -278,7 +280,7 @@ static struct gccontext {
 	arena_state state;
 	struct gccontext * prev;
 } * context = 0;
-static arena_t * gcarena = 0;
+static GCROOT arena_t * gcarena = 0;
 static int gclevel = 0;
 
 void slab_gc_begin()
