@@ -332,9 +332,6 @@ static slab_t * slab_get(void * p)
 
 void slab_gc_mark(void * root)
 {
-	if (root==kas) {
-		kernel_break();
-	}
 	slab_t * slab = slab_get(root);
 	if (slab) {
 		/* Entry within the slab */
