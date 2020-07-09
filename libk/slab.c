@@ -208,8 +208,11 @@ void * slab_alloc_p(slab_type_t * stype)
 		int slot = bitarray_firstset(slab->available, slab->type->count);
 		assert(slot<slab->type->count);
 		if (slot>=0) {
+			if (bitarray_get(slab->finalize, slot)) {
+				kernel_break();
+			}
 			bitarray_set(slab->available, slot, 0);
-			bitarray_set(slab->finalize, slot, 0);
+			//bitarray_set(slab->finalize, slot, 0);
 			stype->first = slab;
 			slab_unlock();
 			mutex_unlock(stype->lock);
@@ -275,12 +278,13 @@ static struct gccontext {
 	/* The block to be scanned */
 	void ** from;
 	void ** to;
-
+#if 0
 	/* Previous context */
 	arena_state state;
 	struct gccontext * prev;
-} * context = 0;
-static GCROOT arena_t * gcarena = 0;
+#endif
+} context[256];
+
 static int gclevel = 0;
 
 void slab_gc_begin()
@@ -305,7 +309,6 @@ void slab_gc_begin()
 
 		LIST_NEXT(types, stype);
 	}
-	gcarena = arena_get();
 
 	/* Put the roots in the queue */
 	extern char gcroot_start[];
@@ -329,6 +332,9 @@ static slab_t * slab_get(void * p)
 
 void slab_gc_mark(void * root)
 {
+	if (root==kas) {
+		kernel_break();
+	}
 	slab_t * slab = slab_get(root);
 	if (slab) {
 		/* Entry within the slab */
@@ -348,6 +354,8 @@ void slab_gc_mark(void * root)
 				slab->type->mark(root);
 			} else {
 				/* Generic mark */
+				slab_gc_mark_block(root, slab->type->esize);
+#if 0
 				struct gccontext * new = arena_calloc(gcarena, sizeof(*new));
 				new->state = arena_getstate(gcarena);
 				new->from = root;
@@ -355,6 +363,7 @@ void slab_gc_mark(void * root)
 				new->prev = context;
 				context = new;
 				gclevel++;
+#endif
 			}
 		}
 	}
@@ -362,13 +371,9 @@ void slab_gc_mark(void * root)
 
 void slab_gc_mark_range(void * from, void * to)
 {
-	struct gccontext * new = arena_calloc(gcarena, sizeof(*new));
-	new->from = from;
-	new->to = to;
-	new->state = arena_getstate(gcarena);
-	new->prev = context;
-	context = new;
 	gclevel++;
+	context[gclevel].from = from;
+	context[gclevel].to = to;
 }
 
 void slab_gc()
@@ -376,13 +381,12 @@ void slab_gc()
 	mutex_t lock[1] = {0};
 
 	MUTEX_AUTOLOCK(lock) {
-		while(context) {
+		while(gclevel) {
 			/* Check the next pointer in the block */
-			if (context->from && context->from < context->to) {
-				slab_gc_mark(*context->from++);
+			if (context[gclevel].from && context[gclevel].from < context[gclevel].to) {
+				slab_gc_mark(*context[gclevel].from++);
 			} else {
-				arena_setstate(gcarena, context->state);
-				context = context->prev;
+				context[gclevel].from = context[gclevel].to = 0;
 				gclevel--;
 			}
 		}
@@ -433,7 +437,6 @@ void slab_gc_end()
 
 		LIST_NEXT(types, stype);
 	}
-	arena_free(gcarena);
 	slab_unlock();
 }
 
