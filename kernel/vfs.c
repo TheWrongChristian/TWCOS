@@ -418,7 +418,7 @@ static int vfstree_getdents_prefix(void * prefix, void * key)
 	return dirent->dir == prefixdirent->dir;
 }
 
-static int vfstree_getdents(vnode_t * dir, off64_t offset, struct dirent * buf, size_t bufsize)
+static int vfstree_getdents(vnode_t * dir, off64_t offset, struct dirent64 * buf, size_t bufsize)
 {
 	vfstree_t * fs = container_of(dir->fs, vfstree_t, fs);
 	vfstree_dirent_t prefix = { dir };
