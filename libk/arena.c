@@ -210,6 +210,13 @@ void * tcalloc(size_t nmemb, size_t size)
 	return arena_calloc(arena, nmemb*size);
 }
 
+char * tstrndup(const char * s, size_t maxlen)
+{
+	char * ret = tmalloc(maxlen+1);
+	ret[maxlen] = 0;
+	return strncpy(ret, s, maxlen);
+}
+
 char * tstrdup(const char * s)
 {
 	int len = strlen(s);

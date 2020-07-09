@@ -535,9 +535,11 @@ static int arch_is_text(void * p)
 	return cp >= code_start && cp < code_end;
 }
 
-void ** arch_thread_backtrace(int levels)
+void ** arch_thread_backtrace(void ** backtrace, int levels)
 {
-	void ** backtrace = malloc(sizeof(*backtrace)*levels+1);
+	if (0 == backtrace) {
+		backtrace = tmalloc(sizeof(*backtrace)*levels+1);
+	}
 	thread_t * thread = arch_get_thread();
 	setjmp(thread->context.state);
 	void * stacktop = (void**)((char*)thread->context.stack + ARCH_PAGE_SIZE);
@@ -551,7 +553,9 @@ void ** arch_thread_backtrace(int levels)
 		}
 		bp = bp[0];
 	}
-	backtrace[i] = 0;
+	if (i<levels-1) {
+		backtrace[i] = 0;
+	}
 	
 	return backtrace;
 }

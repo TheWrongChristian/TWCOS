@@ -318,6 +318,7 @@ static void thread_mark(void * p)
 {
 	thread_t * thread = (thread_t *)p;
 
+	slab_gc_mark(thread->name);
 	if (thread->state != THREAD_TERMINATED) {
 		/* Mark live state only */
 		arch_thread_mark(thread);
@@ -337,9 +338,9 @@ static void thread_finalize(void * p)
 	arch_thread_finalize(thread);
 }
 
-void ** thread_backtrace(int levels)
+void ** thread_backtrace(void ** buffer, int levels)
 {
-	return arch_thread_backtrace(levels);
+	return arch_thread_backtrace(buffer, levels);
 }
 
 void thread_init()
@@ -355,7 +356,7 @@ void thread_init()
 static void thread_test2();
 static void thread_test1(rwlock_t * rw)
 {
-	void ** bt = thread_backtrace(15);
+	void ** bt = thread_backtrace(NULL, 15);
 	kernel_printk("thread_test1\n");
 	while(*bt) {
 		kernel_printk("\t%p\n", *bt++);
@@ -368,7 +369,7 @@ static void thread_test1(rwlock_t * rw)
 
 static void thread_test2(rwlock_t * rw)
 {
-	void ** bt = thread_backtrace(15);
+	void ** bt = thread_backtrace(NULL, 15);
 	kernel_printk("thread_test2\n");
 	while(*bt) {
 		kernel_printk("\t%p\n", *bt++);
