@@ -118,7 +118,9 @@ void vmpage_mark(void * p)
 static void vmpage_finalize(void * p);
 static slab_type_t slabvmpages[] = { SLAB_TYPE(sizeof(vmpage_t), vmpage_mark, vmpage_finalize) };
 
+#if RMAP
 static GCROOT map_t * vmpages;
+#endif
 GCROOT map_t * kas;
 #define RMAP 0
 void vm_init()
@@ -133,7 +135,9 @@ void vm_init()
 
 static void vm_invalid_pointer(void * p, int write, int user, int present)
 {
+#if 0
 	dump_alloc_audit(p);
+#endif
 	kernel_panic("Invalid pointer: %p\n", p);
 }
 
@@ -761,7 +765,9 @@ void * vm_kas_get( size_t size )
 	return vm_kas_get_aligned(size, ARCH_PAGE_SIZE);
 }
 
+#if RMAP
 static mutex_t vmpages_lock[1];
+#endif
 
 static void vmpage_finalize(void * p)
 {

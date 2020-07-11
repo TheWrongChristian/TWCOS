@@ -494,70 +494,66 @@ void * slab_weakref_get(slab_weakref_t * ref)
 	return 0;
 }
 
+#define SLAB_MAX_DATA_AREA(slots) ROUNDDOWN((((ARCH_PAGE_SIZE-sizeof(slab_t)-2*sizeof(uint32_t))/slots)-sizeof(slab_slot_t)),8)
 static slab_type_t pools[] = {
-	SLAB_TYPE(8, 0, slab_malloc_finalize),
-	SLAB_TYPE(12, 0, slab_malloc_finalize),
-	SLAB_TYPE(16, 0, slab_malloc_finalize),
-	SLAB_TYPE(24, 0, slab_malloc_finalize),
-	SLAB_TYPE(32, 0, slab_malloc_finalize),
-	SLAB_TYPE(48, 0, slab_malloc_finalize),
-	SLAB_TYPE(64, 0, slab_malloc_finalize),
-	SLAB_TYPE(96, 0, slab_malloc_finalize),
-	SLAB_TYPE(128, 0, slab_malloc_finalize),
-	SLAB_TYPE(196, 0, slab_malloc_finalize),
-	SLAB_TYPE(256, 0, slab_malloc_finalize),
-	SLAB_TYPE(384, 0, slab_malloc_finalize),
-	SLAB_TYPE(512, 0, slab_malloc_finalize),
-	SLAB_TYPE(768, 0, slab_malloc_finalize),
-	SLAB_TYPE(1024, 0, slab_malloc_finalize),
-	SLAB_TYPE(1536, 0, slab_malloc_finalize),
-	SLAB_TYPE((ARCH_PAGE_SIZE-2*sizeof(uint32_t))/2, 0, slab_malloc_finalize),
-	SLAB_TYPE((ARCH_PAGE_SIZE-2*sizeof(uint32_t)), 0, slab_malloc_finalize),
+	SLAB_TYPE(8, 0, 0),
+	SLAB_TYPE(12, 0, 0),
+	SLAB_TYPE(16, 0, 0),
+	SLAB_TYPE(24, 0, 0),
+	SLAB_TYPE(32, 0, 0),
+	SLAB_TYPE(48, 0, 0),
+	SLAB_TYPE(64, 0, 0),
+	SLAB_TYPE(96, 0, 0),
+	SLAB_TYPE(128, 0, 0),
+	SLAB_TYPE(196, 0, 0),
+	SLAB_TYPE(256, 0, 0),
+	SLAB_TYPE(384, 0, 0),
+	SLAB_TYPE(512, 0, 0),
+	SLAB_TYPE(768, 0, 0),
+	SLAB_TYPE(1024, 0, 0),
+	SLAB_TYPE(SLAB_MAX_DATA_AREA(3), 0, 0),
+	SLAB_TYPE(SLAB_MAX_DATA_AREA(2), 0, 0),
+	SLAB_TYPE(SLAB_MAX_DATA_AREA(1), 0, 0),
 };
 
 #ifdef DEBUG
 
-static struct {
-	void * p;
-	char * file;
-	int line;
-	size_t size;
-	slab_type_t * type;
-} audit[32];
+static slab_slot_t * audit[32];
 
 void * add_alloc_audit(void * p, char * file, int line, size_t size, slab_type_t * type)
 {
 	static int next = 0;
 
-	audit[next].p = p;
-	audit[next].file = file;
-	audit[next].line = line;
-	audit[next].size = size;
-	audit[next].type = type;
+	slab_slot_t * slot = ((slab_slot_t *)p)-1;
+	audit[next] = slot;
 
-	if (sizeof(audit)/sizeof(audit[0]) == ++next) {
+	if (countof(audit) == ++next) {
 		next = 0;
 	}
 
-	slab_slot_t * slot = ((slab_slot_t *)p)-1;
+#if DEBUG
 	slot->file = file;
 	slot->line = line;
 	thread_backtrace(slot->backtrace, countof(slot->backtrace));
+#endif
 
 	return p;
 }
 
+#if 0
 void dump_alloc_audit(void * p)
 {
-	for(int i=0; i<sizeof(audit)/sizeof(audit[0]); i++) {
+	for(int i=0; i<countof(audit); i++) {
+		slab_slot_t * slot = audit[i];
 		char * cp = (char*)p;
-		char * base = (char*)audit[i].p;
+		char * base = (char*)slot+1;
 
-		if (cp>=base && cp<base+audit[i].size) {
-			kernel_printk("pointer alloc'd at %s:%d\n", audit[i].file, audit[i].line);
+		if (cp>=base && cp<base+slot->size) {
+			kernel_printk("pointer alloc'd at %s:%d\n", slot->file, slot->line);
 		}
 	}
 }
+#endif
 
 void * malloc_d(size_t size, char * file, int line)
 {
