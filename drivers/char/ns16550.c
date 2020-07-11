@@ -92,7 +92,7 @@ static void ns16550_int(int irq)
 #endif
 }
 
-static size_t ns16550_read(vnode_t * vnode, off_t ignored, void * buf, size_t len)
+static size_t ns16550_read(vnode_t * vnode, off64_t ignored, void * buf, size_t len)
 {
 	ns16550_device_t * dev = container_of(vnode, ns16550_device_t, vnode);
 	char * p = buf;
@@ -103,7 +103,7 @@ static size_t ns16550_read(vnode_t * vnode, off_t ignored, void * buf, size_t le
 	return len;
 }
 
-static size_t ns16550_write(vnode_t * vnode, off_t ignored, void * buf, size_t len)
+static size_t ns16550_write(vnode_t * vnode, off64_t ignored, void * buf, size_t len)
 {
 	ns16550_device_t * dev = container_of(vnode, ns16550_device_t, vnode);
 	char * p = buf;
@@ -129,7 +129,7 @@ vnode_t * ns16550_open(int baseport, int irq)
 
 		dev = map_getip(devices, irq);
 		if (0 == dev) {
-			static vnode_ops_t ops = { read: ns16550_read, write: ns16550_write };
+			static vnode_ops_t ops = { .read = ns16550_read, .write = ns16550_write };
 			static fs_t fs = { &ops };
 			dev = calloc(1, sizeof(*dev));
 			dev->baseport = baseport;
