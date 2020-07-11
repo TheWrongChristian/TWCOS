@@ -35,7 +35,7 @@ static int timers_lock[1]={0};
 static GCROOT timer_t timers_static;
 static timer_t * timers = &timers_static;
 static timerspec_t uptime = 0;
-static timer_event_t * uptime_timer = 0;
+static GCROOT timer_event_t * uptime_timer = 0;
 
 static void timer_uptime_cb(void * ignored)
 {
