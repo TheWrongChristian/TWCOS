@@ -4,6 +4,32 @@
 
 #include "i386.h"
 
+#if INTERFACE
+struct arch_trap_frame_t
+{
+	reg_t edi;
+	reg_t esi;
+	reg_t fp;
+	reg_t esp_old;
+	reg_t ebx;
+	reg_t edx;
+	reg_t ecx;
+	reg_t eax;
+	reg_t gs;
+	reg_t fs;
+	reg_t es;
+	reg_t ds;
+	reg_t errorcode;
+	reg_t ebp;
+	reg_t eip;
+	reg_t cs;
+	reg_t eflags;
+	reg_t uesp;
+	reg_t ss;
+};
+
+#endif
+
 /* Basic port I/O */
 void outb(uint16_t port, uint8_t v)
 {
@@ -126,11 +152,7 @@ void * isr_labels[] = {
 #include "isr_labels.h"
 };
 
-#if INTERFACE
-enum regs_e { ISR_REG_EDI, ISR_REG_ESI, ISR_REG_EBP, ISR_REG_ESP, ISR_REG_EBX, ISR_REG_EDX, ISR_REG_ECX, ISR_REG_EAX, ISR_REG_DS, ISR_ERRORCODE };
-#endif
-
-typedef void (*isr_t)(uint32_t i, uint32_t * state);
+typedef void (*isr_t)(uint32_t i, arch_trap_frame_t * state);
 
 
 void i386_set_idt( int i, void * p, uint16_t flags )
@@ -183,110 +205,110 @@ static void encodeGdtEntry( uint8_t * entry, void * pbase, uint32_t size, uint8_
 	entry[5] = type;
 }
 
-static void i386_unhandled(uint32_t num, uint32_t * state)
+static void i386_unhandled(uint32_t num, arch_trap_frame_t * state)
 {
 	kernel_panic("Unhandled exception: %d\n", num);
 }
 
-static void i386_de(uint32_t num, uint32_t * state)
+static void i386_de(uint32_t num, arch_trap_frame_t * state)
 {
 	i386_unhandled(num, state);
 }
 
-static void i386_db(uint32_t num, uint32_t * state)
+static void i386_db(uint32_t num, arch_trap_frame_t * state)
 {
 	i386_unhandled(num, state);
 }
 
-static void i386_nmi(uint32_t num, uint32_t * state)
+static void i386_nmi(uint32_t num, arch_trap_frame_t * state)
 {
 	i386_unhandled(num, state);
 }
 
-static void i386_bp(uint32_t num, uint32_t * state)
+static void i386_bp(uint32_t num, arch_trap_frame_t * state)
 {
 	i386_unhandled(num, state);
 }
 
-static void i386_of(uint32_t num, uint32_t * state)
+static void i386_of(uint32_t num, arch_trap_frame_t * state)
 {
 	i386_unhandled(num, state);
 }
 
-static void i386_br(uint32_t num, uint32_t * state)
+static void i386_br(uint32_t num, arch_trap_frame_t * state)
 {
 	i386_unhandled(num, state);
 }
 
-static void i386_ud(uint32_t num, uint32_t * state)
+static void i386_ud(uint32_t num, arch_trap_frame_t * state)
 {
 	i386_unhandled(num, state);
 }
 
-static void i386_nm(uint32_t num, uint32_t * state)
+static void i386_nm(uint32_t num, arch_trap_frame_t * state)
 {
 	i386_unhandled(num, state);
 }
 
-static void i386_df(uint32_t num, uint32_t * state)
+static void i386_df(uint32_t num, arch_trap_frame_t * state)
 {
 	i386_unhandled(num, state);
 }
 
-static void i386_ts(uint32_t num, uint32_t * state)
+static void i386_ts(uint32_t num, arch_trap_frame_t * state)
 {
 	i386_unhandled(num, state);
 }
 
-static void i386_np(uint32_t num, uint32_t * state)
+static void i386_np(uint32_t num, arch_trap_frame_t * state)
 {
 	i386_unhandled(num, state);
 }
 
-static void i386_ss(uint32_t num, uint32_t * state)
+static void i386_ss(uint32_t num, arch_trap_frame_t * state)
 {
 	i386_unhandled(num, state);
 }
 
-static void i386_gp(uint32_t num, uint32_t * state)
+static void i386_gp(uint32_t num, arch_trap_frame_t * state)
 {
 	i386_unhandled(num, state);
 }
 
-static void i386_pf(uint32_t num, uint32_t * state)
+static void i386_pf(uint32_t num, arch_trap_frame_t * state)
 {
 	void * cr2;
 
 	asm volatile("movl %%cr2, %0" : "=r"(cr2));
-	vm_page_fault(cr2, state[ISR_ERRORCODE] & 0x2, state[ISR_ERRORCODE] & 0x4, state[ISR_ERRORCODE] & 0x1);
+	vm_page_fault(cr2, state->errorcode & 0x2, state->errorcode & 0x4, state->errorcode & 0x1);
 }
 
-static void i386_mf(uint32_t num, uint32_t * state)
+static void i386_mf(uint32_t num, arch_trap_frame_t * state)
 {
 	i386_unhandled(num, state);
 }
 
-static void i386_ac(uint32_t num, uint32_t * state)
+static void i386_ac(uint32_t num, arch_trap_frame_t * state)
 {
 	i386_unhandled(num, state);
 }
 
-static void i386_mc(uint32_t num, uint32_t * state)
+static void i386_mc(uint32_t num, arch_trap_frame_t * state)
 {
 	i386_unhandled(num, state);
 }
 
-static void i386_xm(uint32_t num, uint32_t * state)
+static void i386_xm(uint32_t num, arch_trap_frame_t * state)
 {
 	i386_unhandled(num, state);
 }
 
-static void i386_ve(uint32_t num, uint32_t * state)
+static void i386_ve(uint32_t num, arch_trap_frame_t * state)
 {
 	i386_unhandled(num, state);
 }
 
-static void i386_sx(uint32_t num, uint32_t * state)
+static void i386_sx(uint32_t num, arch_trap_frame_t * state)
 {
 	i386_unhandled(num, state);
 }
@@ -295,7 +317,7 @@ static void i386_sx(uint32_t num, uint32_t * state)
 #include <stdarg.h>
 #include <stdint.h>
 #include <setjmp.h>
-typedef void (*irq_func)();
+typedef void (*irq_func)(int irq);
 #define ARCH_PAGE_ALIGN(p) ((void*)((uint32_t)(p) & (0xffffffff << ARCH_PAGE_SIZE_LOG2)))
 
 struct arch_context_t {
@@ -427,12 +449,12 @@ void arch_panic(const char * fmt, va_list ap)
 	}
 }
 
-static void unhandled_isr(uint32_t num, uint32_t * state)
+static void unhandled_isr(uint32_t num, arch_trap_frame_t * state)
 {
 	kernel_printk("UNHANDLED ISR %d\n", num);
 }
 
-void i386_isr(uint32_t num, uint32_t * state)
+void i386_isr(uint32_t num, arch_trap_frame_t * state)
 {
 	isr_t isr = itable[num] ? itable[num] : unhandled_isr;
 

@@ -12,10 +12,9 @@ typedef intptr_t reg_t;
 
 #endif
 
-void i386_syscall(uint32_t intr, uint32_t * state)
+void i386_syscall(uint32_t intr, arch_trap_frame_t * state)
 {
-	regs_e argreg=ISR_REG_EAX;
-	uint32_t sc = state[argreg];
+	const uint32_t sc = state->eax;
 	reg_t retval;
 
 	KTRY {
@@ -25,14 +24,14 @@ EOF
 
 output_syscall_args ()
 {
-	for r in ISR_REG_EBX ISR_REG_ECX ISR_REG_EDX ISR_REG_ESI ISR_REG_EDI
+	for r in ebx ecx edx esi edi
 	do
 		case "$1/x" in
 		/x)
 			return
 			;;
 		*)
-			printf "(%s)state[%s] " $1 $r
+			printf "(%s)state->%s " $1 $r
 			;;
 		esac
 		shift
@@ -72,7 +71,7 @@ output_footer () {
 		retval = -EINVAL;
 	}
 
-	state[ISR_REG_EAX] = retval;
+	state->eax = retval;
 }
 EOF
 }

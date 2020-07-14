@@ -85,20 +85,8 @@ static irq_func irq_table[] =  {
 };
 
 static volatile uint32_t irq_flag = 0;
-static void isa_irq(uint32_t num, uint32_t * state)
-{
-	int irq = num - PIC_IRQ_BASE;
 
-	irq_flag |= (1 << irq);
-
-	if (irq_table[irq]) {
-		irq_table[irq](irq);
-	}
-
-	PIC_eoi(irq);
-}
-
-void i386_irq(uint32_t num, uint32_t * state)
+void i386_irq(uint32_t num, arch_trap_frame_t * state)
 {
 	int irq = num - PIC_IRQ_BASE;
 
