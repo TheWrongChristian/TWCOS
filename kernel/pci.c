@@ -2,6 +2,12 @@
 
 #include "pci.h"
 
+#if INTERFACE
+
+typedef void (*pci_probe_callback)(uint8_t bus, uint8_t slot, uint8_t function);
+
+#endif
+
 static uint8_t pci_config_byte(uint8_t bus, uint8_t slot, uint8_t function, uint8_t offset)
 {
 	uint32_t reg = pci_config_read(bus, slot, function, offset & 0xfc);
@@ -90,10 +96,8 @@ uint8_t pci_secondary_bus(uint8_t bus, uint8_t slot, uint8_t function)
 	return pci_config_byte(bus, slot, function, 0x19);
 }
 
-void pci_probe_function(uint8_t bus, uint8_t device, uint8_t function)
+void pci_probe_print(uint8_t bus, uint8_t device, uint8_t function)
 {
-	uint8_t class = pci_class(bus, device, function);
-	uint8_t subclass = pci_subclass(bus, device, function);
 	uint8_t type = pci_headertype(bus, device, function) & 0x7f;
 
 	kernel_printk("PCI %d, %d, %d - %x:%x\n",
@@ -111,21 +115,29 @@ void pci_probe_function(uint8_t bus, uint8_t device, uint8_t function)
 			}
 		}
 	}
+}
+
+void pci_probe_function(pci_probe_callback cb, uint8_t bus, uint8_t device, uint8_t function)
+{
+	uint8_t class = pci_class(bus, device, function);
+	uint8_t subclass = pci_subclass(bus, device, function);
+
+	cb(bus, device, function);
 
 	if (0x6 == class && 0x4 == subclass) {
 		uint8_t bus2 = pci_secondary_bus(bus, device, function);
-		pci_scanbus(bus2);
+		pci_scanbus(cb, bus2);
 	}
 }
 
-void pci_probe_device(uint8_t bus, uint8_t device)
+void pci_probe_device(pci_probe_callback cb, uint8_t bus, uint8_t device)
 {
 
 	if (0xFFFF == pci_vendor(bus, device, 0)) {
 		return;
 	}
 
-	pci_probe_function(bus, device, 0);
+	pci_probe_function(cb, bus, device, 0);
 
 	if (pci_headertype(bus, device, 0) & 0x80) {
 		/* Multi-function device */
@@ -133,22 +145,22 @@ void pci_probe_device(uint8_t bus, uint8_t device)
 
 		for(i=1; i<8; i++) {
 			if (0xFFFF != pci_vendor(bus, device, i)) {
-				pci_probe_function(bus, device, i);
+				pci_probe_function(cb, bus, device, i);
 			}
 		}
 	}
 }
 
-void pci_scanbus(uint8_t bus)
+void pci_scanbus(pci_probe_callback cb, uint8_t bus)
 {
 	uint8_t device;
 
 	for(device=0; device<32; device++) {
-		pci_probe_device(bus, device);
+		pci_probe_device(cb, bus, device);
 	}
 }
 
-void pci_scan()
+void pci_scan(pci_probe_callback cb)
 {
 	if (0x80 & pci_headertype(0, 0, 0)) {
 		int function;
@@ -157,9 +169,9 @@ void pci_scan()
 			if (0xFFFF != pci_vendor(0, 0, function)) {
 				break;
 			}
-			pci_scanbus(function);
+			pci_scanbus(cb, function);
 		}
 	} else {
-		pci_scanbus(0);
+		pci_scanbus(cb, 0);
 	}
 }

@@ -160,7 +160,7 @@ void arch_init()
 	vm_kas_add(vm_segment_direct(code_start, data_start - code_start, SEGMENT_R | SEGMENT_X, code_page ));
 	vm_kas_add(vm_segment_direct(data_start, nextalloc - data_start, SEGMENT_R | SEGMENT_W, data_page ));
 	vm_kas_add(heap);
-	pci_scan();
+	pci_scan(pci_probe_print);
 
 	kernel_printk("Bootstrap end - %p\n", nextalloc);
 
