@@ -203,6 +203,7 @@ void console_initialize(multiboot_info_t * info)
 		size_t fbsize = sizeof(*console->buffer)*console->width*console->height;
 		console->buffer = vm_kas_get(fbsize);
 		segment_t * seg = vm_segment_anonymous(console->buffer, fbsize, SEGMENT_R | SEGMENT_W);
+		vm_kas_add(seg);
 
 		/* Initialise bitmap fb */
 		console->bitmapfb = fb;
