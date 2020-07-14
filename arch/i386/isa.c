@@ -15,6 +15,7 @@
 #define PIC_EOI		0x20
 
 #define PIC_IRQ_BASE	0x20
+#define PIC_HZ		1193182
 
  
 #define ICW1_ICW4	0x01		/* ICW4 (not) needed */
@@ -194,7 +195,7 @@ static void pit_timer_set(void (*expire)(), timerspec_t usec)
 {
 	SPIN_AUTOLOCK(pit_lock) {
 		pit_expire = expire;
-		ticks = 1193182 * usec / 1000000;
+		ticks = PIC_HZ * usec / 1000000;
 
 		pit_set();
 	}
@@ -215,7 +216,7 @@ static timerspec_t pit_timer_clear()
 		pit_expire = 0;
 	}
 
-	return remaining * 1000000 / 1193182;
+	return remaining * 1000000 / PIC_HZ;
 }
 
 timer_ops_t * arch_timer_ops()
