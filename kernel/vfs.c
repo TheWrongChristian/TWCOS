@@ -176,6 +176,26 @@ vnode_t * vnode_newdir(vnode_t * dir, const char * name)
 	return dir->fs->fsops->newdir(dir, name);
 }
 
+vnode_t * vnode_newdir_hierarchy(vnode_t * dir, const char * name)
+{
+	vnode_t * v = dir;
+
+        char ** names = path_split(name);
+	for(int i=0; names[i]; i++) {
+		if (*names[i]) {
+			vnode_t * next = vnode_get_vnode(v, names[i]);
+			if (next) {
+				v = next;
+			} else {
+				/* Missing - make new directory */
+				v = vnode_newdir(v, names[i]);
+			}
+		}
+	}
+
+	return v;
+}
+
 void vnode_close(vnode_t * vnode)
 {
 	vnode->fs->vnodeops->close(vnode);

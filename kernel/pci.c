@@ -96,6 +96,20 @@ uint8_t pci_secondary_bus(uint8_t bus, uint8_t slot, uint8_t function)
 	return pci_config_byte(bus, slot, function, 0x19);
 }
 
+
+void pci_probe_devfs(uint8_t bus, uint8_t device, uint8_t function)
+{
+	static GCROOT vnode_t * devfs = 0;
+
+	if (0==devfs) {
+		devfs = devfs_open();
+	}
+
+	char path[256];
+	snprintf(path, countof(path), "bus/pci/%x/%x/%x", bus, device, function);
+	vnode_newdir_hierarchy(devfs, path);
+}
+
 void pci_probe_print(uint8_t bus, uint8_t device, uint8_t function)
 {
 	uint8_t type = pci_headertype(bus, device, function) & 0x7f;

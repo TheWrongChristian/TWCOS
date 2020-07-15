@@ -53,7 +53,7 @@ void kernel_main() {
 		page_cache_init();
 		process_init();
 		timer_init(arch_timer_ops());
-		pci_scan(pci_probe_print);
+		pci_scan(pci_probe_devfs);
 		cache_test();
 		utf8_test();
 #if 0
