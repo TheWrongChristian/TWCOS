@@ -1,8 +1,8 @@
-#include <stdint.h>
-
 #include "pci.h"
 
 #if INTERFACE
+
+#include <stdint.h>
 
 typedef void (*pci_probe_callback)(uint8_t bus, uint8_t slot, uint8_t function);
 
@@ -89,6 +89,16 @@ uint8_t pci_class(uint8_t bus, uint8_t slot, uint8_t function)
 uint8_t pci_subclass(uint8_t bus, uint8_t slot, uint8_t function)
 {
         return pci_config_byte(bus, slot, function, 0xa);
+}
+
+uint8_t pci_progif(uint8_t bus, uint8_t slot, uint8_t function)
+{
+        return pci_config_byte(bus, slot, function, 0x9);
+}
+
+uint8_t pci_irq(uint8_t bus, uint8_t slot, uint8_t function)
+{
+        return pci_config_byte(bus, slot, function, 0x3c);
 }
 
 uint8_t pci_secondary_bus(uint8_t bus, uint8_t slot, uint8_t function)
