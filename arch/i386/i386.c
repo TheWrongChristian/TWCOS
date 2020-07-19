@@ -1,10 +1,10 @@
+#include "i386.h"
+
+#if INTERFACE
 #include <stdint.h>
 #include <stdarg.h>
 #include <stddef.h>
 
-#include "i386.h"
-
-#if INTERFACE
 struct arch_trap_frame_t
 {
 	reg_t edi;
