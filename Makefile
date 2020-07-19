@@ -62,7 +62,7 @@ clean::
 	echo symbol-file $(KERNEL) | tee -a .gdbinit
 	echo break kernel_main | tee -a .gdbinit
 
-QEMU_OPTS=-d cpu_reset,guest_errors -serial stdio
+QEMU_OPTS=-d cpu_reset,guest_errors -serial stdio -hda $(TEST_FAT)
 QEMU_MEM=12m
 qemu: all .gdbinit
 	$(QEMU) $(QEMU_OPTS) -m $(QEMU_MEM) -s -S -kernel $(KERNEL) -initrd $(INITRD_TAR)
@@ -71,13 +71,13 @@ run: all
 	$(QEMU) $(QEMU_OPTS) -m $(QEMU_MEM) -s -kernel $(KERNEL) -initrd $(INITRD_TAR)
 
 system: all
-	$(QEMU) $(QEMU_OPTS) -m $(QEMU_MEM) -s -cdrom boot.iso
+	$(QEMU) $(QEMU_OPTS) -m $(QEMU_MEM) -s -cdrom boot.iso -boot d
 
 system-qemu: all
-	$(QEMU) $(QEMU_OPTS) -m $(QEMU_MEM) -s -S -cdrom boot.iso
+	$(QEMU) $(QEMU_OPTS) -m $(QEMU_MEM) -s -S -cdrom boot.iso -boot d
 
 system-kvm: all
-	$(QEMU) $(QEMU_OPTS) -m $(QEMU_MEM) -s -cdrom boot.iso
+	$(QEMU) $(QEMU_OPTS) -m $(QEMU_MEM) -s -cdrom boot.iso -boot d
 
 run-kvmoverhead: all
 	$(QEMU) $(QEMU_OPTS) -m $(QEMU_MEM) -kernel $(KERNEL) -initrd $(INITRD_TAR) &
