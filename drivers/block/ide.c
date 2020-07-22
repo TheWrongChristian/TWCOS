@@ -91,35 +91,38 @@
 #define      ATA_READ      0x00
 #define      ATA_WRITE     0x01
 
+#define	IDE_SECTORSIZE_LOG2 9
+#define	IDE_SECTORSIZE (1<<IDE_SECTORSIZE_LOG2)
+
 
 typedef struct idechannel_t idechannel_t;
 typedef struct idedevice_t idedevice_t;
 typedef struct idecontroller_t idecontroller_t;
 
 #endif
-struct idechannel_t {
-	unsigned short base;  /* I/O Base. */
-	unsigned short ctrl;  /* Control Base */
-	unsigned short bmide; /* Bus Master IDE */
-	unsigned char  nIEN;  /* nIEN (No Interrupt); */
-};
-
 struct idedevice_t {
 	dev_t dev;
 	idechannel_t * channel;
-	unsigned char  drive;       /* 0 (Master Drive) or 1 (Slave Drive). */
-	unsigned short type;        /* 0: ATA, 1:ATAPI. */
-	unsigned short signature;   /* Drive Signature */
-	unsigned short capabilities;/* Features. */
-	unsigned int   commandSets; /* Command Sets Supported. */
-	unsigned int   size;        /* Size in Sectors. */
-	unsigned char  model[41];   /* Model in string. */
+	int drive;       /* 0 (Master Drive) or 1 (Slave Drive). */
+	int type;        /* 0: ATA, 1:ATAPI. */
+	unsigned signature;   /* Drive Signature */
+	unsigned capabilities;/* Features. */
+	unsigned commandSets; /* Command Sets Supported. */
+	off64_t size;        /* Size in Sectors. */
+	char model[41];   /* Model in string. */
+};
+
+struct idechannel_t {
+	int base;  /* I/O Base. */
+	int ctrl;  /* Control Base */
+	int bmide; /* Bus Master IDE */
+	int polling;  /* polling (No Interrupt); */
+
+	idedevice_t devices[2];
 };
 
 struct idecontroller_t {
 	idechannel_t channels[2];
-
-	idedevice_t devices[4];
 };
 
 monitor_t idelock[1];
@@ -131,6 +134,78 @@ void ide_intr(int irq)
 	}
 }
 
+void ide_reset(idechannel_t * channel)
+{
+	ide_write(channel, ATA_REG_CONTROL, 4);
+	timer_sleep(5);
+	ide_write(channel, ATA_REG_CONTROL, 0);
+}
+
+static unsigned ide_field_get(const uint8_t * buf, size_t bufsize, int offset, size_t size)
+{
+	unsigned retval=0;
+
+	check_int_bounds(offset, 0, bufsize-size, "Read beyond end of buffer");
+	for(int i=0; i<size; i++) {
+		retval |= buf[offset+i] << 8*i;
+	}
+
+	return retval;
+}
+
+
+static void ide_disk_submit( dev_t * dev, buf_op_t * op )
+{
+	idedevice_t * device = container_of(dev, idedevice_t, dev);
+	off64_t sector = op->offset >> IDE_SECTORSIZE_LOG2;
+
+	if (op->write) {
+		ide_drive_write_sector(device->channel, device->drive, sector, op->p, op->size);
+	} else {
+		ide_drive_read_sector(device->channel, device->drive, sector, op->p, op->size);
+	}
+	op->status = DEV_BUF_OP_COMPLETE;
+}
+
+void ide_probe_channel(idechannel_t * channel)
+{
+	static uint8_t buf[IDE_SECTORSIZE];
+	char devfsname[64];
+	snprintf(devfsname, sizeof(devfsname), "disk/ide/%x", channel->base);
+	vnode_t * devfs = devfs_open();
+	for(int i=0; i<2; i++) {
+		idedevice_t * device = channel->devices+i;
+	
+		device->channel = channel;	
+		ide_address(channel, i, 0, 0);
+		uint8_t status = ide_wait(channel);
+		if (0==status) {
+			/* No drive */
+			memset(device, 0, sizeof(*device));
+		} else if (status & (ATA_SR_DRDY|ATA_SR_DRQ)) {
+			ide_drive_identify(channel, i, buf, countof(buf));
+			/* Check for ATAPI device */
+			status = ide_wait(channel);
+			if (0x14 == ide_read(channel, ATA_REG_LBA1) && 0xEB == ide_read(channel, ATA_REG_LBA2)) {
+				static dev_ops_t ide_atapi_ops;
+				/* ATAPI device */
+				device->type = IDE_ATAPI;
+				device->dev.ops = &ide_atapi_ops;
+			} else {
+				static dev_ops_t ide_disk_ops = { .submit = ide_disk_submit };
+				device->size = ide_field_get(buf, sizeof(buf), ATA_IDENT_MAX_LBA, 4);
+				device->type = IDE_ATA;
+				device->dev.ops = &ide_disk_ops;
+			}
+			vnode_t * vnode = dev_vnode(&device->dev);
+			vnode_t * dir = vnode_newdir_hierarchy(devfs, devfsname);
+			vnode_put_vnode(dir, i ? "slave" : "master", vnode);
+		} else {
+			/* Some error */
+		}
+	}
+}
+
 idecontroller_t * ide_initialize(uintptr_t bar0, uintptr_t bar1, uintptr_t bar2, uintptr_t bar3, uintptr_t bar4)
 {
 	idecontroller_t * ide = calloc(1, sizeof(*ide));
@@ -138,23 +213,27 @@ idecontroller_t * ide_initialize(uintptr_t bar0, uintptr_t bar1, uintptr_t bar2,
 	// 1- Detect I/O Ports which interface IDE Controller:
 	ide->channels[ATA_PRIMARY  ].base  = (bar0 & 0xFFFFFFFC) + 0x1F0 * (!bar0);
 	ide->channels[ATA_PRIMARY  ].ctrl  = (bar1 & 0xFFFFFFFC) + 0x3F6 * (!bar1);
+	ide->channels[ATA_PRIMARY  ].polling = 1;
 	ide->channels[ATA_SECONDARY].base  = (bar2 & 0xFFFFFFFC) + 0x170 * (!bar2);
 	ide->channels[ATA_SECONDARY].ctrl  = (bar3 & 0xFFFFFFFC) + 0x376 * (!bar3);
+	ide->channels[ATA_SECONDARY].polling = 1;
 	ide->channels[ATA_PRIMARY  ].bmide = (bar4 & 0xFFFFFFFC) + 0; // Bus Master IDE
 	ide->channels[ATA_SECONDARY].bmide = (bar4 & 0xFFFFFFFC) + 8; // Bus Master IDE
 
 	add_irq(14, ide_intr);
 	add_irq(15, ide_intr);
 
+	ide_reset(ide->channels);
+	ide_probe_channel(ide->channels);
+
+	ide_reset(ide->channels+1);
+	ide_probe_channel(ide->channels+1);
+
 	return ide;
 }
 
 uint8_t ide_read(idechannel_t * channel, int reg)
 {
-	if (reg > ATA_REG_COMMAND && reg < ATA_REG_ALTSTATUS) {
-		ide_write(channel, ATA_REG_CONTROL, 0x80 | channel->nIEN);
-	}
-
 	uint8_t result;
 	switch(reg) {
 	case ATA_REG_ERROR:
@@ -180,18 +259,11 @@ uint8_t ide_read(idechannel_t * channel, int reg)
 		break;
 	}
 
-	if (reg > ATA_REG_COMMAND && reg < ATA_REG_ALTSTATUS) {
-		ide_write(channel, ATA_REG_CONTROL, channel->nIEN);
-	} 
 	return result;
 }
 
 void ide_write(idechannel_t * channel, int reg, uint8_t value)
 {
-	if (reg > ATA_REG_COMMAND && reg < ATA_REG_ALTSTATUS) {
-		ide_write(channel, ATA_REG_CONTROL, 0x80 | channel->nIEN);
-	} 
-
 	switch(reg) {
 	case ATA_REG_DATA:
 	case ATA_REG_FEATURES:
@@ -213,10 +285,6 @@ void ide_write(idechannel_t * channel, int reg, uint8_t value)
 		outb(channel->ctrl+reg-6, value);
 		break;
 	}
-
-	if (reg > ATA_REG_COMMAND && reg < ATA_REG_ALTSTATUS) {
-		ide_write(channel, ATA_REG_CONTROL, channel->nIEN);
-	} 
 }
 
 void ide_write_pio(idechannel_t * channel, void * buf, size_t bufsize)
@@ -243,6 +311,12 @@ void ide_read_pio(idechannel_t * channel, void * buf, size_t bufsize)
 void ide_address(idechannel_t * channel, int slave, off64_t lba, size_t count)
 {
 	if (lba >= 1<<28) {
+		// Select drive
+		if (slave) {
+			ide_write(channel, ATA_REG_HDDEVSEL, 0xf0);
+		} else {
+			ide_write(channel, ATA_REG_HDDEVSEL, 0xe0);
+		}
 		// LBA48 mode
 		ide_write(channel, ATA_REG_SECCOUNT1, BYTE(count, 1));
 		ide_write(channel, ATA_REG_LBA3, BYTE(lba, 3));
@@ -252,23 +326,18 @@ void ide_address(idechannel_t * channel, int slave, off64_t lba, size_t count)
 		ide_write(channel, ATA_REG_LBA0, BYTE(lba, 0));
 		ide_write(channel, ATA_REG_LBA1, BYTE(lba, 1));
 		ide_write(channel, ATA_REG_LBA2, BYTE(lba, 2));
-		// Select drive
-		if (slave) {
-			ide_write(channel, ATA_REG_HDDEVSEL, 0xf0);
-		} else {
-			ide_write(channel, ATA_REG_HDDEVSEL, 0xe0);
-		}
 	} else {
-		ide_write(channel, ATA_REG_LBA0, BYTE(lba, 0));
-		ide_write(channel, ATA_REG_LBA1, BYTE(lba, 1));
-		ide_write(channel, ATA_REG_LBA2, BYTE(lba, 2));
-
 		// Select drive, and any remaining LBA bits in LBA28 mode
 		if (slave) {
 			ide_write(channel, ATA_REG_HDDEVSEL, 0xf0 | BYTE(lba, 3));
 		} else {
 			ide_write(channel, ATA_REG_HDDEVSEL, 0xe0 | BYTE(lba, 3));
 		}
+
+		ide_write(channel, ATA_REG_SECCOUNT0, BYTE(count, 0));
+		ide_write(channel, ATA_REG_LBA0, BYTE(lba, 0));
+		ide_write(channel, ATA_REG_LBA1, BYTE(lba, 1));
+		ide_write(channel, ATA_REG_LBA2, BYTE(lba, 2));
 	}
 }
 
@@ -280,39 +349,86 @@ void ide_delay400(idechannel_t * channel)
 	ide_read(channel, ATA_REG_ALTSTATUS);
 }
 
-void ide_wait(idechannel_t * channel)
+uint8_t ide_wait(idechannel_t * channel)
 {
+	uint8_t status = 0;
+#if 0
 	MONITOR_AUTOLOCK(idelock) {
-		uint8_t status;
 		do {
 			status = ide_read(channel, ATA_REG_ALTSTATUS);
 			if (status & 0x80) {
-				monitor_wait(idelock);
+				if (channel->polling) {
+					thread_yield();
+				} else {
+					monitor_wait(idelock);
+				}
 			}
 		} while(status & 0x80);
 	}
+#else
+	if ( 1 || channel->polling) {
+		do {
+			int sleeptime=100;
+			status = ide_read(channel, ATA_REG_STATUS);
+			if (status & 0x80) {
+				timer_sleep(sleeptime);
+				if (sleeptime<1000) {
+					sleeptime += (sleeptime/2);
+				}
+			}
+		} while(status & 0x80);
+	} else {
+	}
+#endif
+	return status;
 }
 
-void ide_drive_identify(idechannel_t * channel, int slave)
+void ide_command(idechannel_t * channel, uint8_t command)
 {
-	uint8_t buf[256];
-
-	ide_address(channel, slave, 0, 256);
-	ide_wait(channel);
-	ide_write(channel, ATA_REG_COMMAND, ATA_CMD_IDENTIFY);
+	ide_write(channel, ATA_REG_CONTROL, channel->polling ? 2 : 0);
 	ide_delay400(channel);
-	ide_wait(channel);
-	ide_read_pio(channel, buf, countof(buf));
+	ide_write(channel, ATA_REG_COMMAND, command);
+	uint8_t status = ide_wait(channel);
+}
+
+void ide_drive_identify(idechannel_t * channel, int slave, uint8_t * buf, size_t bufsize)
+{
+	ide_address(channel, slave, 0, 0);
+	ide_command(channel, ATA_CMD_IDENTIFY);
+	assert(IDE_SECTORSIZE<=bufsize);
+	ide_read_pio(channel, buf, bufsize);
+}
+
+void ide_drive_write_sector(idechannel_t * channel, int slave, off64_t lba, void * buf, size_t bufsize)
+{
+	size_t count = bufsize >> IDE_SECTORSIZE_LOG2;
+	char * p = buf;
+	for(int i=0; i<count; i++) {
+		ide_address(channel, slave, lba+i, 1);
+		if (lba < 1<<28) {
+			ide_command(channel, ATA_CMD_WRITE_PIO);
+		} else {
+			ide_command(channel, ATA_CMD_WRITE_PIO_EXT);
+		}
+		ide_write_pio(channel, p, IDE_SECTORSIZE);
+		p += IDE_SECTORSIZE;
+	}
 }
 
 void ide_drive_read_sector(idechannel_t * channel, int slave, off64_t lba, void * buf, size_t bufsize)
 {
-	ide_address(channel, slave, lba, 1);
-	ide_wait(channel);
-	ide_write(channel, ATA_REG_COMMAND, ATA_CMD_READ_PIO);
-	ide_delay400(channel);
-	ide_wait(channel);
-	ide_read_pio(channel, buf, bufsize);
+	size_t count = bufsize >> IDE_SECTORSIZE_LOG2;
+	char * p = buf;
+	for(int i=0; i<count; i++) {
+		ide_address(channel, slave, lba+i, 1);
+		if (lba < 1<<28) {
+			ide_command(channel, ATA_CMD_READ_PIO);
+		} else {
+			ide_command(channel, ATA_CMD_READ_PIO_EXT);
+		}
+		ide_read_pio(channel, p, IDE_SECTORSIZE);
+		p += IDE_SECTORSIZE;
+	}
 }
 
 void ide_probe(uint8_t bus, uint8_t slot, uint8_t function)
@@ -334,10 +450,13 @@ void ide_probe(uint8_t bus, uint8_t slot, uint8_t function)
 		uintptr_t bar4 = pci_bar_base(bus, slot, function, 4);
 
 		idecontroller_t * ide = ide_initialize(bar0, bar1, bar2, bar3, bar4);
-
-		static uint8_t buf[512];
-		ide_drive_identify(ide->channels, 0);
+#if 0
+		static uint8_t buf[IDE_SECTORSIZE];
+		memset(buf, 0x1, sizeof(buf));
+		ide_drive_identify(ide->channels, 0, buf, countof(buf));
+		memset(buf, 0x2, sizeof(buf));
 		ide_drive_read_sector(ide->channels, 0, 0, buf, countof(buf));
+#endif
 	}
 }
 
