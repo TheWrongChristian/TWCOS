@@ -593,7 +593,7 @@ int arch_atomic_postinc(int * p)
 	return i;
 }
 
-int arch_spin_trylock(int * p)
+int arch_spin_trylock(spin_t * p)
 {
 	cli();
 	if (*p) {
@@ -604,7 +604,7 @@ int arch_spin_trylock(int * p)
 	return *p;
 }
 
-void arch_spin_lock(int * p)
+void arch_spin_lock(spin_t * p)
 {
 	while(1) {
 		if (arch_spin_trylock(p)) {
@@ -613,7 +613,7 @@ void arch_spin_lock(int * p)
 	}
 }
 
-void arch_spin_unlock(int * p)
+void arch_spin_unlock(spin_t * p)
 {
 	*p = 0;
 	sti();

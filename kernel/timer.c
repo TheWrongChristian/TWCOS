@@ -188,21 +188,16 @@ timerspec_t timer_uptime()
 
 struct sleepvar {
 	volatile int done;
-	thread_t * waiting;
-	int lock[1];
+	interrupt_monitor_t lock[1];
 };
 
 static void timer_sleep_cb(void * p)
 {
 	struct sleepvar * sleep = p;
 
-	assert(sleep->waiting);
-
-	SPIN_AUTOLOCK(sleep->lock) {
+	INTERRUPT_MONITOR_AUTOLOCK(sleep->lock) {
 		sleep->done = 1;
-		thread_t * resume = sleep->waiting;
-		LIST_DELETE(sleep->waiting, resume);
-		thread_resume(resume);
+		interrupt_monitor_broadcast(sleep->lock);
 	}
 }
 
@@ -210,13 +205,10 @@ void timer_sleep(timerspec_t usec)
 {
 	struct sleepvar sleep[1] = {{0}};
 
-	SPIN_AUTOLOCK(sleep->lock) {
+	INTERRUPT_MONITOR_AUTOLOCK(sleep->lock) {
 		timer_add(usec, timer_sleep_cb, sleep);
-		sleep->waiting = thread_queue(sleep->waiting, NULL, THREAD_SLEEPING);
 		while(!sleep->done) {
-			spin_unlock(sleep->lock);
-			thread_schedule();
-			spin_lock(sleep->lock);
+			interrupt_monitor_wait(sleep->lock);
 		}
 	}
 }

@@ -125,12 +125,12 @@ struct idecontroller_t {
 	idechannel_t channels[2];
 };
 
-monitor_t idelock[1];
+interrupt_monitor_t idelock[1];
 
 void ide_intr(int irq)
 {
-	MONITOR_AUTOLOCK(idelock) {
-		monitor_broadcast(idelock);
+	INTERRUPT_MONITOR_AUTOLOCK(idelock) {
+		interrupt_monitor_broadcast(idelock);
 	}
 }
 
@@ -213,10 +213,10 @@ idecontroller_t * ide_initialize(uintptr_t bar0, uintptr_t bar1, uintptr_t bar2,
 	// 1- Detect I/O Ports which interface IDE Controller:
 	ide->channels[ATA_PRIMARY  ].base  = (bar0 & 0xFFFFFFFC) + 0x1F0 * (!bar0);
 	ide->channels[ATA_PRIMARY  ].ctrl  = (bar1 & 0xFFFFFFFC) + 0x3F6 * (!bar1);
-	ide->channels[ATA_PRIMARY  ].polling = 1;
+	ide->channels[ATA_PRIMARY  ].polling = 0;
 	ide->channels[ATA_SECONDARY].base  = (bar2 & 0xFFFFFFFC) + 0x170 * (!bar2);
 	ide->channels[ATA_SECONDARY].ctrl  = (bar3 & 0xFFFFFFFC) + 0x376 * (!bar3);
-	ide->channels[ATA_SECONDARY].polling = 1;
+	ide->channels[ATA_SECONDARY].polling = 0;
 	ide->channels[ATA_PRIMARY  ].bmide = (bar4 & 0xFFFFFFFC) + 0; // Bus Master IDE
 	ide->channels[ATA_SECONDARY].bmide = (bar4 & 0xFFFFFFFC) + 8; // Bus Master IDE
 
@@ -352,15 +352,15 @@ void ide_delay400(idechannel_t * channel)
 uint8_t ide_wait(idechannel_t * channel)
 {
 	uint8_t status = 0;
-#if 0
-	MONITOR_AUTOLOCK(idelock) {
+#if 1
+	INTERRUPT_MONITOR_AUTOLOCK(idelock) {
 		do {
 			status = ide_read(channel, ATA_REG_ALTSTATUS);
 			if (status & 0x80) {
 				if (channel->polling) {
 					thread_yield();
 				} else {
-					monitor_wait(idelock);
+					interrupt_monitor_wait(idelock);
 				}
 			}
 		} while(status & 0x80);
