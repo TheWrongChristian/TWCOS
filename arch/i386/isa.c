@@ -224,6 +224,16 @@ void arch_idle()
 	hlt();
 }
 
+uint16_t isa_inw(uint16_t port)
+{
+	return inw(port);
+}
+
+void isa_outw(uint16_t port, uint16_t data)
+{
+	outw(port, data);
+}
+
 uint8_t isa_inb(uint16_t port)
 {
 	return inb(port);

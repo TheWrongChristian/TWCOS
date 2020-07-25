@@ -685,7 +685,7 @@ segment_t * vm_segment_copy(segment_t * from, int private)
 	return seg;
 }
 
-vmpage_t * vm_page_steal(void * p)
+vmpage_t * vm_page_steal(const void * p)
 {
 	address_info_t info[1];
 

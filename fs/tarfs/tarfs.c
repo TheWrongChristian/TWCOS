@@ -165,30 +165,19 @@ static void tarfs_add_node( vnode_t * root, const char * fullname, vnode_t * vno
 	}
 
 	vnode_t * v = root;
-
-	char ** names = path_split(fullname);
-	char * file = NULL;
+	const char * file;
+	const char * dir;
 
 	if (vnode) {
-		for(int i=0; names[i]; i++) {
-			file = names[i];
-		}
+		dir = dirname(tstrdup(fullname));
+		file = basename(tstrdup(fullname));
+	} else {
+		dir = fullname;
+		file = 0;
 	}
 
-
-	for(int i=0; names[i] && file != names[i]; i++) {
-		if (*names[i]) {
-			vnode_t * next = vnode_get_vnode(v, names[i]);
-			if (next) {
-				v = next;
-			} else {
-				/* Missing - make new directory */
-				v = vnode_newdir(v, names[i]);
-			}
-		}
-	}
-
-	if (file && vnode) {
+	v = vnode_newdir_hierarchy(v, dir);
+	if (file && v) {
 		vnode_put_vnode(v, file, vnode);
 	}
 }

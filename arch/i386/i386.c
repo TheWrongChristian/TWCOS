@@ -1,10 +1,10 @@
+#include "i386.h"
+
+#if INTERFACE
 #include <stdint.h>
 #include <stdarg.h>
 #include <stddef.h>
 
-#include "i386.h"
-
-#if INTERFACE
 struct arch_trap_frame_t
 {
 	reg_t edi;
@@ -425,7 +425,7 @@ void i386_init()
 	initial.priority = THREAD_NORMAL;
 	initial.state = THREAD_RUNNING;
 
-	PIC_remap(PIC_IRQ_BASE, PIC_IRQ_BASE+16);
+	PIC_remap(PIC_IRQ_BASE, PIC_IRQ_BASE+8);
 }
 
 void arch_thread_init(thread_t * thread)
@@ -593,7 +593,7 @@ int arch_atomic_postinc(int * p)
 	return i;
 }
 
-int arch_spin_trylock(int * p)
+int arch_spin_trylock(spin_t * p)
 {
 	cli();
 	if (*p) {
@@ -604,7 +604,7 @@ int arch_spin_trylock(int * p)
 	return *p;
 }
 
-void arch_spin_lock(int * p)
+void arch_spin_lock(spin_t * p)
 {
 	while(1) {
 		if (arch_spin_trylock(p)) {
@@ -613,7 +613,7 @@ void arch_spin_lock(int * p)
 	}
 }
 
-void arch_spin_unlock(int * p)
+void arch_spin_unlock(spin_t * p)
 {
 	*p = 0;
 	sti();

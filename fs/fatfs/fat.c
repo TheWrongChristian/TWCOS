@@ -280,7 +280,7 @@ static void fatfs_put_page(vnode_t * vnode, off64_t offset, vmpage_t * vmpage)
 {
 	fatfsnode_t * node = container_of(vnode, fatfsnode_t, vnode);
 	fatfs_t * fatfs = container_of(vnode->fs, fatfs_t, fs);
-	int writemax = node->size - offset;
+	int writemax = ROUNDUP(node->size - offset, DEFAULT_SECTOR_SIZE);
 	if (writemax > ARCH_PAGE_SIZE) {
 		writemax = ARCH_PAGE_SIZE;
 	}
@@ -315,7 +315,7 @@ static vmpage_t * fatfs_get_page(vnode_t * vnode, off64_t offset)
 {
 	fatfsnode_t * node = container_of(vnode, fatfsnode_t, vnode);
 	fatfs_t * fatfs = container_of(vnode->fs, fatfs_t, fs);
-	int readmax = node->size - offset;
+	int readmax = ROUNDUP(node->size - offset, DEFAULT_SECTOR_SIZE);
 	if (readmax > ARCH_PAGE_SIZE) {
 		readmax = ARCH_PAGE_SIZE;
 	}
@@ -605,7 +605,7 @@ static int fatfs_getdents(vnode_t * dir, off64_t offset, struct dirent * buf, si
 	return info.next - info.buf;
 }
 
-vnode_t * fatfs_open(dev_t * dev)
+vnode_t * fatfs_open(vnode_t * dev)
 {
 	static vnode_ops_t vnops = {
 		get_page: fatfs_get_page,
@@ -619,7 +619,7 @@ vnode_t * fatfs_open(dev_t * dev)
 	};
 
 	fatfs_t * fatfs = calloc(1, sizeof(*fatfs));
-	fatfs->device = dev_vnode(dev);
+	fatfs->device = dev;
 	fatfs->arena = arena_get();
 	fatfs->fs.vnodeops = &vnops;
         fatfs->fs.fsops = &ops;
@@ -678,7 +678,7 @@ vnode_t * fatfs_open(dev_t * dev)
 	}
 }
 
-void fatfs_test(dev_t * dev)
+void fatfs_test(vnode_t * dev)
 {
 	vnode_t * dir = fatfs_open(dev);
 	vnode_t * file = vnode_get_vnode(dir, "FAT.C");

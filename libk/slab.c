@@ -182,10 +182,9 @@ static void debug_checkbuf(void * p, size_t l)
 #define SLAB_SLOT(slab, slot) ((slab_slot_t*)(slab->data + slab->type->slotsize*slot))
 #define SLAB_SLOT_USER(slab, slot) (SLAB_SLOT(slab, slot)+1)
 
-#if 0
-#define SLAB_SLOT_NUM(slab, p) ((((slab_slot_t*)p)-slab->data) / slab->type->slotsize)
-#endif
-
+#if 1
+#define SLAB_SLOT_NUM(slab, p) ((((char*)p)-slab->data) / slab->type->slotsize)
+#else
 static int SLAB_SLOT_NUM(slab_t * slab, void * p)
 {
 	char * user = p;
@@ -194,6 +193,7 @@ static int SLAB_SLOT_NUM(slab_t * slab, void * p)
 	assert(slot<slab->type->count);
 	return slot;
 }
+#endif
 
 
 void * slab_alloc_p(slab_type_t * stype)
@@ -336,6 +336,10 @@ void slab_gc_mark(void * root)
 	if (slab) {
 		/* Entry within the slab */
 		int slot = SLAB_SLOT_NUM(slab, root);
+		if (slot>=slab->type->count) {
+			/* Not a valid pointer - don't mark */
+			return;
+		}
 		assert(slot<slab->type->count);
 
 		/* Adjust root to point to the start of the slab slot */
@@ -352,15 +356,6 @@ void slab_gc_mark(void * root)
 			} else {
 				/* Generic mark */
 				slab_gc_mark_block(root, slab->type->esize);
-#if 0
-				struct gccontext * new = arena_calloc(gcarena, sizeof(*new));
-				new->state = arena_getstate(gcarena);
-				new->from = root;
-				new->to = new->from + slab->type->esize/sizeof(*new->to);
-				new->prev = context;
-				context = new;
-				gclevel++;
-#endif
 			}
 		}
 	}

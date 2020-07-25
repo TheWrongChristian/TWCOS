@@ -57,7 +57,7 @@ struct console_framebuffer
 	framebuffer_t * bitmapfb;
 } console[1];
 
-static GCROOT monitor_t * keyq_lock;
+static GCROOT interrupt_monitor_t * keyq_lock;
 static uint8_t keyq [256];
 #define keyq_ptr(i) ((i)%sizeof(keyq))
 static int keyhead;
@@ -114,12 +114,12 @@ static void keyb_isr()
 	const uint8_t scancode = inb(0x60);
 	int head = keyhead;
 
-	MONITOR_AUTOLOCK(keyq_lock) {
+	INTERRUPT_MONITOR_AUTOLOCK(keyq_lock) {
 		if (keyq_ptr(head+1) != keyq_ptr(keytail)) {
 			keyq[keyq_ptr(head++)] = scancode;
 		}
 		keyhead = head;
-		monitor_broadcast(keyq_lock);
+		interrupt_monitor_broadcast(keyq_lock);
 	}
 }
 
@@ -131,21 +131,20 @@ int keyq_empty()
 {
 	int empty = 0;
 
-	MONITOR_AUTOLOCK(keyq_lock) {
+	INTERRUPT_MONITOR_AUTOLOCK(keyq_lock) {
 		empty = (keyhead == keytail);
 	}
 
 	return empty;
 }
 
-uint8_t keyq_get()
+/* Must hold keyq_lock */
+static uint8_t keyq_get()
 {
 	uint8_t scancode = 0;
 
-	MONITOR_AUTOLOCK(keyq_lock) {
-		if (keyq_ptr(keyhead) != keyq_ptr(keytail)) {
-			scancode = keyq[keyq_ptr(keytail++)];
-		}
+	if (keyq_ptr(keyhead) != keyq_ptr(keytail)) {
+		scancode = keyq[keyq_ptr(keytail++)];
 	}
 
 	return scancode;
@@ -164,7 +163,7 @@ void console_input(int key)
 void keyb_thread()
 {
 	while(1) {
-		MONITOR_AUTOLOCK(keyq_lock) {
+		INTERRUPT_MONITOR_AUTOLOCK(keyq_lock) {
 			const uint8_t scancode = keyq_get();
 
 			if (scancode) {
@@ -177,7 +176,7 @@ void keyb_thread()
 					console_input(key);
 				}
 			} else {
-				monitor_wait(keyq_lock);
+				interrupt_monitor_wait(keyq_lock);
 			}
 		}
 	}

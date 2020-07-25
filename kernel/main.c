@@ -53,6 +53,8 @@ void kernel_main() {
 		page_cache_init();
 		process_init();
 		timer_init(arch_timer_ops());
+		pci_scan(pci_probe_devfs);
+		ide_pciscan();
 		cache_test();
 		utf8_test();
 #if 0
@@ -89,10 +91,10 @@ void kernel_main() {
 		bitarray_test();
 		vnode_t * devfsroot = devfs_open();
 		vnode_t * input = vnode_get_vnode(devfsroot, "input");
-#endif
 		if (modules[1]) {
 			fatfs_test(dev_static(modules[1], modulesizes[1]));
 		}
+#endif
 		if (initrd) {
 			process_t * p = process_get();
 			p->root = p->cwd = tarfs_open(dev_static(initrd, initrdsize));
@@ -102,6 +104,11 @@ void kernel_main() {
 			if (devfs) {
 				vfs_mount(devfs, devfs_open());
 			}
+		}
+
+		vnode_t * hda = file_namev("/devfs/disk/ide/1f0/master");
+		if (hda) {
+			fatfs_test(hda);
 		}
 
 		/* Create process 1 - init */
