@@ -364,6 +364,7 @@ uint8_t ide_wait(idechannel_t * channel)
 				}
 			}
 		} while(status & 0x80);
+		status = ide_read(channel, ATA_REG_STATUS);
 	}
 #else
 	if ( 1 || channel->polling) {

@@ -425,7 +425,7 @@ void i386_init()
 	initial.priority = THREAD_NORMAL;
 	initial.state = THREAD_RUNNING;
 
-	PIC_remap(PIC_IRQ_BASE, PIC_IRQ_BASE+16);
+	PIC_remap(PIC_IRQ_BASE, PIC_IRQ_BASE+8);
 }
 
 void arch_thread_init(thread_t * thread)
