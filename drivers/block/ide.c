@@ -243,17 +243,17 @@ uint8_t ide_read(idechannel_t * channel, int reg)
 	case ATA_REG_LBA2:
 	case ATA_REG_HDDEVSEL:
 	case ATA_REG_STATUS:
-		result = inb(channel->base+reg);
+		result = isa_inb(channel->base+reg);
 		break;
 	case ATA_REG_SECCOUNT1:
 	case ATA_REG_LBA3:
 	case ATA_REG_LBA4:
 	case ATA_REG_LBA5:
-		result = inb(channel->base+reg-6);
+		result = isa_inb(channel->base+reg-6);
 		break;
 	case ATA_REG_ALTSTATUS:
 	case ATA_REG_DEVADDRESS:
-		result = inb(channel->ctrl+reg-0xc);
+		result = isa_inb(channel->ctrl+reg-0xc);
 		break;
 	default:
 		break;
@@ -273,16 +273,16 @@ void ide_write(idechannel_t * channel, int reg, uint8_t value)
 	case ATA_REG_LBA2:
 	case ATA_REG_HDDEVSEL:
 	case ATA_REG_COMMAND:
-		outb(channel->base+reg, value);
+		isa_outb(channel->base+reg, value);
 		break;
 	case ATA_REG_SECCOUNT1:
 	case ATA_REG_LBA3:
 	case ATA_REG_LBA4:
 	case ATA_REG_LBA5:
-		outb(channel->base+reg-6, value);
+		isa_outb(channel->base+reg-6, value);
 		break;
 	case ATA_REG_CONTROL:
-		outb(channel->ctrl+reg-6, value);
+		isa_outb(channel->ctrl+reg-6, value);
 		break;
 	}
 }
@@ -293,7 +293,7 @@ void ide_write_pio(idechannel_t * channel, void * buf, size_t bufsize)
 	size_t count=bufsize/sizeof(*p16);
 
 	for(int i=0; i<count; i++) {
-		outw(channel->base+ATA_REG_DATA, *p16++);
+		isa_outw(channel->base+ATA_REG_DATA, *p16++);
 	}
 }
 
@@ -303,7 +303,7 @@ void ide_read_pio(idechannel_t * channel, void * buf, size_t bufsize)
 	size_t count=bufsize/sizeof(*p16);
 
 	for(int i=0; i<count; i++) {
-		*p16++ = inw(channel->base+ATA_REG_DATA);
+		*p16++ = isa_inw(channel->base+ATA_REG_DATA);
 	}
 }
 
