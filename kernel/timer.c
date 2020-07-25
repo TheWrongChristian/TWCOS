@@ -37,6 +37,30 @@ static timer_t * timers = &timers_static;
 static timerspec_t uptime = 0;
 static GCROOT timer_event_t * uptime_timer = 0;
 
+static void timer_event_mark(void * p)
+{
+	void * next;
+	SPIN_AUTOLOCK(timers_lock) {
+		timer_event_t * timer = p;
+		p = timer->p;
+		next = timer->next;
+	}
+	slab_gc_mark(p);
+	slab_gc_mark(next);
+}
+
+#if 0
+static void timer_event_finalize(void * p)
+{
+	timer_event_t * timer = p;
+	timer->next = 0;
+}
+#else
+#define timer_event_finalize (0)
+#endif
+
+static slab_type_t timer_events[1] = { SLAB_TYPE(sizeof(timer_event_t), timer_event_mark, timer_event_finalize)};
+
 static void timer_uptime_cb(void * ignored)
 {
 	/* Restart */
@@ -98,7 +122,7 @@ static void timer_expire()
 
 timer_event_t * timer_add(timerspec_t usec, void (*cb)(void * p), void * p)
 {
-	timer_event_t * timer = calloc(1, sizeof(*timer));
+	timer_event_t * timer = slab_alloc(timer_events);
 	timer->usec = usec;
 	timer->reset = usec;
 	timer->cb = cb;
