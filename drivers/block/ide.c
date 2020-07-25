@@ -159,11 +159,8 @@ static void ide_disk_submit( dev_t * dev, buf_op_t * op )
 	idedevice_t * device = container_of(dev, idedevice_t, dev);
 	off64_t sector = op->offset >> IDE_SECTORSIZE_LOG2;
 
-	if (op->write) {
-		ide_drive_write_sector(device->channel, device->drive, sector, op->p, op->size);
-	} else {
-		ide_drive_read_sector(device->channel, device->drive, sector, op->p, op->size);
-	}
+	ide_drive_transfer_sectors(device->channel, device->drive, sector, op->write, op->p, op->size);
+
 	op->status = DEV_BUF_OP_COMPLETE;
 }
 
@@ -389,7 +386,6 @@ void ide_command(idechannel_t * channel, uint8_t command)
 	ide_write(channel, ATA_REG_CONTROL, channel->polling ? 2 : 0);
 	ide_delay400(channel);
 	ide_write(channel, ATA_REG_COMMAND, command);
-	uint8_t status = ide_wait(channel);
 }
 
 void ide_drive_identify(idechannel_t * channel, int slave, uint8_t * buf, size_t bufsize)
@@ -397,37 +393,38 @@ void ide_drive_identify(idechannel_t * channel, int slave, uint8_t * buf, size_t
 	ide_address(channel, slave, 0, 0);
 	ide_command(channel, ATA_CMD_IDENTIFY);
 	assert(IDE_SECTORSIZE<=bufsize);
+	uint8_t status = ide_wait(channel);
 	ide_read_pio(channel, buf, bufsize);
 }
 
-void ide_drive_write_sector(idechannel_t * channel, int slave, off64_t lba, void * buf, size_t bufsize)
+void ide_drive_transfer_sectors(idechannel_t * channel, int slave, off64_t lba, int write, void * buf, size_t bufsize)
 {
 	size_t count = bufsize >> IDE_SECTORSIZE_LOG2;
 	char * p = buf;
-	for(int i=0; i<count; i++) {
-		ide_address(channel, slave, lba+i, 1);
-		if (lba < 1<<28) {
+
+	check_int_bounds(count, 1, 256, "Sector count out of bounds");
+	ide_address(channel, slave, lba, count);
+	if (lba < 1<<28) {
+		if (write) {
 			ide_command(channel, ATA_CMD_WRITE_PIO);
 		} else {
-			ide_command(channel, ATA_CMD_WRITE_PIO_EXT);
-		}
-		ide_write_pio(channel, p, IDE_SECTORSIZE);
-		p += IDE_SECTORSIZE;
-	}
-}
-
-void ide_drive_read_sector(idechannel_t * channel, int slave, off64_t lba, void * buf, size_t bufsize)
-{
-	size_t count = bufsize >> IDE_SECTORSIZE_LOG2;
-	char * p = buf;
-	for(int i=0; i<count; i++) {
-		ide_address(channel, slave, lba+i, 1);
-		if (lba < 1<<28) {
 			ide_command(channel, ATA_CMD_READ_PIO);
+		}
+	} else {
+		if (write) {
+			ide_command(channel, ATA_CMD_WRITE_PIO_EXT);
 		} else {
 			ide_command(channel, ATA_CMD_READ_PIO_EXT);
 		}
-		ide_read_pio(channel, p, IDE_SECTORSIZE);
+	}
+	for(int i=0; i<count; i++) {
+		uint8_t status = ide_wait(channel);
+
+		if (write) {
+			ide_write_pio(channel, p, IDE_SECTORSIZE);
+		} else {
+			ide_read_pio(channel, p, IDE_SECTORSIZE);
+		}
 		p += IDE_SECTORSIZE;
 	}
 }
@@ -451,13 +448,6 @@ void ide_probe(uint8_t bus, uint8_t slot, uint8_t function)
 		uintptr_t bar4 = pci_bar_base(bus, slot, function, 4);
 
 		idecontroller_t * ide = ide_initialize(bar0, bar1, bar2, bar3, bar4);
-#if 0
-		static uint8_t buf[IDE_SECTORSIZE];
-		memset(buf, 0x1, sizeof(buf));
-		ide_drive_identify(ide->channels, 0, buf, countof(buf));
-		memset(buf, 0x2, sizeof(buf));
-		ide_drive_read_sector(ide->channels, 0, 0, buf, countof(buf));
-#endif
 	}
 }
 
