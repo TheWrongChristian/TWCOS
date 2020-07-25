@@ -32,8 +32,7 @@ struct timer_event_t {
 #endif
 
 static int timers_lock[1]={0};
-static GCROOT timer_t timers_static;
-static timer_t * timers = &timers_static;
+static GCROOT timer_t * timers = 0;
 static timerspec_t uptime = 0;
 static GCROOT timer_event_t * uptime_timer = 0;
 
@@ -71,6 +70,7 @@ void timer_init(timer_ops_t * ops)
 {
 	INIT_ONCE();
 
+	timers = calloc(1, sizeof(*timers));
 	timers->ops = ops;
 
 	/* Uptime tracking timer - update uptime at least every 1 second */
