@@ -292,6 +292,7 @@ void ide_write_pio(idechannel_t * channel, void * buf, size_t bufsize)
 	for(int i=0; i<count; i++) {
 		isa_outw(channel->base+ATA_REG_DATA, *p16++);
 	}
+	ide_command(channel, ATA_CMD_CACHE_FLUSH);
 }
 
 void ide_read_pio(idechannel_t * channel, void * buf, size_t bufsize)
