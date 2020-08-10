@@ -686,6 +686,11 @@ void fatfs_test(vnode_t * dev)
 	off64_t size = vnode_get_size(file);
 	char * buf = arena_alloc(NULL, size);
 	vnode_read(file, 0, buf, size);
+	static char allwork[]="All work and no play makes jack a dull boy. ";
+	const int allworklen = strlen(allwork);
+	for(int i=0; i+allworklen<size; i+=allworklen) {
+		memcpy(buf+i, allwork, allworklen);
+	}
 	vnode_write(file, 0, buf, size);
 	vnode_sync(file);
 	int read = vfs_getdents(dir, 0, buf, size);
