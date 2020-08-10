@@ -175,14 +175,14 @@ void ide_probe_channel(idechannel_t * channel)
 	
 		device->channel = channel;	
 		ide_address(channel, i, 0, 0);
-		uint8_t status = ide_wait(channel);
+		uint8_t status = ide_wait(channel, channel->polling);
 		if (0==status) {
 			/* No drive */
 			memset(device, 0, sizeof(*device));
 		} else if (status & (ATA_SR_DRDY|ATA_SR_DRQ)) {
 			ide_drive_identify(channel, i, buf, countof(buf));
 			/* Check for ATAPI device */
-			status = ide_wait(channel);
+			status = ide_wait(channel, channel->polling);
 			if (0x14 == ide_read(channel, ATA_REG_LBA1) && 0xEB == ide_read(channel, ATA_REG_LBA2)) {
 				static dev_ops_t ide_atapi_ops;
 				/* ATAPI device */
@@ -292,7 +292,6 @@ void ide_write_pio(idechannel_t * channel, void * buf, size_t bufsize)
 	for(int i=0; i<count; i++) {
 		isa_outw(channel->base+ATA_REG_DATA, *p16++);
 	}
-	ide_command(channel, ATA_CMD_CACHE_FLUSH);
 }
 
 void ide_read_pio(idechannel_t * channel, void * buf, size_t bufsize)
@@ -347,7 +346,7 @@ void ide_delay400(idechannel_t * channel)
 	ide_read(channel, ATA_REG_ALTSTATUS);
 }
 
-uint8_t ide_wait(idechannel_t * channel)
+uint8_t ide_wait(idechannel_t * channel, int polling)
 {
 	uint8_t status = 0;
 #if 1
@@ -355,7 +354,7 @@ uint8_t ide_wait(idechannel_t * channel)
 		do {
 			status = ide_read(channel, ATA_REG_ALTSTATUS);
 			if (status & 0x80) {
-				if (channel->polling) {
+				if (polling) {
 					thread_yield();
 				} else {
 					interrupt_monitor_wait(idelock);
@@ -394,7 +393,7 @@ void ide_drive_identify(idechannel_t * channel, int slave, uint8_t * buf, size_t
 	ide_address(channel, slave, 0, 0);
 	ide_command(channel, ATA_CMD_IDENTIFY);
 	assert(IDE_SECTORSIZE<=bufsize);
-	uint8_t status = ide_wait(channel);
+	uint8_t status = ide_wait(channel, channel->polling);
 	ide_read_pio(channel, buf, bufsize);
 }
 
@@ -419,7 +418,7 @@ void ide_drive_transfer_sectors(idechannel_t * channel, int slave, off64_t lba, 
 		}
 	}
 	for(int i=0; i<count; i++) {
-		uint8_t status = ide_wait(channel);
+		uint8_t status = ide_wait(channel, channel->polling);
 
 		if (write) {
 			ide_write_pio(channel, p, IDE_SECTORSIZE);
@@ -427,6 +426,10 @@ void ide_drive_transfer_sectors(idechannel_t * channel, int slave, off64_t lba, 
 			ide_read_pio(channel, p, IDE_SECTORSIZE);
 		}
 		p += IDE_SECTORSIZE;
+	}
+	if (write) {
+		ide_command(channel, ATA_CMD_CACHE_FLUSH);
+		uint8_t status = ide_wait(channel, 1);
 	}
 }
 
