@@ -302,6 +302,20 @@ void interrupt_monitor_broadcast(interrupt_monitor_t * monitor)
 	}
 }
 
+static interrupt_monitor_t locks[32] = {0};
+static void interrupt_monitor_irq_trigger(int irq)
+{
+	INTERRUPT_MONITOR_AUTOLOCK(idelock) {
+                interrupt_monitor_broadcast(locks+irq);
+        }
+}
+
+interrupt_monitor_t * interrupt_monitor_irq(int irq)
+{
+	add_irq(irq, interrupt_monitor_irq_trigger);
+	return locks+irq;
+}
+
 #if 0
 static monitor_t * thread_monitor_get(void * p)
 {

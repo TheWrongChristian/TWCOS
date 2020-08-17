@@ -50,10 +50,20 @@ typedef struct uhci_hcd_t uhci_hcd_t;
 struct uhci_hcd_t {
 	hcd_t hcd;
 	int iobase;
-	int irq;
+	interrupt_monitor_t * lock;
+	thread_t * thread;
 	vmpage_t * pframelist;
 	uintptr_t * framelist;
 };
+
+static void uhci_interrupt_processor(uhci_hcd_t * hcd)
+{
+	INTERRUPT_MONITOR_AUTOLOCK(hcd->lock) {
+		while(hcd) {
+			interrupt_monitor_wait(hcd->lock);
+		}
+	}
+}
 
 hcd_t * uhci_reset(int iobase, int irq)
 {
@@ -85,25 +95,33 @@ hcd_t * uhci_reset(int iobase, int irq)
 
 	uhci_hcd_t * hcd = calloc(1, sizeof(*hcd));
 	hcd->iobase = iobase;
-	hcd->irq = irq;
+	hcd->lock = interrupt_monitor_irq(irq);
 	hcd->pframelist = vmpage_calloc(CORE_SUB4G);
 	hcd->framelist = vm_kas_get_aligned(ARCH_PAGE_SIZE, ARCH_PAGE_SIZE);
 	vmap_map(kas, hcd->framelist, hcd->pframelist->page, 0, 0);
 
-	/* Physical frame address */
-	isa_outl(hcd->iobase+UHCI_FRBASEADD, hcd->pframelist->page << ARCH_PAGE_SIZE_LOG2);
+	INTERRUPT_MONITOR_AUTOLOCK(hcd->lock) {
+		thread_t * thread = thread_fork();
+		if (0==thread) {
+			uhci_interrupt_processor(hcd);
+		} else {
+			hcd->thread = thread;
+		}
+		/* Physical frame address */
+		isa_outl(hcd->iobase+UHCI_FRBASEADD, hcd->pframelist->page << ARCH_PAGE_SIZE_LOG2);
 
-	/* Enable all interrupts */
-	isa_outw(hcd->iobase+UHCI_USBINTR, UHCI_USBINT_ALL);
+		/* Enable all interrupts */
+		isa_outw(hcd->iobase+UHCI_USBINTR, UHCI_USBINT_ALL);
 
-	isa_outw(hcd->iobase+UHCI_FRNUM, 0);
-	isa_outw(hcd->iobase+UHCI_SOFMOD, 0x40);
+		isa_outw(hcd->iobase+UHCI_FRNUM, 0);
+		isa_outw(hcd->iobase+UHCI_SOFMOD, 0x40);
 
-	/* Clear all status */
-	isa_outw(hcd->iobase+UHCI_USBSTS, 0xffff);
+		/* Clear all status */
+		isa_outw(hcd->iobase+UHCI_USBSTS, 0xffff);
 
-	/* Start the schedule */
-	isa_outw(hcd->iobase+UHCI_USBCMD, UHCI_USBCMD_CF | UHCI_USBCMD_RS);
+		/* Start the schedule */
+		isa_outw(hcd->iobase+UHCI_USBCMD, UHCI_USBCMD_CF | UHCI_USBCMD_RS);
+	}
 
 	return &hcd->hcd;
 }

@@ -62,7 +62,7 @@ clean::
 	echo symbol-file $(KERNEL) | tee -a .gdbinit
 	echo break kernel_main | tee -a .gdbinit
 
-QEMU_OPTS=-d cpu_reset,guest_errors -serial stdio -hda $(TEST_FAT) -usb
+QEMU_OPTS=-d cpu_reset,guest_errors -serial stdio -hda $(TEST_FAT) -usb -device usb-mouse
 QEMU_MEM=12m
 qemu: all .gdbinit
 	$(QEMU) $(QEMU_OPTS) -m $(QEMU_MEM) -s -S -kernel $(KERNEL) -initrd $(INITRD_TAR)
