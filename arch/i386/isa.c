@@ -240,6 +240,16 @@ void arch_idle()
 	hlt();
 }
 
+uint32_t isa_inl(uint16_t port)
+{
+	return inl(port);
+}
+
+void isa_outl(uint16_t port, uint32_t data)
+{
+	outl(port, data);
+}
+
 uint16_t isa_inw(uint16_t port)
 {
 	return inw(port);

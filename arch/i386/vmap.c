@@ -165,7 +165,7 @@ static void vmap_set_pte(asid vid, void * vaddress, pte_t pte)
 			ptrdiff_t koffset = (uint32_t)(_bootstrap_nextalloc - _bootstrap_end);
 
 			/* page_alloc might end up needing lock */
-			page_t page = page_alloc();
+			page_t page = page_alloc(0);
 
 			if (((uintptr_t)vaddress)<koffset) {
 				/* User mapping, just this ASID */

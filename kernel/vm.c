@@ -340,7 +340,7 @@ static void vm_as_release_walk(void * p, void * key, void * data)
  */
 static vmpage_t * vm_zero_get_page(vmobject_t * object, off64_t offset)
 {
-	return vmpage_calloc();
+	return vmpage_calloc(0);
 }
 
 static vmobject_t * vm_zero_clone(vmobject_t * object)
@@ -448,10 +448,10 @@ static vmpage_t * vm_heap_get_page(vmobject_t * object, off64_t offset)
 	if (pageno<heap->pcount) {
 		page_t page = heap->pages[pageno];
 		if (0 == page) {
-			page = page_alloc();
+			page = page_alloc(0);
 			heap->pages[pageno] = page;
 		}
-		return vmpage_alloc(0, page);
+		return vmpage_alloc(0, page, 0);
 	}
 
 	kernel_panic("Get page beyond end of heap");
@@ -508,7 +508,7 @@ static vmpage_t * vm_direct_get_page(vmobject_t * object, off64_t offset)
 		int pageno = offset >> ARCH_PAGE_SIZE_LOG2;
 		vmpage_t * vmpage = map_getip(direct->pages, pageno);
 		if (0 == vmpage) {
-			vmpage = vmpage_alloc(0, direct->base + pageno);
+			vmpage = vmpage_alloc(0, direct->base + pageno, 0);
 			map_putip(direct->pages, pageno, vmpage);
 		}
 		return vmpage;
@@ -704,7 +704,7 @@ vmpage_t * vm_page_steal(const void * p)
 			vmobject_put_page(seg->dirty, offset, 0);
 			vmpage_unmap(vmpage, as, p);
 		} else {
-			vmpage = vmpage_calloc();
+			vmpage = vmpage_calloc(0);
 		}
 
 		return vmpage;
@@ -796,7 +796,7 @@ static void vmpage_finalize(void * p)
 
 }
 
-vmpage_t * vmpage_alloc(vmpage_t * vmpage, page_t page)
+vmpage_t * vmpage_alloc(vmpage_t * vmpage, page_t page, int flags)
 {
 	if (0 == vmpage) {
 		vmpage = slab_calloc(slabvmpages);
@@ -805,16 +805,16 @@ vmpage_t * vmpage_alloc(vmpage_t * vmpage, page_t page)
 		vmpage->page = page;
 	} else {
 		vmpage->flags = VMPAGE_MANAGED;
-		vmpage->page = page_alloc();
+		vmpage->page = page_alloc(flags);
 	}
 	return vmpage;
 }
 
-vmpage_t * vmpage_calloc()
+vmpage_t * vmpage_calloc(int flags)
 {
 	vmpage_t * vmpage = slab_calloc(slabvmpages);
 	vmpage->flags = VMPAGE_MANAGED;
-	vmpage->page = page_calloc();
+	vmpage->page = page_calloc(flags);
 	return vmpage;
 }
 
@@ -913,7 +913,7 @@ vmpage_t * vmpage_get_copy(vmpage_t * vmpage)
 		}
 
 		/* Get a new page to copy into */
-		vmpage_t * newpage = vmpage_alloc(0, 0);
+		vmpage_t * newpage = vmpage_alloc(0, 0, 0);
 
 		/* Copy the old page to the new page */
 		vmap_map(kas, src, vmpage->page, 0, 0);

@@ -55,6 +55,7 @@ void kernel_main() {
 		timer_init(arch_timer_ops());
 		pci_scan(pci_probe_devfs);
 		ide_pciscan();
+		uhci_pciscan();
 		cache_test();
 		utf8_test();
 #if 0

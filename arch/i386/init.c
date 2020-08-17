@@ -127,7 +127,7 @@ void arch_init()
 
 				/* Only handle page ranges under 4GB */
 				if (page+count<1<<20) {
-					page_add_range(page, count);
+					page_add_range(page, count, CORE_SUB4G);
 					pcount += count;
 				}
 			}

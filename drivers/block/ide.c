@@ -457,5 +457,5 @@ void ide_probe(uint8_t bus, uint8_t slot, uint8_t function)
 
 void ide_pciscan()
 {
-	pci_scan(ide_probe);
+	pci_scan_class(ide_probe, 1, 1, 0, 0);
 }

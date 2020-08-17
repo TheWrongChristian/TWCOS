@@ -3,6 +3,13 @@
 
 #include "core.h"
 
+#if INTERFACE
+
+#define CORE_ISADMA	(1<<0)
+#define CORE_SUB4G	(1<<1)
+
+#endif
+
 /*
  * Page usage record
  */
@@ -18,6 +25,7 @@ struct kernel_mmap {
 	page_t base;
 	int count;
 	int free;
+	int flags;
 	uint32_t * available;
 	uint32_t * finalize;
 };
@@ -78,13 +86,14 @@ void page_gc_end()
 {
 }
 
-void page_add_range(page_t base, uint32_t count)
+void page_add_range(page_t base, uint32_t count, int flags)
 {
 	size_t bitmapsize = (count+31)/32;
 	int i;
 	mmap[mmap_count].base = base;
 	mmap[mmap_count].count = count;
 	mmap[mmap_count].free = 0;
+	mmap[mmap_count].flags = flags;
 	mmap[mmap_count].available = bootstrap_alloc(sizeof(mmap[mmap_count].available[0]) * bitmapsize);
 	mmap[mmap_count].finalize = bootstrap_alloc(sizeof(mmap[mmap_count].finalize[0]) * bitmapsize);
 	for(i=0; i<bitmapsize; i++) {
@@ -139,7 +148,7 @@ void page_free(page_t page)
 	spin_unlock(mmap_lock);
 }
 
-static page_t page_alloc_internal(int reserve)
+static page_t page_alloc_internal(int reserve, int flags)
 {
 	int m = mmap_count - 1;
 
@@ -150,21 +159,9 @@ static page_t page_alloc_internal(int reserve)
 	}
 	for(;m>=0; m--) {
 		if (mmap[m].free>0) {
-#if 0
-			for(int p=0; p<mmap[m].count; p+=32) {
-				if (mmap[m].available[p/32]) {
-					uint32_t mask = 0x80000000;
-					for(; mask; mask >>= 1, p++) {
-						if (mmap[m].available[p/32] & mask) {
-							mmap[m].available[p/32] &= (~mask);
-							mmap[m].free--;
-							spin_unlock(mmap_lock);
-							return mmap[m].base + p;
-						}
-					}
-				}
+			if (flags && 0 == (mmap[m].flags & flags)) {
+				continue;
 			}
-#endif
 			int p = bitarray_firstset(mmap[m].available, mmap[m].count);
 			if (p>=0) {
 				bitarray_set(mmap[m].available, p, 0);
@@ -179,13 +176,13 @@ static page_t page_alloc_internal(int reserve)
 	return 0;
 }
 
-page_t page_alloc()
+page_t page_alloc(int flags)
 {
 	page_t page;
 	static int reserve = 8;
 	int reservesave = reserve;
 
-	while(0 == (page = page_alloc_internal(reserve))) {
+	while(0 == (page = page_alloc_internal(reserve, flags))) {
 		static monitor_t cleanlock[1] = {0};
 		MONITOR_AUTOLOCK(cleanlock) {
 			if (reserve) {
@@ -202,9 +199,9 @@ page_t page_alloc()
 	return page;
 }
 
-page_t page_calloc()
+page_t page_calloc(int flags)
 {
-	page_t page = page_alloc();
+	page_t page = page_alloc(flags);
 	page_clean(page);
 
 	return page;
@@ -245,7 +242,7 @@ void * page_heap_alloc()
 				thread_gc();
 				continue;
 			}
-			page_t page = page_alloc();
+			page_t page = page_alloc(0);
 			vmap_map(0, p, page, 1, 0);
 			vmpage_t vmpage = {page: page};
 			vmobject_put_page(heap->dirty, (char*)p - (char*)heap->base, &vmpage);
