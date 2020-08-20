@@ -685,6 +685,25 @@ segment_t * vm_segment_copy(segment_t * from, int private)
 	return seg;
 }
 
+vmpage_t * vm_page_get(const void * p)
+{
+	address_info_t info[1];
+
+	if (vm_resolve_address(p, info)) {
+		segment_t * seg = info->seg;
+		off64_t offset = info->offset;
+		map_t * as = info->as;
+
+		vmpage_t * vmpage = vmobject_get_page(seg->dirty, offset);
+		if (!vmpage) {
+			vmpage = vmobject_get_page(seg->clean, offset + seg->read_offset);
+		}
+		return vmpage;
+	}
+
+	return 0;
+}
+
 vmpage_t * vm_page_steal(const void * p)
 {
 	address_info_t info[1];
@@ -858,7 +877,7 @@ void vmpage_map( vmpage_t * vmpage, asid as, void * p, int rw, int user )
 	}
 }
 
-void vmpage_unmap( vmpage_t * vmpage, asid as, void * p )
+void vmpage_unmap( vmpage_t * vmpage, asid as, const void * p )
 {
 	for(int i=0; i<VMPAGE_MAPS; i++) {
 		if (vmpage->maps[i].as == as && vmpage->maps[i].p == p) {

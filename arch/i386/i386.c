@@ -28,6 +28,8 @@ struct arch_trap_frame_t
 	reg_t ss;
 };
 
+#define LITTLE_ENDIAN 1
+
 #endif
 
 /* Basic port I/O */
