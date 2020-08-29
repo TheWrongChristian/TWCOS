@@ -110,17 +110,23 @@ void set_page_dir(page_t pgdir)
 }
 
 static int cli_level = 0;
-void sti()
+void sti(int previous)
 {
-	if (0 == --cli_level) {
+	if (0 == --cli_level && previous) {
 		asm volatile("sti");
 	}
 }
 
-void cli()
+int cli()
 {
-	asm volatile("cli");
-	cli_level++;
+	if (0==cli_level++) {
+		if (i386_eflags() & 0x0200) {
+			asm volatile("cli");
+			return 1;
+		}
+	}
+
+	return 0;
 }
 
 void hlt()
@@ -587,22 +593,22 @@ void ** arch_thread_backtrace(void ** backtrace, int levels)
 int arch_atomic_postinc(int * p)
 {
 	int i;
-	cli();
+	int ints = cli();
 	i = *p;
 	*p = i+1;
-	sti();
+	sti(ints);
 
 	return i;
 }
 
 int arch_spin_trylock(spin_t * p)
 {
-	cli();
+	int ints = cli();
 	if (*p) {
-		sti();
+		sti(ints);
 		return 0;
 	}
-	*p=1;
+	*p=1+ints;
 	return *p;
 }
 
@@ -617,8 +623,9 @@ void arch_spin_lock(spin_t * p)
 
 void arch_spin_unlock(spin_t * p)
 {
+	int ints = (*p>1);
 	*p = 0;
-	sti();
+	sti(ints);
 }
 
 #if 0

@@ -193,6 +193,13 @@ arch_startuser:
 	# Jump to user mode
 	iret
 
+.global i386_eflags
+.type i386_eflags, @function
+i386_eflags:
+	pushf
+	pop %eax
+	ret
+
 .global arch_altstack
 .type arch_altstack, @function
 arch_altstack:

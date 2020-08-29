@@ -167,7 +167,7 @@ void arch_init()
 	/* Initialize the console */
 	console_initialize(info);
 
-	sti();
+	sti(1);
 	kernel_startlogging(1);
 }
 
