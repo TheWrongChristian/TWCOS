@@ -117,6 +117,7 @@ void sti(int previous)
 	}
 }
 
+extern uint32_t i386_eflags();
 int cli()
 {
 	if (0==cli_level++) {
