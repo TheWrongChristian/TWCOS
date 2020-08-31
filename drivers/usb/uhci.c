@@ -548,5 +548,5 @@ void uhci_probe(uint8_t bus, uint8_t slot, uint8_t function)
 
 void uhci_pciscan()
 {
-	pci_scan_class(uhci_probe, 0xc, 0x3, 0, 0);
+	pci_scan_class(uhci_probe, 0xc, 0x3, 0, 0xffff, 0xffff);
 }

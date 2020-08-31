@@ -147,6 +147,7 @@ struct pci_probe_qualifier_t {
 	uint16_t deviceid;
 	uint8_t class;
 	uint8_t subclass;
+	uint8_t progif;
 };
 
 static void pci_scanbus(pci_probe_qualifier_t * qualifier, pci_probe_callback cb, uint8_t bus);
@@ -154,17 +155,21 @@ static void pci_probe_function(pci_probe_qualifier_t * qualifier, pci_probe_call
 {
 	uint8_t class = pci_class(bus, device, function);
 	uint8_t subclass = pci_subclass(bus, device, function);
+	uint8_t progif = pci_progif(bus, device, function);
 
-	if (qualifier->class && qualifier->class != class) {
+	if (0xff != qualifier->progif && qualifier->progif != progif) {
 		return;
 	}
-	if (qualifier->subclass && qualifier->subclass != subclass) {
+	if (0xff != qualifier->class && qualifier->class != class) {
 		return;
 	}
-	if (qualifier->vendorid && qualifier->vendorid != pci_vendorid(bus, device, function)) {
+	if (0xff != qualifier->subclass && qualifier->subclass != subclass) {
 		return;
 	}
-	if (qualifier->deviceid && qualifier->deviceid != pci_deviceid(bus, device, function)) {
+	if (0xffff != qualifier->vendorid && qualifier->vendorid != pci_vendorid(bus, device, function)) {
+		return;
+	}
+	if (0xffff != qualifier->deviceid && qualifier->deviceid != pci_deviceid(bus, device, function)) {
 		return;
 	}
 
@@ -223,12 +228,12 @@ static void pci_scan_qualified(pci_probe_qualifier_t * qualifier, pci_probe_call
 
 void pci_scan(pci_probe_callback cb)
 {
-	pci_probe_qualifier_t qualifier[1] = {{0}};
+	pci_probe_qualifier_t qualifier[1] = {{.class = 0xff, .subclass = 0xff, .progif = 0xff, .vendorid = 0xffff, .deviceid = 0xffff}};
 	pci_scan_qualified(qualifier, cb);
 }
 
-void pci_scan_class(pci_probe_callback cb, uint8_t class, uint8_t subclass, uint16_t vendorid, uint16_t deviceid)
+void pci_scan_class(pci_probe_callback cb, uint8_t class, uint8_t subclass, uint8_t progif, uint16_t vendorid, uint16_t deviceid)
 {
-	pci_probe_qualifier_t qualifier[1] = {{.class = class, .subclass = subclass, .vendorid = vendorid, .deviceid = deviceid}};
+	pci_probe_qualifier_t qualifier[1] = {{.class = class, .subclass = subclass, .progif = progif, .vendorid = vendorid, .deviceid = deviceid}};
 	pci_scan_qualified(qualifier, cb);
 }
