@@ -22,7 +22,9 @@ static void idle() {
 	thread_set_priority(0, THREAD_IDLE);
 	while(1) {
 		if (thread_preempt()) {
+#if 0
 			thread_gc();
+#endif
 		}
 		arch_idle();
 	}

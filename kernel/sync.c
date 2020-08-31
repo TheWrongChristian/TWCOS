@@ -305,7 +305,7 @@ void interrupt_monitor_broadcast(interrupt_monitor_t * monitor)
 static interrupt_monitor_t locks[32] = {0};
 static void interrupt_monitor_irq_trigger(int irq)
 {
-	INTERRUPT_MONITOR_AUTOLOCK(idelock) {
+	INTERRUPT_MONITOR_AUTOLOCK(locks+irq) {
                 interrupt_monitor_broadcast(locks+irq);
         }
 }

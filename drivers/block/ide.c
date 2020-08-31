@@ -113,6 +113,7 @@ struct idedevice_t {
 };
 
 struct idechannel_t {
+	interrupt_monitor_t * lock;
 	int base;  /* I/O Base. */
 	int ctrl;  /* Control Base */
 	int bmide; /* Bus Master IDE */
@@ -125,12 +126,16 @@ struct idecontroller_t {
 	idechannel_t channels[2];
 };
 
-interrupt_monitor_t idelock[1];
-
+#if 0
 void ide_intr(int irq)
 {
-	INTERRUPT_MONITOR_AUTOLOCK(idelock) {
-		interrupt_monitor_broadcast(idelock);
+}
+#endif
+static void ide_intr(void * p)
+{
+	idechannel_t * channel = p;
+	INTERRUPT_MONITOR_AUTOLOCK(channel->lock) {
+		interrupt_monitor_broadcast(channel->lock);
 	}
 }
 
@@ -208,17 +213,25 @@ idecontroller_t * ide_initialize(uintptr_t bar0, uintptr_t bar1, uintptr_t bar2,
 	idecontroller_t * ide = calloc(1, sizeof(*ide));
 
 	// 1- Detect I/O Ports which interface IDE Controller:
+	ide->channels[ATA_PRIMARY  ].lock = interrupt_monitor_irq(14);
 	ide->channels[ATA_PRIMARY  ].base  = (bar0 & 0xFFFFFFFC) + 0x1F0 * (!bar0);
 	ide->channels[ATA_PRIMARY  ].ctrl  = (bar1 & 0xFFFFFFFC) + 0x3F6 * (!bar1);
 	ide->channels[ATA_PRIMARY  ].polling = 0;
+
+	ide->channels[ATA_SECONDARY].lock = interrupt_monitor_irq(15);
 	ide->channels[ATA_SECONDARY].base  = (bar2 & 0xFFFFFFFC) + 0x170 * (!bar2);
 	ide->channels[ATA_SECONDARY].ctrl  = (bar3 & 0xFFFFFFFC) + 0x376 * (!bar3);
 	ide->channels[ATA_SECONDARY].polling = 0;
+
 	ide->channels[ATA_PRIMARY  ].bmide = (bar4 & 0xFFFFFFFC) + 0; // Bus Master IDE
 	ide->channels[ATA_SECONDARY].bmide = (bar4 & 0xFFFFFFFC) + 8; // Bus Master IDE
 
+#if 0
 	add_irq(14, ide_intr);
 	add_irq(15, ide_intr);
+#endif
+	intr_add(14, ide_intr, ide->channels);
+	intr_add(15, ide_intr, ide->channels);
 
 	ide_reset(ide->channels);
 	ide_probe_channel(ide->channels);
@@ -350,14 +363,14 @@ uint8_t ide_wait(idechannel_t * channel, int polling)
 {
 	uint8_t status = 0;
 #if 1
-	INTERRUPT_MONITOR_AUTOLOCK(idelock) {
+	INTERRUPT_MONITOR_AUTOLOCK(channel->lock) {
 		do {
 			status = ide_read(channel, ATA_REG_ALTSTATUS);
 			if (status & 0x80) {
 				if (polling) {
 					thread_yield();
 				} else {
-					interrupt_monitor_wait(idelock);
+					interrupt_monitor_wait(channel->lock);
 				}
 			}
 		} while(status & 0x80);

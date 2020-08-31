@@ -47,17 +47,23 @@
 #define UHCI_PORTSTS_CSC	(1<<1)
 #define UHCI_PORTSTS_CS		(1<<0)
 
+typedef union tdqlink tdqlink;
 typedef struct uhci_td uhci_td;
 typedef struct uhci_q uhci_q;
+
+union tdqlink {
+	uhci_q * q;
+        uhci_td * td;
+};
+
 struct uhci_q {
 	/* Hardware fields */
-	le32_t qlink;
-	le32_t tdlink;
+	le32_t headlink;
+	le32_t elementlink;
 
 	/* Software fields */
-	uhci_q * this;
-	uhci_q * vqlink;
-	uhci_td * vtdlink;
+	tdqlink vheadlink;
+	tdqlink velementlink;
 };
 
 struct uhci_td {
@@ -68,11 +74,11 @@ struct uhci_td {
 	le32_t p;
 
 	/* Software fields */
-	uhci_td * this;
-	void * vlink;
+	tdqlink vlink;
+	void * vp;
 };
 
-enum uhci_queues { 
+enum uhci_queue { 
 	bulkq, controlq,
 	periodicq1, periodicq2, periodicq4, periodicq8,
 	periodicq16, periodicq32, periodicq64, periodicq128,
@@ -89,6 +95,7 @@ struct uhci_hcd_t {
 	uintptr_t * framelist;
 	int ports;
 	uhci_q * queues[maxq];
+	map_t * outstanding;
 };
 
 static void uhci_interrupt_processor(uhci_hcd_t * hcd)
@@ -98,6 +105,28 @@ static void uhci_interrupt_processor(uhci_hcd_t * hcd)
 			interrupt_monitor_wait(hcd->lock);
 		}
 	}
+}
+
+static void uhci_walk_outstanding(void * p, void * key, void * data)
+{
+	uhci_hcd_t * hcd = p;
+	uhci_td * td = data;
+	int status = bitget(td->flags, 23, 8);
+}
+
+static void uhci_irq(void * p)
+{
+	uhci_hcd_t * hcd = p;
+	uint16_t frame;
+	uint16_t status;
+	uint16_t command;
+	frame = isa_inw(hcd->iobase + UHCI_FRNUM);
+	status = isa_inw(hcd->iobase + UHCI_USBSTS);
+	command = isa_inw(hcd->iobase + UHCI_USBCMD);
+	if (status & UHCI_USBSTS_INT) {
+		isa_outw(hcd->iobase + UHCI_USBSTS, UHCI_USBSTS_INT);
+	}
+	map_walkpp(hcd->outstanding, uhci_walk_outstanding, hcd);
 }
 
 static void uhci_count_ports(uhci_hcd_t * hcd)
@@ -189,11 +218,12 @@ static cache_entry * uhci_entry_get()
 		}
 
 		if (0==cache) {
-			cache_entry * entries = arena_palloc(arena, 1);
+			char * entries = arena_palloc(arena, 1);
 			vmpage_t * page = vm_page_get(entries);
 			vmpage_setflags(page, VMPAGE_PINNED);
-			for(int i = 0; i<ARCH_PAGE_SIZE/sizeof(*entries); i++) {
-				uhci_entry_put(entries+i);
+			size_t entrysize = ROUNDUP(sizeof(cache_entry), 0x10);
+			for(int i = 0; i<ARCH_PAGE_SIZE/entrysize; i++) {
+				uhci_entry_put(entries+(entrysize*i));
 			}
 		}
 		entry = cache;
@@ -203,49 +233,66 @@ static cache_entry * uhci_entry_get()
 	return entry;
 }
 
-static uhci_td * uhci_td_get()
+static void uhci_set_link(le32_t * plink, tdqlink * vlink, uhci_q * q, uhci_td * td, int depth)
 {
-	uhci_td * td = &uhci_entry_get()->td;
-	td->link = 1;
-	td->flags = 0;
-	td->address = 0;
-	td->p = 0;
-	td->this = td;
-
-	td->vlink = 0;
-
-	return td;
+	if (q) {
+		*plink = le32(uhci_pa(q) | 0x2 );
+		if (vlink) {
+			vlink->q = q;
+		}
+	} else if (td) {
+		*plink = le32(uhci_pa(td) | (depth ? 0x4 : 0));
+		if (vlink) {
+			vlink->td = td;
+		}
+	} else {
+		*plink = le32(1);
+		if (vlink) {
+			vlink->td = 0;
+		}
+	}
 }
 
-static void uhci_td_link(uhci_td * td, void * p, int q)
+static void uhci_td_append(uhci_td * head, uhci_td * td, int q)
 {
-	td->link = le32(uhci_pa(p) | (q) ? 0x2 : 0);
-	td->vlink = p;
+	
+}
+
+static void uhci_q_headlink(uhci_q * q, uhci_q * lq, uhci_td * ltd)
+{
+	uhci_set_link(&q->headlink, &q->vheadlink, lq, ltd, 0);
+}
+
+static void uhci_q_elementlink(uhci_q * q, uhci_q * lq, uhci_td * ltd)
+{
+	uhci_set_link(&q->elementlink, &q->velementlink, lq, ltd, 0);
+}
+
+static void uhci_td_link(uhci_td * td, uhci_q * lq, uhci_td * ltd)
+{
+	uhci_set_link(&td->link, &td->vlink, lq, ltd, 1);
 }
 
 static uhci_q * uhci_q_get()
 {
 	uhci_q * q = &uhci_entry_get()->q;
-	q->qlink = le32(1);
-	q->tdlink = le32(1);
-	q->this = q;
 
-	q->vqlink = 0;
-	q->vtdlink = 0;
+	uhci_q_headlink(q, 0, 0);
+	uhci_q_elementlink(q, 0, 0);
 
 	return q;
 }
 
-static void uhci_q_qlink(uhci_q * q, void * p, int isq)
+static uhci_td * uhci_td_get()
 {
-	q->qlink = le32(uhci_pa(p) | (isq) ? 0x2 : 0);
-	q->vqlink = p;
-}
+	uhci_td * td = &uhci_entry_get()->td;
 
-static void uhci_q_tdlink(uhci_q * q, void * p, int isq)
-{
-	q->tdlink = le32(uhci_pa(p) | (isq) ? 0x2 : 0);
-	q->vtdlink = p;
+	uhci_td_link(td, 0, 0);
+	td->flags = 0;
+	td->address = 0;
+	td->p = 0;
+
+	return td;
 }
 
 static void uhci_entry_free(cache_entry * entry)
@@ -257,7 +304,7 @@ static void uhci_entry_free(cache_entry * entry)
 
 uint32_t uhci_pa(void * p)
 {
-	return le32(vmap_get_page(kas, p) << ARCH_PAGE_SIZE_LOG2 | ARCH_PTRI_OFFSET(p));
+	return ((vmap_get_page(kas, p) << ARCH_PAGE_SIZE_LOG2) | ARCH_PTRI_OFFSET(p));
 }
 
 void uhci_submit_request(urb_t * urb)
@@ -268,7 +315,7 @@ void uhci_submit_request(urb_t * urb)
 	}
 }
 
-static void uhci_packet(hcd_t * hcd, usbpid_t pid, uint8_t dev, uint8_t endp, uint8_t ls, void * buf, size_t buflen);
+static void uhci_packet(hcd_t * hcd, usbpid_t pid, usb_device_t * dev, void * buf, size_t buflen);
 hcd_t * uhci_reset(int iobase, int irq)
 {
 	/* Global reset 5 times with 10ms each */
@@ -277,6 +324,7 @@ hcd_t * uhci_reset(int iobase, int irq)
 		timer_sleep(10500);
 		isa_outw(iobase+UHCI_USBCMD, 0);
 	}
+	timer_sleep(50000);
 
 	if (0 != isa_inw(iobase+UHCI_USBCMD)) {
 		return 0;
@@ -302,17 +350,18 @@ hcd_t * uhci_reset(int iobase, int irq)
 	hcd->lock = interrupt_monitor_irq(irq);
 	hcd->pframelist = vmpage_calloc(CORE_SUB4G);
 	hcd->framelist = vm_kas_get_aligned(ARCH_PAGE_SIZE, ARCH_PAGE_SIZE);
+	hcd->outstanding = treap_new(0);
 
 	static hcd_ops_t ops = { .packet = uhci_packet };	
 	hcd->hcd.ops = &ops;
-	vmap_map(kas, hcd->framelist, hcd->pframelist->page, 0, 0);
+	vmpage_map(hcd->pframelist, kas, hcd->framelist, 1, 0);
 
 	for(int i=0; i<countof(hcd->queues); i++) {
 		hcd->queues[i] = uhci_q_get();
 		if (i) {
-			hcd->queues[i]->qlink = le32(uhci_pa(hcd->queues[i-1]) | 0x2);
+			uhci_q_headlink(hcd->queues[i], hcd->queues[i-1], 0);
 		} else {
-			hcd->queues[i]->qlink = le32(1);
+			uhci_q_headlink(hcd->queues[i], 0, 0);
 		}
 	}
 
@@ -337,15 +386,6 @@ hcd_t * uhci_reset(int iobase, int irq)
 		}
 	}
 
-#if 0
-	thread_t * thread = thread_fork();
-	if (0==thread) {
-		uhci_interrupt_processor(hcd);
-	} else {
-		hcd->thread = thread;
-	}
-#endif
-
 	/* Physical frame address */
 	isa_outl(hcd->iobase+UHCI_FRBASEADD, hcd->pframelist->page << ARCH_PAGE_SIZE_LOG2);
 
@@ -367,30 +407,63 @@ hcd_t * uhci_reset(int iobase, int irq)
 	/* Start the schedule */
 	isa_outw(hcd->iobase+UHCI_USBCMD, UHCI_USBCMD_CF | UHCI_USBCMD_RS);
 
+#if 0
+	thread_t * thread = thread_fork();
+	if (0==thread) {
+		uhci_test_thread(hcd);
+	} else {
+		hcd->thread = thread;
+	}
+#endif
+
+	intr_add(irq, uhci_irq, hcd);
+
 	return &hcd->hcd;
 }
 
-static uhci_td * uhci_td_chain(usbpid_t pid, uint8_t dev, uint8_t endp, uint8_t ls, void * buf, size_t buflen)
+static uhci_td * uhci_td_chain(usbpid_t pid, usb_device_t * dev, void * buf, size_t buflen)
 {
-	/* Check for crossing non-contiguous page boundaries */
 	char * cp = buf;
-	if (uhci_pa(cp + buflen)-uhci_pa(buf) != buflen) {
-		/* FIXME: exception */
-		return NULL;
+	if (buf) {
+		/* Check for crossing non-contiguous page boundaries */
+		if (uhci_pa(cp + buflen)-uhci_pa(buf) != buflen) {
+			/* FIXME: exception */
+			return NULL;
+		}
 	}
 
-	size_t maxlen = (ls) ? 8 : 64;
+	int togglebit;
+	switch(pid) {
+	case usbin:
+		togglebit = 1;
+		break;
+	case usbout:
+		togglebit = 2;
+		break;
+	case usbsetup:
+		togglebit = 3;
+		break;
+	default:
+		kernel_panic("");
+		break;
+	}
+
+	ssize_t maxlen = (dev->ls) ? 8 : 64;
 	uhci_td * head = 0;
 	uhci_td * tail = 0;
 	do {
 		uhci_td * td = uhci_td_get();
 
-		uint32_t flags = bitset(0, 26, 1, ls);
+		uint32_t flags = bitset(0, 26, 1, dev->ls);
+		flags = bitset(flags, 28, 2, 3);
+		flags = bitset(flags, 24, 1, 1);
 		flags = bitset(flags, 23, 8, 0x80);
 
 		uint32_t address = bitset(0, 31, 11, (buflen>maxlen) ? maxlen-1 : buflen-1);
-		address = bitset(address, 18, 4, endp);
-		address = bitset(address, 14, 7, dev);
+		address = bitset(address, 18, 4, dev->endp);
+		address = bitset(address, 14, 7, dev->dev);
+		address = bitset(address, 19, 1, (togglebit & dev->toggle) ? 1 : 0);
+		dev->toggle ^= togglebit;
 
 		switch(pid) {
 		case usbsetup:
@@ -406,29 +479,71 @@ static uhci_td * uhci_td_chain(usbpid_t pid, uint8_t dev, uint8_t endp, uint8_t 
 
 		td->flags = le32(flags);
 		td->address = le32(address);
-		td->p = le32(uhci_pa(cp));
+		if (buf) {
+			td->p = le32(uhci_pa(cp));
+			td->vp = cp;
+		} else {
+			td->p = 0;
+		}
 		
 		if (0 == head) {
 			head = td;
 		} else {
-			uhci_td_link(tail, td, 0);
+			uhci_td_link(tail, 0, td);
 		}
 		tail = td;
+		if (buflen) {
+			buflen -= maxlen;
+			cp += maxlen;
+		}
 	} while(buflen>0);
 
 	return head;
 }
 
-static void uhci_packet(hcd_t * hcd, usbpid_t pid, uint8_t dev, uint8_t endp, uint8_t ls, void * buf, size_t buflen)
+static void uhci_packet(hcd_t * hcd, usbpid_t pid, usb_device_t * dev, void * buf, size_t buflen)
 {
-	uhci_td * td = uhci_td_chain(pid, dev, endp, ls, buf, buflen);
+	uhci_td * td = uhci_td_chain(pid, dev, buf, buflen);
+	enum uhci_queue queue;
+
+	if (usbsetup == pid) {
+		queue = controlq;
+	} else if (dev->periodic) {
+		for(queue=periodicq1; queue<maxq; queue++) {
+			if ((1<<(queue-periodicq1))<dev->periodic) {
+				queue--;
+				break;
+			}
+		}
+	} else {
+		queue = bulkq;
+	}
+
+	uhci_hcd_t * uhci_hcd = container_of(hcd, uhci_hcd_t, hcd);
+	INTERRUPT_MONITOR_AUTOLOCK(uhci_hcd->lock) {
+		uhci_q * q = uhci_hcd->queues[queue];
+		uhci_td * tail = q->velementlink.td;
+
+		if (tail) {
+			while(tail->vlink.td) {
+				tail = tail->vlink.td;
+			}
+			uhci_td_link(tail, 0, td);
+		} else {
+			uhci_q_elementlink(q, 0, td);
+		}
+
+		map_putpp(uhci_hcd->outstanding, td, td);
+	}
 }
 
 void uhci_probe(uint8_t bus, uint8_t slot, uint8_t function)
 {
 	uintptr_t bar4 = pci_bar_base(bus, slot, function, 4);
 	int irq = pci_irq(bus, slot, function);
-	hcd_t * hcd = uhci_reset(bar4, irq);
+	static GCROOT hcd_t * hcd;
+	hcd = uhci_reset(bar4, irq);
+	usb_test(hcd);
 }
 
 void uhci_pciscan()

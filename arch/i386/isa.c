@@ -3,6 +3,12 @@
 
 #include "isa.h"
 
+#if INTERFACE
+
+#define IRQMAX 16
+
+#endif
+
 /* PIT clock */
 #define PIT_HZ		1193182
 
@@ -43,6 +49,8 @@ arguments:
 static void io_wait()
 {
 }
+
+int irqmax = IRQMAX;
 
 void PIC_eoi(int irq)
 {
@@ -110,15 +118,44 @@ uint16_t PIC_get_isr(void)
     return PIC_get_irq_reg(ICW3_READ_ISR);
 }
 
+static void PIC_set_mask(int irq) {
+	uint16_t port;
+	uint8_t value;
+
+	if(irq < 8) {
+		port = PIC1_DATA;
+	} else {
+		port = PIC2_DATA;
+		irq -= 8;
+	}
+	value = inb(port) | (1 << irq);
+	outb(port, value);        
+}
+ 
+static void PIC_clear_mask(int irq) {
+	uint16_t port;
+	uint8_t value;
+
+	if(irq < 8) {
+		port = PIC1_DATA;
+	} else {
+		port = PIC2_DATA;
+		irq -= 8;
+	}
+	value = inb(port) & ~(1 << irq);
+	outb(port, value);        
+}
+
 static unsigned long spurious = 0;
+int inirq;
 void i386_irq(uint32_t num, arch_trap_frame_t * state)
 {
 	int irq = num - PIC_IRQ_BASE;
 
 	/* Check for spurious IRQ */
 	if (15 == irq || 7 == irq) {
-		uint16_t isr = PIC_get_isr;
-		if (!(1<<irq)) {
+		uint16_t isr = PIC_get_isr();
+		if (!(isr & (1<<irq))) {
 			/* Spurious */
 			if (15==irq) {
 				/* EOI for cascade */
@@ -129,13 +166,40 @@ void i386_irq(uint32_t num, arch_trap_frame_t * state)
 		}
 	}
 
+	inirq = 1;
 	if (irq_table[irq]) {
 		irq_table[irq](irq);
 	}
+	inirq = 0;
 
 	PIC_eoi(irq);
 }
 
+#if 0
+int irq_isblocked(int irq)
+{
+	uint16_t port;
+	uint8_t value;
+
+	if(irq < 8) {
+		port = PIC1_DATA;
+	} else {
+		port = PIC2_DATA;
+		irq -= 8;
+	}
+	return inb(port) & (1 << irq);
+}
+
+void irq_start(int irq)
+{
+	PIC_set_mask(irq);
+}
+
+void irq_end(int irq)
+{
+	PIC_clear_mask(irq);
+}
+#endif
 irq_func add_irq(int irq, irq_func handler)
 {
 	irq_func old = irq_table[irq];

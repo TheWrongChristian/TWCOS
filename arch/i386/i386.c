@@ -110,24 +110,19 @@ void set_page_dir(page_t pgdir)
 }
 
 static int cli_level = 0;
-void sti(int previous)
+void sti()
 {
-	if (0 == --cli_level && previous) {
+	if (0 == --cli_level && 0 == inirq) {
 		asm volatile("sti");
 	}
 }
 
-extern uint32_t i386_eflags();
-int cli()
+void cli()
 {
+	extern uint32_t i386_eflags();
 	if (0==cli_level++) {
-		if (i386_eflags() & 0x0200) {
-			asm volatile("cli");
-			return 1;
-		}
+		asm volatile("cli");
 	}
-
-	return 0;
 }
 
 void hlt()
@@ -326,7 +321,6 @@ static void i386_sx(uint32_t num, arch_trap_frame_t * state)
 #include <stdarg.h>
 #include <stdint.h>
 #include <setjmp.h>
-typedef void (*irq_func)(int irq);
 #define ARCH_PAGE_ALIGN(p) ((void*)((uint32_t)(p) & (0xffffffff << ARCH_PAGE_SIZE_LOG2)))
 
 struct arch_context_t {
@@ -594,22 +588,22 @@ void ** arch_thread_backtrace(void ** backtrace, int levels)
 int arch_atomic_postinc(int * p)
 {
 	int i;
-	int ints = cli();
+	cli();
 	i = *p;
 	*p = i+1;
-	sti(ints);
+	sti();
 
 	return i;
 }
 
 int arch_spin_trylock(spin_t * p)
 {
-	int ints = cli();
+	cli();
 	if (*p) {
-		sti(ints);
+		sti();
 		return 0;
 	}
-	*p=1+ints;
+	*p=1;
 	return *p;
 }
 
