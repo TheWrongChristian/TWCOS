@@ -18,6 +18,7 @@ struct dev_static_t {
 
 enum dev_op_status { DEV_BUF_OP_SUBMITTED = 0, DEV_BUF_OP_COMPLETE, DEV_BUF_OP_TIMEDOUT, DEV_BUF_OP_FAILED };
 struct buf_op_t {
+	dev_t * dev;
 	dev_op_status status;
 	int write;
 	void * p;
@@ -35,6 +36,7 @@ void dev_op_submit( dev_t * dev, buf_op_t * op )
 {
 	MONITOR_AUTOLOCK(op->lock) {
 		op->status = DEV_BUF_OP_SUBMITTED;
+		op->dev = dev;
 		dev->ops->submit(dev, op);
 	}
 }

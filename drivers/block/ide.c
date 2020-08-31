@@ -100,6 +100,27 @@ typedef struct idedevice_t idedevice_t;
 typedef struct idecontroller_t idecontroller_t;
 
 #endif
+
+static void ide_intr(void * p);
+static void ide_reset(idechannel_t * channel);
+static unsigned ide_field_get(const uint8_t * buf, size_t bufsize, int offset, size_t size);
+static void ide_disk_submit( dev_t * dev, buf_op_t * op );
+static void ide_do_op( dev_t * dev, buf_op_t * op );
+static void ide_thread(idechannel_t * channel);
+static void ide_probe_channel(idechannel_t * channel);
+static idecontroller_t * ide_initialize(uintptr_t bar0, uintptr_t bar1, uintptr_t bar2, uintptr_t bar3, uintptr_t bar4);
+static uint8_t ide_read(idechannel_t * channel, int reg);
+static void ide_write(idechannel_t * channel, int reg, uint8_t value);
+static void ide_write_pio(idechannel_t * channel, void * buf, size_t bufsize);
+static void ide_read_pio(idechannel_t * channel, void * buf, size_t bufsize);
+static void ide_address(idechannel_t * channel, int slave, off64_t lba, size_t count);
+static void ide_delay400(idechannel_t * channel);
+static uint8_t ide_wait(idechannel_t * channel, int polling);
+static void ide_command(idechannel_t * channel, uint8_t command);
+static void ide_drive_identify(idechannel_t * channel, int slave, uint8_t * buf, size_t bufsize);
+static void ide_drive_transfer_sectors(idechannel_t * channel, int slave, off64_t lba, int write, void * buf, size_t bufsize);
+static void ide_probe(uint8_t bus, uint8_t slot, uint8_t function);
+
 struct idedevice_t {
 	dev_t dev;
 	idechannel_t * channel;
@@ -114,6 +135,8 @@ struct idedevice_t {
 
 struct idechannel_t {
 	interrupt_monitor_t * lock;
+	thread_t * thread;
+	buf_op_t * op;
 	int base;  /* I/O Base. */
 	int ctrl;  /* Control Base */
 	int bmide; /* Bus Master IDE */
@@ -126,11 +149,6 @@ struct idecontroller_t {
 	idechannel_t channels[2];
 };
 
-#if 0
-void ide_intr(int irq)
-{
-}
-#endif
 static void ide_intr(void * p)
 {
 	idechannel_t * channel = p;
@@ -139,7 +157,7 @@ static void ide_intr(void * p)
 	}
 }
 
-void ide_reset(idechannel_t * channel)
+static void ide_reset(idechannel_t * channel)
 {
 	ide_write(channel, ATA_REG_CONTROL, 4);
 	timer_sleep(5);
@@ -162,53 +180,98 @@ static unsigned ide_field_get(const uint8_t * buf, size_t bufsize, int offset, s
 static void ide_disk_submit( dev_t * dev, buf_op_t * op )
 {
 	idedevice_t * device = container_of(dev, idedevice_t, dev);
-	off64_t sector = op->offset >> IDE_SECTORSIZE_LOG2;
+	INTERRUPT_MONITOR_AUTOLOCK(device->channel->lock) {
+		while(device->channel->op) {
+			interrupt_monitor_wait(device->channel->lock);
+		}
 
-	ide_drive_transfer_sectors(device->channel, device->drive, sector, op->write, op->p, op->size);
-
-	op->status = DEV_BUF_OP_COMPLETE;
+		device->channel->op = op;
+		interrupt_monitor_broadcast(device->channel->lock);
+	}
 }
 
-void ide_probe_channel(idechannel_t * channel)
+static void ide_do_op( dev_t * dev, buf_op_t * op )
 {
-	static uint8_t buf[IDE_SECTORSIZE];
-	char devfsname[64];
-	snprintf(devfsname, sizeof(devfsname), "disk/ide/%x", channel->base);
-	vnode_t * devfs = devfs_open();
-	for(int i=0; i<2; i++) {
-		idedevice_t * device = channel->devices+i;
-	
-		device->channel = channel;	
-		ide_address(channel, i, 0, 0);
-		uint8_t status = ide_wait(channel, channel->polling);
-		if (0==status) {
-			/* No drive */
-			memset(device, 0, sizeof(*device));
-		} else if (status & (ATA_SR_DRDY|ATA_SR_DRQ)) {
-			ide_drive_identify(channel, i, buf, countof(buf));
-			/* Check for ATAPI device */
-			status = ide_wait(channel, channel->polling);
-			if (0x14 == ide_read(channel, ATA_REG_LBA1) && 0xEB == ide_read(channel, ATA_REG_LBA2)) {
-				static dev_ops_t ide_atapi_ops;
-				/* ATAPI device */
-				device->type = IDE_ATAPI;
-				device->dev.ops = &ide_atapi_ops;
-			} else {
-				static dev_ops_t ide_disk_ops = { .submit = ide_disk_submit };
-				device->size = ide_field_get(buf, sizeof(buf), ATA_IDENT_MAX_LBA, 4);
-				device->type = IDE_ATA;
-				device->dev.ops = &ide_disk_ops;
+	MONITOR_AUTOLOCK(op->lock) {
+		idedevice_t * device = container_of(dev, idedevice_t, dev);
+		off64_t sector = op->offset >> IDE_SECTORSIZE_LOG2;
+
+		ide_drive_transfer_sectors(device->channel, device->drive, sector, op->write, op->p, op->size);
+
+		op->status = DEV_BUF_OP_COMPLETE;
+		monitor_broadcast(op->lock);
+	}
+}
+
+static void ide_thread(idechannel_t * channel)
+{
+	while(1) {
+		INTERRUPT_MONITOR_AUTOLOCK(channel->lock) {
+			while(0 == channel->op) {
+				interrupt_monitor_wait(channel->lock);
 			}
-			vnode_t * vnode = dev_vnode(&device->dev);
-			vnode_t * dir = vnode_newdir_hierarchy(devfs, devfsname);
-			vnode_put_vnode(dir, i ? "slave" : "master", vnode);
-		} else {
-			/* Some error */
+			dev_t * dev = channel->op->dev;
+			ide_do_op(dev, channel->op);
+
+			/* Done with this op */
+			channel->op = 0;
 		}
 	}
 }
 
-idecontroller_t * ide_initialize(uintptr_t bar0, uintptr_t bar1, uintptr_t bar2, uintptr_t bar3, uintptr_t bar4)
+static void ide_probe_channel(idechannel_t * channel)
+{
+	INTERRUPT_MONITOR_AUTOLOCK(channel->lock) {
+		static uint8_t buf[IDE_SECTORSIZE];
+		char devfsname[64];
+		int needthread = 0;
+		snprintf(devfsname, sizeof(devfsname), "disk/ide/%x", channel->base);
+		vnode_t * devfs = devfs_open();
+		for(int i=0; i<2; i++) {
+			idedevice_t * device = channel->devices+i;
+		
+			device->channel = channel;	
+			ide_address(channel, i, 0, 0);
+			uint8_t status = ide_wait(channel, channel->polling);
+			if (0==status) {
+				/* No drive */
+				memset(device, 0, sizeof(*device));
+			} else if (status & (ATA_SR_DRDY|ATA_SR_DRQ)) {
+				ide_drive_identify(channel, i, buf, countof(buf));
+				/* Check for ATAPI device */
+				status = ide_wait(channel, channel->polling);
+				if (0x14 == ide_read(channel, ATA_REG_LBA1) && 0xEB == ide_read(channel, ATA_REG_LBA2)) {
+					static dev_ops_t ide_atapi_ops;
+					/* ATAPI device */
+					device->type = IDE_ATAPI;
+					device->dev.ops = &ide_atapi_ops;
+				} else {
+					static dev_ops_t ide_disk_ops = { .submit = ide_disk_submit };
+					device->size = ide_field_get(buf, sizeof(buf), ATA_IDENT_MAX_LBA, 4);
+					device->type = IDE_ATA;
+					device->dev.ops = &ide_disk_ops;
+				}
+				vnode_t * vnode = dev_vnode(&device->dev);
+				vnode_t * dir = vnode_newdir_hierarchy(devfs, devfsname);
+				vnode_put_vnode(dir, i ? "slave" : "master", vnode);
+				needthread = 1;
+			} else {
+				/* Some error */
+			}
+		}
+		if (needthread) {
+			/* Processing thread */
+			thread_t * thread = thread_fork();
+			if (thread) {
+				channel->thread = thread;
+			} else {
+				ide_thread(channel);
+			}
+		}
+	}
+}
+
+static idecontroller_t * ide_initialize(uintptr_t bar0, uintptr_t bar1, uintptr_t bar2, uintptr_t bar3, uintptr_t bar4)
 {
 	idecontroller_t * ide = calloc(1, sizeof(*ide));
 
@@ -242,7 +305,7 @@ idecontroller_t * ide_initialize(uintptr_t bar0, uintptr_t bar1, uintptr_t bar2,
 	return ide;
 }
 
-uint8_t ide_read(idechannel_t * channel, int reg)
+static uint8_t ide_read(idechannel_t * channel, int reg)
 {
 	uint8_t result;
 	switch(reg) {
@@ -272,7 +335,7 @@ uint8_t ide_read(idechannel_t * channel, int reg)
 	return result;
 }
 
-void ide_write(idechannel_t * channel, int reg, uint8_t value)
+static void ide_write(idechannel_t * channel, int reg, uint8_t value)
 {
 	switch(reg) {
 	case ATA_REG_DATA:
@@ -297,7 +360,7 @@ void ide_write(idechannel_t * channel, int reg, uint8_t value)
 	}
 }
 
-void ide_write_pio(idechannel_t * channel, void * buf, size_t bufsize)
+static void ide_write_pio(idechannel_t * channel, void * buf, size_t bufsize)
 {
 	uint16_t * p16 = buf;
 	size_t count=bufsize/sizeof(*p16);
@@ -307,7 +370,7 @@ void ide_write_pio(idechannel_t * channel, void * buf, size_t bufsize)
 	}
 }
 
-void ide_read_pio(idechannel_t * channel, void * buf, size_t bufsize)
+static void ide_read_pio(idechannel_t * channel, void * buf, size_t bufsize)
 {
 	uint16_t * p16 = buf;
 	size_t count=bufsize/sizeof(*p16);
@@ -318,7 +381,7 @@ void ide_read_pio(idechannel_t * channel, void * buf, size_t bufsize)
 }
 
 #define BYTE(lba, byte) ((lba>>(byte*8)) & 0xff)
-void ide_address(idechannel_t * channel, int slave, off64_t lba, size_t count)
+static void ide_address(idechannel_t * channel, int slave, off64_t lba, size_t count)
 {
 	if (lba >= 1<<28) {
 		// Select drive
@@ -351,7 +414,7 @@ void ide_address(idechannel_t * channel, int slave, off64_t lba, size_t count)
 	}
 }
 
-void ide_delay400(idechannel_t * channel)
+static void ide_delay400(idechannel_t * channel)
 {
 	ide_read(channel, ATA_REG_ALTSTATUS);
 	ide_read(channel, ATA_REG_ALTSTATUS);
@@ -359,23 +422,21 @@ void ide_delay400(idechannel_t * channel)
 	ide_read(channel, ATA_REG_ALTSTATUS);
 }
 
-uint8_t ide_wait(idechannel_t * channel, int polling)
+static uint8_t ide_wait(idechannel_t * channel, int polling)
 {
 	uint8_t status = 0;
 #if 1
-	INTERRUPT_MONITOR_AUTOLOCK(channel->lock) {
-		do {
-			status = ide_read(channel, ATA_REG_ALTSTATUS);
-			if (status & 0x80) {
-				if (polling) {
-					thread_yield();
-				} else {
-					interrupt_monitor_wait(channel->lock);
-				}
+	do {
+		status = ide_read(channel, ATA_REG_ALTSTATUS);
+		if (status & 0x80) {
+			if (polling) {
+				thread_yield();
+			} else {
+				interrupt_monitor_wait(channel->lock);
 			}
-		} while(status & 0x80);
-		status = ide_read(channel, ATA_REG_STATUS);
-	}
+		}
+	} while(status & 0x80);
+	status = ide_read(channel, ATA_REG_STATUS);
 #else
 	if ( 1 || channel->polling) {
 		do {
@@ -394,14 +455,14 @@ uint8_t ide_wait(idechannel_t * channel, int polling)
 	return status;
 }
 
-void ide_command(idechannel_t * channel, uint8_t command)
+static void ide_command(idechannel_t * channel, uint8_t command)
 {
 	ide_write(channel, ATA_REG_CONTROL, channel->polling ? 2 : 0);
 	ide_delay400(channel);
 	ide_write(channel, ATA_REG_COMMAND, command);
 }
 
-void ide_drive_identify(idechannel_t * channel, int slave, uint8_t * buf, size_t bufsize)
+static void ide_drive_identify(idechannel_t * channel, int slave, uint8_t * buf, size_t bufsize)
 {
 	ide_address(channel, slave, 0, 0);
 	ide_command(channel, ATA_CMD_IDENTIFY);
@@ -410,7 +471,7 @@ void ide_drive_identify(idechannel_t * channel, int slave, uint8_t * buf, size_t
 	ide_read_pio(channel, buf, bufsize);
 }
 
-void ide_drive_transfer_sectors(idechannel_t * channel, int slave, off64_t lba, int write, void * buf, size_t bufsize)
+static void ide_drive_transfer_sectors(idechannel_t * channel, int slave, off64_t lba, int write, void * buf, size_t bufsize)
 {
 	size_t count = bufsize >> IDE_SECTORSIZE_LOG2;
 	char * p = buf;
@@ -446,7 +507,7 @@ void ide_drive_transfer_sectors(idechannel_t * channel, int slave, off64_t lba, 
 	}
 }
 
-void ide_probe(uint8_t bus, uint8_t slot, uint8_t function)
+static void ide_probe(uint8_t bus, uint8_t slot, uint8_t function)
 {
 	if (1==pci_class(bus, slot, function) && 1==pci_subclass(bus, slot, function)) {
 		uint8_t irq = pci_irq(bus, slot, function);
