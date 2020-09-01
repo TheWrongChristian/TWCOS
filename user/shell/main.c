@@ -66,7 +66,7 @@ int main(int argc, char * argv[], char * envp[])
 		printf("\033[48;5;2mHello world from pid\033[48;5;0m %d\r", getpid());
 		fflush(stdout);
 #if 1
-		usleep((1+getpid()%10)*10000);
+		usleep((1+getpid()%100)*1000);
 #endif
 		execve(argv[0], argv, envp);
 	}
