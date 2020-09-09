@@ -33,4 +33,15 @@ void usb_test(hcd_t * hcd)
 	hcd_packet(hcd, usbsetup, dev, config, countof(config));
 	hcd_packet(hcd, usbin, dev, response, countof(response));
 	hcd_packet(hcd, usbout, dev, 0, 0);
+
+	static uint8_t setaddress[] = {0x00, 0x5, 0x1, 0x0, 0x0, 0x0, 0x0, 0x0};
+	hcd_packet(hcd, usbsetup, dev, setaddress, countof(setaddress));
+	hcd_packet(hcd, usbin, dev, 0, 0);
+	dev->dev = 1;
+
+	uint8_t * buf = calloc(1, response[0]);
+	hcd_packet(hcd, usbsetup, dev, config, countof(config));
+	hcd_packet(hcd, usbin, dev, buf, response[0]);
+	hcd_packet(hcd, usbout, dev, 0, 0);
+
 }

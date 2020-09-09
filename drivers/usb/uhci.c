@@ -96,22 +96,34 @@ struct uhci_hcd_t {
 	int ports;
 	uhci_q * queues[maxq];
 	map_t * outstanding;
-};
 
-static void uhci_interrupt_processor(uhci_hcd_t * hcd)
-{
-	INTERRUPT_MONITOR_AUTOLOCK(hcd->lock) {
-		while(hcd) {
-			interrupt_monitor_wait(hcd->lock);
-		}
-	}
-}
+	/* Interrupt information */
+	uint16_t status;
+};
 
 static void uhci_walk_outstanding(void * p, void * key, void * data)
 {
 	uhci_hcd_t * hcd = p;
-	uhci_td * td = data;
+	uhci_q * q = data;
+	uhci_td * td = q->velementlink.td;
 	int status = bitget(td->flags, 23, 8);
+}
+
+static void uhci_async_processor(uhci_hcd_t * hcd)
+{
+	INTERRUPT_MONITOR_AUTOLOCK(hcd->lock) {
+		while(1) {
+			while(0 == hcd->status) {
+				interrupt_monitor_wait(hcd->lock);
+			}
+
+			/* FIXME: Handle any errors */
+
+			/* Process any outstanding frames */
+			map_walkpp(hcd->outstanding, uhci_walk_outstanding, hcd);
+			hcd->status = 0;
+		}
+	}
 }
 
 static void uhci_irq(void * p)
@@ -121,12 +133,10 @@ static void uhci_irq(void * p)
 	uint16_t status;
 	uint16_t command;
 	frame = isa_inw(hcd->iobase + UHCI_FRNUM);
-	status = isa_inw(hcd->iobase + UHCI_USBSTS);
-	command = isa_inw(hcd->iobase + UHCI_USBCMD);
-	if (status & UHCI_USBSTS_INT) {
-		isa_outw(hcd->iobase + UHCI_USBSTS, UHCI_USBSTS_INT);
+	hcd->status = isa_inw(hcd->iobase + UHCI_USBSTS);
+	if (hcd->status & 0xf) {
+		isa_outw(hcd->iobase + UHCI_USBSTS, 0xf);
 	}
-	map_walkpp(hcd->outstanding, uhci_walk_outstanding, hcd);
 }
 
 static void uhci_count_ports(uhci_hcd_t * hcd)
@@ -223,7 +233,7 @@ static cache_entry * uhci_entry_get()
 			vmpage_setflags(page, VMPAGE_PINNED);
 			size_t entrysize = ROUNDUP(sizeof(cache_entry), 0x10);
 			for(int i = 0; i<ARCH_PAGE_SIZE/entrysize; i++) {
-				uhci_entry_put(entries+(entrysize*i));
+				uhci_entry_put((cache_entry *)(entries+(entrysize*i)));
 			}
 		}
 		entry = cache;
@@ -251,11 +261,6 @@ static void uhci_set_link(le32_t * plink, tdqlink * vlink, uhci_q * q, uhci_td *
 			vlink->td = 0;
 		}
 	}
-}
-
-static void uhci_td_append(uhci_td * head, uhci_td * td, int q)
-{
-	
 }
 
 static void uhci_q_headlink(uhci_q * q, uhci_q * lq, uhci_td * ltd)
@@ -316,6 +321,7 @@ void uhci_submit_request(urb_t * urb)
 }
 
 static void uhci_packet(hcd_t * hcd, usbpid_t pid, usb_device_t * dev, void * buf, size_t buflen);
+
 hcd_t * uhci_reset(int iobase, int irq)
 {
 	/* Global reset 5 times with 10ms each */
@@ -360,8 +366,6 @@ hcd_t * uhci_reset(int iobase, int irq)
 		hcd->queues[i] = uhci_q_get();
 		if (i) {
 			uhci_q_headlink(hcd->queues[i], hcd->queues[i-1], 0);
-		} else {
-			uhci_q_headlink(hcd->queues[i], 0, 0);
 		}
 	}
 
@@ -407,10 +411,10 @@ hcd_t * uhci_reset(int iobase, int irq)
 	/* Start the schedule */
 	isa_outw(hcd->iobase+UHCI_USBCMD, UHCI_USBCMD_CF | UHCI_USBCMD_RS);
 
-#if 0
+#if 1
 	thread_t * thread = thread_fork();
 	if (0==thread) {
-		uhci_test_thread(hcd);
+		uhci_async_processor(hcd);
 	} else {
 		hcd->thread = thread;
 	}
@@ -421,7 +425,7 @@ hcd_t * uhci_reset(int iobase, int irq)
 	return &hcd->hcd;
 }
 
-static uhci_td * uhci_td_chain(usbpid_t pid, usb_device_t * dev, void * buf, size_t buflen)
+static uhci_q * uhci_td_chain(usbpid_t pid, usb_device_t * dev, void * buf, size_t buflen)
 {
 	char * cp = buf;
 	if (buf) {
@@ -493,17 +497,24 @@ static uhci_td * uhci_td_chain(usbpid_t pid, usb_device_t * dev, void * buf, siz
 		}
 		tail = td;
 		if (buflen) {
-			buflen -= maxlen;
-			cp += maxlen;
+			if (buflen<maxlen) {
+				buflen = 0;
+			} else {
+				buflen -= maxlen;
+				cp += maxlen;
+			}
 		}
 	} while(buflen>0);
 
-	return head;
+	uhci_q * q = uhci_q_get();
+	uhci_q_elementlink(q, 0, head);
+
+	return q;
 }
 
 static void uhci_packet(hcd_t * hcd, usbpid_t pid, usb_device_t * dev, void * buf, size_t buflen)
 {
-	uhci_td * td = uhci_td_chain(pid, dev, buf, buflen);
+	uhci_q * req = uhci_td_chain(pid, dev, buf, buflen);
 	enum uhci_queue queue;
 
 	if (usbsetup == pid) {
@@ -522,18 +533,20 @@ static void uhci_packet(hcd_t * hcd, usbpid_t pid, usb_device_t * dev, void * bu
 	uhci_hcd_t * uhci_hcd = container_of(hcd, uhci_hcd_t, hcd);
 	INTERRUPT_MONITOR_AUTOLOCK(uhci_hcd->lock) {
 		uhci_q * q = uhci_hcd->queues[queue];
-		uhci_td * tail = q->velementlink.td;
+		uhci_q * nextq = q->vheadlink.q;
+		uhci_q_headlink(req, q->vheadlink.q, 0);
 
+		uhci_q * tail = q->velementlink.q;
 		if (tail) {
-			while(tail->vlink.td) {
-				tail = tail->vlink.td;
+			while(tail->vheadlink.q != nextq) {
+				tail = tail->vheadlink.q;
 			}
-			uhci_td_link(tail, 0, td);
+			uhci_q_headlink(tail, req, 0);
 		} else {
-			uhci_q_elementlink(q, 0, td);
+			uhci_q_elementlink(q, req, 0);
 		}
 
-		map_putpp(uhci_hcd->outstanding, td, td);
+		map_putpp(uhci_hcd->outstanding, req, req);
 	}
 }
 
