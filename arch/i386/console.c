@@ -163,20 +163,22 @@ void console_input(int key)
 void keyb_thread()
 {
 	while(1) {
+		uint8_t scancode;
 		INTERRUPT_MONITOR_AUTOLOCK(keyq_lock) {
-			const uint8_t scancode = keyq_get();
-
-			if (scancode) {
-				const int release = scancode >> 7;
-
-				const int key = keyq_translate(scancode & 0x7f);
-				if (release) {
-					console_input(-key);
-				} else {
-					console_input(key);
-				}
-			} else {
+			scancode = keyq_get();
+			while(!scancode) {
 				interrupt_monitor_wait(keyq_lock);
+				scancode = keyq_get();
+			}
+		}
+		if (scancode) {
+			const int release = scancode >> 7;
+
+			const int key = keyq_translate(scancode & 0x7f);
+			if (release) {
+				console_input(-key);
+			} else {
+				console_input(key);
 			}
 		}
 	}
