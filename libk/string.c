@@ -41,7 +41,7 @@ void * memset(void *s, int c, size_t n)
 	}
 
 	p = (char*)p4end;
-	for(;p<p1end; p++) {
+	for(;p<end; p++) {
 		*p = c;
 	}
 
