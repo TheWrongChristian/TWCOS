@@ -61,6 +61,7 @@ struct exception_frame {
 
 #define KTHROW(type,message) exception_throw(&type, __FILE__, __LINE__, message)
 #define KTHROWF(type,message, ...) exception_throw(&type, __FILE__, __LINE__, message, __VA_ARGS__ )
+#define KTHROWC(cause) exception_throw_cause(cause)
 #define KRETHROW() exception_rethrow()
 
 #define EXCEPTION_DEF(type,parent) static exception_def type = { #type, &parent }
@@ -95,7 +96,7 @@ exception_frame * exception_push(exception_frame * frame)
 	return frame;
 }
 
-static void exception_throw_cause(struct exception_cause * cause)
+void exception_throw_cause(struct exception_cause * cause)
 {
 	struct exception_frame * frame = tls_get(exception_key);
 
@@ -104,16 +105,31 @@ static void exception_throw_cause(struct exception_cause * cause)
 	longjmp(frame->env, 1);
 }
 
-void exception_throw(exception_def * type, char * file, int line, char * message, ...)
+exception_cause * exception_vcreate(exception_def * type, char * file, int line, char * message, va_list ap)
 {
-	va_list ap;
-	va_start(ap,message);
-
-	struct exception_cause * cause = slab_calloc(causes);
+	exception_cause * cause = slab_calloc(causes);
 	cause->type = type;
 	cause->file = file;
 	cause->line = line;
 	vsnprintf(cause->message, sizeof(cause->message), message, ap);
+
+	return cause;
+}
+
+exception_cause * exception_create(exception_def * type, char * file, int line, char * message, ...)
+{
+	va_list ap;
+	va_start(ap,message);
+	exception_cause * cause = exception_vcreate(type, file, line, message, ap);
+	va_end(ap);
+	return cause;
+}
+
+void exception_throw(exception_def * type, char * file, int line, char * message, ...)
+{
+	va_list ap;
+	va_start(ap,message);
+	exception_cause * cause = exception_vcreate(type, file, line, message, ap);
 	va_end(ap);
 
 	exception_throw_cause(cause);

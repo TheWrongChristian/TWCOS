@@ -6,7 +6,7 @@
 #include <sys/types.h>
 
 struct hcd_ops_t {
-	void (*packet)(hcd_t * hcd, usbpid_t pid, usb_device_t * dev, void * buf, size_t buflen);
+	future_t * (*packet)(hcd_t * hcd, usbpid_t pid, usb_endpoint_t * endpoint, void * buf, size_t buflen);
 };
 
 struct hcd_t {
@@ -17,7 +17,7 @@ enum usbpid_t { usbsetup, usbin, usbout };
 
 #endif
 
-void hcd_packet(hcd_t * hcd, usbpid_t pid, usb_device_t * dev, void * buf, size_t buflen)
+future_t * hcd_packet(hcd_t * hcd, usbpid_t pid, usb_endpoint_t * endpoint, void * buf, size_t buflen)
 {
-	hcd->ops->packet( hcd, pid, dev, buf, buflen);
+	return hcd->ops->packet( hcd, pid, endpoint, buf, buflen);
 }

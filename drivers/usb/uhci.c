@@ -50,6 +50,7 @@
 typedef union tdqlink tdqlink;
 typedef struct uhci_td uhci_td;
 typedef struct uhci_q uhci_q;
+typedef struct uhci_hcd_t uhci_hcd_t;
 
 union tdqlink {
 	uhci_q * q;
@@ -62,8 +63,10 @@ struct uhci_q {
 	le32_t elementlink;
 
 	/* Software fields */
+	uhci_hcd_t * hcd;
 	tdqlink vheadlink;
 	tdqlink velementlink;
+	future_t * future;
 };
 
 struct uhci_td {
@@ -74,6 +77,7 @@ struct uhci_td {
 	le32_t p;
 
 	/* Software fields */
+	uhci_hcd_t * hcd;
 	tdqlink vlink;
 	void * vp;
 };
@@ -85,7 +89,6 @@ enum uhci_queue {
 	maxq
 };
 
-typedef struct uhci_hcd_t uhci_hcd_t;
 struct uhci_hcd_t {
 	hcd_t hcd;
 	int iobase;
@@ -95,47 +98,76 @@ struct uhci_hcd_t {
 	uintptr_t * framelist;
 	int ports;
 	uhci_q * queues[maxq];
-	map_t * outstanding;
+	map_t * pending;
 
 	/* Interrupt information */
 	uint16_t status;
 };
 
-static void uhci_walk_outstanding(void * p, void * key, void * data)
+static void uhci_status_check(uhci_q * q, future_t * future)
+{
+	uhci_td * td = q->velementlink.td;
+
+	while(td) {
+		int status = bitget(le32(td->flags), 23, 8);
+		if (0x80 & status) {
+			/* Still active - ignore */
+			return;
+		} else if (status) {
+			/* Check for errors */
+			future_set(future, status);
+			return;
+		}
+		td = td->vlink.td;
+	}
+
+	/* By here, we've checked all the status as successful. */
+	future_set(future, 0);
+
+	/* FIXME: cleanup pending */
+}
+
+static void uhci_walk_pending(void * p, void * key, void * data)
 {
 	uhci_hcd_t * hcd = p;
-	uhci_q * q = data;
-	uhci_td * td = q->velementlink.td;
-	int status = bitget(td->flags, 23, 8);
+	uhci_q * q = key;
+	future_t * future = data;
+	uhci_status_check(q, future);
 }
 
 static void uhci_async_processor(uhci_hcd_t * hcd)
 {
-	INTERRUPT_MONITOR_AUTOLOCK(hcd->lock) {
-		while(1) {
+	while(1) {
+		INTERRUPT_MONITOR_AUTOLOCK(hcd->lock) {
 			while(0 == hcd->status) {
 				interrupt_monitor_wait(hcd->lock);
 			}
 
 			/* FIXME: Handle any errors */
 
-			/* Process any outstanding frames */
-			map_walkpp(hcd->outstanding, uhci_walk_outstanding, hcd);
+			/* Process any pending frames */
+			map_walkpp(hcd->pending, uhci_walk_pending, hcd);
 			hcd->status = 0;
 		}
+#if 0
+		timer_sleep(100000);
+#endif
 	}
 }
 
 static void uhci_irq(void * p)
 {
 	uhci_hcd_t * hcd = p;
-	uint16_t frame;
-	uint16_t status;
-	uint16_t command;
-	frame = isa_inw(hcd->iobase + UHCI_FRNUM);
-	hcd->status = isa_inw(hcd->iobase + UHCI_USBSTS);
-	if (hcd->status & 0xf) {
-		isa_outw(hcd->iobase + UHCI_USBSTS, 0xf);
+	INTERRUPT_MONITOR_AUTOLOCK(hcd->lock) {
+		uint16_t frame;
+		uint16_t status;
+		uint16_t command;
+		frame = isa_inw(hcd->iobase + UHCI_FRNUM);
+		hcd->status = isa_inw(hcd->iobase + UHCI_USBSTS);
+		if (hcd->status & 0xf) {
+			isa_outw(hcd->iobase + UHCI_USBSTS, 0xf);
+			interrupt_monitor_broadcast(hcd->lock);
+		}
 	}
 }
 
@@ -320,7 +352,7 @@ void uhci_submit_request(urb_t * urb)
 	}
 }
 
-static void uhci_packet(hcd_t * hcd, usbpid_t pid, usb_device_t * dev, void * buf, size_t buflen);
+static future_t * uhci_packet(hcd_t * hcd, usbpid_t pid, usb_endpoint_t * endpoint, void * buf, size_t buflen);
 
 hcd_t * uhci_reset(int iobase, int irq)
 {
@@ -356,7 +388,7 @@ hcd_t * uhci_reset(int iobase, int irq)
 	hcd->lock = interrupt_monitor_irq(irq);
 	hcd->pframelist = vmpage_calloc(CORE_SUB4G);
 	hcd->framelist = vm_kas_get_aligned(ARCH_PAGE_SIZE, ARCH_PAGE_SIZE);
-	hcd->outstanding = treap_new(0);
+	hcd->pending = arraymap_new(0, 64);
 
 	static hcd_ops_t ops = { .packet = uhci_packet };	
 	hcd->hcd.ops = &ops;
@@ -425,7 +457,7 @@ hcd_t * uhci_reset(int iobase, int irq)
 	return &hcd->hcd;
 }
 
-static uhci_q * uhci_td_chain(usbpid_t pid, usb_device_t * dev, void * buf, size_t buflen)
+static uhci_q * uhci_td_chain(usbpid_t pid, usb_endpoint_t * endpoint, void * buf, size_t buflen)
 {
 	char * cp = buf;
 	if (buf) {
@@ -452,22 +484,22 @@ static uhci_q * uhci_td_chain(usbpid_t pid, usb_device_t * dev, void * buf, size
 		break;
 	}
 
-	ssize_t maxlen = (dev->ls) ? 8 : 64;
+	ssize_t maxlen = (endpoint->device->flags & USB_DEVICE_LOW_SPEED) ? 8 : 64;
 	uhci_td * head = 0;
 	uhci_td * tail = 0;
 	do {
 		uhci_td * td = uhci_td_get();
 
-		uint32_t flags = bitset(0, 26, 1, dev->ls);
+		uint32_t flags = bitset(0, 26, 1, (endpoint->device->flags & USB_DEVICE_LOW_SPEED) ? 1 : 0);
 		flags = bitset(flags, 28, 2, 3);
-		flags = bitset(flags, 24, 1, 1);
+		flags = bitset(flags, 24, 1, (buflen<=maxlen));
 		flags = bitset(flags, 23, 8, 0x80);
 
 		uint32_t address = bitset(0, 31, 11, (buflen>maxlen) ? maxlen-1 : buflen-1);
-		address = bitset(address, 18, 4, dev->endp);
-		address = bitset(address, 14, 7, dev->dev);
-		address = bitset(address, 19, 1, (togglebit & dev->toggle) ? 1 : 0);
-		dev->toggle ^= togglebit;
+		address = bitset(address, 18, 4, endpoint->endp);
+		address = bitset(address, 14, 7, endpoint->device->dev);
+		address = bitset(address, 19, 1, (togglebit & endpoint->toggle) ? 1 : 0);
+		endpoint->toggle ^= togglebit;
 
 		switch(pid) {
 		case usbsetup:
@@ -512,16 +544,36 @@ static uhci_q * uhci_td_chain(usbpid_t pid, usb_device_t * dev, void * buf, size
 	return q;
 }
 
-static void uhci_packet(hcd_t * hcd, usbpid_t pid, usb_device_t * dev, void * buf, size_t buflen)
+static void uhci_cleanup_packet(void * p)
 {
-	uhci_q * req = uhci_td_chain(pid, dev, buf, buflen);
+	uhci_q * req = p;
+	assert(req->elementlink == le32(1));
+	uhci_hcd_t * uhci_hcd = req->hcd;
+	uhci_td * td = req->velementlink.td;
+
+	INTERRUPT_MONITOR_AUTOLOCK(uhci_hcd->lock) {
+		req->velementlink.td = 0;
+		map_removepp(uhci_hcd->pending, req);
+	}
+
+	while(td) {
+		cache_entry * entry = (cache_entry*)td;
+		td = td->vlink.td;
+		uhci_entry_free(entry);
+	}
+}
+
+static future_t * uhci_packet(hcd_t * hcd, usbpid_t pid, usb_endpoint_t * endpoint, void * buf, size_t buflen)
+{
+	uhci_q * req = uhci_td_chain(pid, endpoint, buf, buflen);
+	future_t * future = future_create(uhci_cleanup_packet, req);
 	enum uhci_queue queue;
 
 	if (usbsetup == pid) {
 		queue = controlq;
-	} else if (dev->periodic) {
+	} else if (endpoint->periodic) {
 		for(queue=periodicq1; queue<maxq; queue++) {
-			if ((1<<(queue-periodicq1))<dev->periodic) {
+			if ((1<<(queue-periodicq1))<endpoint->periodic) {
 				queue--;
 				break;
 			}
@@ -537,17 +589,29 @@ static void uhci_packet(hcd_t * hcd, usbpid_t pid, usb_device_t * dev, void * bu
 		uhci_q_headlink(req, q->vheadlink.q, 0);
 
 		uhci_q * tail = q->velementlink.q;
-		if (tail) {
-			while(tail->vheadlink.q != nextq) {
+		while(tail) {
+			uhci_q * tempq = tail;
+			if (tail->vheadlink.q != nextq) {
 				tail = tail->vheadlink.q;
+			} else {
+				tail = 0;
 			}
+			if (le32(1)==tempq->elementlink) {
+				/* Queue has been processed */
+				uhci_q_elementlink(q, tail, 0);
+			}
+		}
+		if (tail) {
 			uhci_q_headlink(tail, req, 0);
 		} else {
 			uhci_q_elementlink(q, req, 0);
 		}
 
-		map_putpp(uhci_hcd->outstanding, req, req);
+		req->hcd = uhci_hcd;
+		map_putpp(uhci_hcd->pending, req, future);
 	}
+
+	return future;
 }
 
 void uhci_probe(uint8_t bus, uint8_t slot, uint8_t function)
