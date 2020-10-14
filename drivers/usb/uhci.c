@@ -328,14 +328,22 @@ static uhci_td * uhci_td_get()
 	td->flags = 0;
 	td->address = 0;
 	td->p = 0;
+	td->vp = 0;
 
 	return td;
 }
 
-static void uhci_entry_free(cache_entry * entry)
+static void uhci_q_free(uhci_q * req)
 {
 	SPIN_AUTOLOCK(cachelock) {
+		uhci_td * td = req->velementlink.td;
+		cache_entry * entry = (cache_entry*)req;
 		uhci_entry_put(entry);
+		while(td) {
+			entry = (cache_entry*)td;
+			td = td->vlink.td;
+			uhci_entry_put(entry);
+		}
 	}
 }
 
@@ -544,23 +552,40 @@ static uhci_q * uhci_td_chain(usbpid_t pid, usb_endpoint_t * endpoint, void * bu
 	return q;
 }
 
+static void uhci_q_remove(uhci_hcd_t * hcd, uhci_q * req)
+{
+	for(int i=0; i<countof(hcd->queues); i++) {
+		/* Handle queue head */
+		if (req == hcd->queues[i]->velementlink.q) {
+			uhci_q_elementlink(hcd->queues[i], req->vheadlink.q, 0);
+			return;
+		}
+
+		/* Look for the request in the queue list */
+		uhci_q * prev = hcd->queues[i];
+		while(prev) {
+			if(req == prev->vheadlink.q) {
+				/* unlink */
+				uhci_q_headlink(prev, req->vheadlink.q, 0);
+				return;
+			}
+			prev = prev->vheadlink.q;
+		}
+	}
+}
+
 static void uhci_cleanup_packet(void * p)
 {
 	uhci_q * req = p;
 	assert(req->elementlink == le32(1));
 	uhci_hcd_t * uhci_hcd = req->hcd;
-	uhci_td * td = req->velementlink.td;
 
 	INTERRUPT_MONITOR_AUTOLOCK(uhci_hcd->lock) {
-		req->velementlink.td = 0;
+		uhci_q_remove(uhci_hcd, req);
 		map_removepp(uhci_hcd->pending, req);
 	}
 
-	while(td) {
-		cache_entry * entry = (cache_entry*)td;
-		td = td->vlink.td;
-		uhci_entry_free(entry);
-	}
+	uhci_q_free(req);
 }
 
 static future_t * uhci_packet(hcd_t * hcd, usbpid_t pid, usb_endpoint_t * endpoint, void * buf, size_t buflen)
