@@ -129,7 +129,9 @@ static void uhci_status_check(uhci_q * q, future_t * future)
 
 static void uhci_walk_pending(void * p, void * key, void * data)
 {
+#if 0
 	uhci_hcd_t * hcd = p;
+#endif
 	uhci_q * q = key;
 	future_t * future = data;
 	uhci_status_check(q, future);
@@ -159,10 +161,12 @@ static void uhci_irq(void * p)
 {
 	uhci_hcd_t * hcd = p;
 	INTERRUPT_MONITOR_AUTOLOCK(hcd->lock) {
+#if 0
 		uint16_t frame;
 		uint16_t status;
 		uint16_t command;
 		frame = isa_inw(hcd->iobase + UHCI_FRNUM);
+#endif
 		hcd->status = isa_inw(hcd->iobase + UHCI_USBSTS);
 		if (hcd->status & 0xf) {
 			isa_outw(hcd->iobase + UHCI_USBSTS, 0xf);
