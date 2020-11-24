@@ -4,6 +4,8 @@
 #include "exception.h"
 
 #if INTERFACE
+
+#include <stdnoreturn.h>
 #include <setjmp.h>
 #include <stdarg.h>
 #include <sys/types.h>
@@ -125,7 +127,7 @@ exception_cause * exception_create(exception_def * type, char * file, int line, 
 	return cause;
 }
 
-void exception_throw(exception_def * type, char * file, int line, char * message, ...)
+noreturn void exception_throw(exception_def * type, char * file, int line, char * message, ...)
 {
 	va_list ap;
 	va_start(ap,message);
