@@ -22,6 +22,7 @@ binutils-$(BINUTILS_VERSION).tar.xz:
 
 unpack:: gcc-$(GCC_VERSION).tar.xz binutils-$(BINUTILS_VERSION).tar.xz
 	tar xJf gcc-$(GCC_VERSION).tar.xz
+	( cd gcc-$(GCC_VERSION) && ./contrib/download_prerequisites )
 	tar xJf binutils-$(BINUTILS_VERSION).tar.xz
 
 cross-configure-binutils:
