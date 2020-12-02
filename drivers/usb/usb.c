@@ -23,7 +23,7 @@ struct usb_hub_ops_t {
 	void (*reset_port)(usb_hub_t * hub, int port);
 	usb_device_t * (*get_device)(usb_hub_t * hub, int port);
 	void (*disable_port)(usb_hub_t * hub, int port);
-	hcd_t (*get_hcd)(usb_hub_t * hub);
+	hcd_t * (*get_hcd)(usb_hub_t * hub);
 };
 
 struct usb_hub_t {
@@ -31,7 +31,7 @@ struct usb_hub_t {
 	usb_device_t device;
 
 	int portcount;
-	usb_device_t * ports;
+	usb_device_t ** ports;
 };
 
 struct usb_endpoint_t {

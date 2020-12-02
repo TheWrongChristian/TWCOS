@@ -206,23 +206,23 @@ static void uhci_count_ports(uhci_hcd_t * hcd)
 
 static void uhci_reset_port(uhci_hcd_t * hcd, int port)
 {
-	uint16_t status = isa_inw(hcd->iobase+UHCI_PORTSC(i));
+	uint16_t status = isa_inw(hcd->iobase+UHCI_PORTSC(port));
 	status |= UHCI_PORTSTS_RESET;
-	isa_outw(hcd->iobase+UHCI_PORTSC(i), status);
+	isa_outw(hcd->iobase+UHCI_PORTSC(port), status);
 	timer_sleep(50000);
 	status &= (~UHCI_PORTSTS_RESET);
-	isa_outw(hcd->iobase+UHCI_PORTSC(i), status);
+	isa_outw(hcd->iobase+UHCI_PORTSC(port), status);
 	timer_sleep(10000);
 
 	for(int j=0; j<16; j++) {
-		status = isa_inw(hcd->iobase+UHCI_PORTSC(i));
+		status = isa_inw(hcd->iobase+UHCI_PORTSC(port));
 		if (0==(UHCI_PORTSTS_CS & status)) {
 			/* Nothing attached */
 			break;
 		}
 		if (status & (UHCI_PORTSTS_PEDC | UHCI_PORTSTS_CSC)) {
 			status &= ~(UHCI_PORTSTS_PEDC | UHCI_PORTSTS_CSC);
-			isa_outw(hcd->iobase+UHCI_PORTSC(i), status);
+			isa_outw(hcd->iobase+UHCI_PORTSC(port), status);
 			continue;
 		}
 
@@ -231,7 +231,7 @@ static void uhci_reset_port(uhci_hcd_t * hcd, int port)
 		}
 
 		status |= UHCI_PORTSTS_PED;
-		isa_outw(hcd->iobase+UHCI_PORTSC(i), status);
+		isa_outw(hcd->iobase+UHCI_PORTSC(port), status);
 	}
 }
 
