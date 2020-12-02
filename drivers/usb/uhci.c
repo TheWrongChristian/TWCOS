@@ -91,6 +91,7 @@ enum uhci_queue {
 
 struct uhci_hcd_t {
 	hcd_t hcd;
+	usb_hub_t roothub;
 	int iobase;
 	interrupt_monitor_t * lock;
 	thread_t * thread;
@@ -203,36 +204,34 @@ static void uhci_count_ports(uhci_hcd_t * hcd)
 	}
 }
 
-static void uhci_reset_ports(uhci_hcd_t * hcd)
+static void uhci_reset_port(uhci_hcd_t * hcd, int port)
 {
-	for(int i=0; i<hcd->ports; i++) {
-		uint16_t status = isa_inw(hcd->iobase+UHCI_PORTSC(i));
-		status |= UHCI_PORTSTS_RESET;
-		isa_outw(hcd->iobase+UHCI_PORTSC(i), status);
-		timer_sleep(50000);
-		status &= (~UHCI_PORTSTS_RESET);
-		isa_outw(hcd->iobase+UHCI_PORTSC(i), status);
-		timer_sleep(10000);
+	uint16_t status = isa_inw(hcd->iobase+UHCI_PORTSC(i));
+	status |= UHCI_PORTSTS_RESET;
+	isa_outw(hcd->iobase+UHCI_PORTSC(i), status);
+	timer_sleep(50000);
+	status &= (~UHCI_PORTSTS_RESET);
+	isa_outw(hcd->iobase+UHCI_PORTSC(i), status);
+	timer_sleep(10000);
 
-		for(int j=0; j<16; j++) {
-			status = isa_inw(hcd->iobase+UHCI_PORTSC(i));
-			if (0==(UHCI_PORTSTS_CS & status)) {
-				/* Nothing attached */
-				break;
-			}
-			if (status & (UHCI_PORTSTS_PEDC | UHCI_PORTSTS_CSC)) {
-				status &= ~(UHCI_PORTSTS_PEDC | UHCI_PORTSTS_CSC);
-				isa_outw(hcd->iobase+UHCI_PORTSC(i), status);
-				continue;
-			}
-
-			if (status & UHCI_PORTSTS_PED) {
-				break;
-			}
-
-			status |= UHCI_PORTSTS_PED;
-			isa_outw(hcd->iobase+UHCI_PORTSC(i), status);
+	for(int j=0; j<16; j++) {
+		status = isa_inw(hcd->iobase+UHCI_PORTSC(i));
+		if (0==(UHCI_PORTSTS_CS & status)) {
+			/* Nothing attached */
+			break;
 		}
+		if (status & (UHCI_PORTSTS_PEDC | UHCI_PORTSTS_CSC)) {
+			status &= ~(UHCI_PORTSTS_PEDC | UHCI_PORTSTS_CSC);
+			isa_outw(hcd->iobase+UHCI_PORTSC(i), status);
+			continue;
+		}
+
+		if (status & UHCI_PORTSTS_PED) {
+			break;
+		}
+
+		status |= UHCI_PORTSTS_PED;
+		isa_outw(hcd->iobase+UHCI_PORTSC(i), status);
 	}
 }
 
@@ -366,6 +365,40 @@ void uhci_submit_request(urb_t * urb)
 
 static future_t * uhci_packet(hcd_t * hcd, usbpid_t pid, usb_endpoint_t * endpoint, void * buf, size_t buflen);
 
+/* UHCI root hub */
+#if 0
+struct usb_hub_ops_t {
+        int (*port_count)(usb_hub_t * hub);
+        void (*reset_port)(usb_hub_t * hub, int port);
+        usb_device_t * (*get_device)(usb_hub_t * hub, int port);
+        void (*disable_port)(usb_hub_t * hub, int port);
+};
+#endif
+
+static int uhci_hub_port_count(usb_hub_t * hub)
+{
+	uhci_hcd_t * hcd = container_of(hub, uhci_hcd_t, roothub);
+
+	return hcd->ports;
+}
+
+static void uhci_hub_reset_port(usb_hub_t * hub, int port)
+{
+	uhci_hcd_t * hcd = container_of(hub, uhci_hcd_t, roothub);
+
+	/* Reset the port */
+	uhci_reset_port(hcd, port);
+}
+
+static usb_device_t * uhci_hub_get_device(usb_hub_t * hub, int port)
+{
+}
+
+static void uhci_hub_disable_port(usb_hub_t * hub, int port)
+{
+}
+
+
 hcd_t * uhci_reset(int iobase, int irq)
 {
 	/* Global reset 5 times with 10ms each */
@@ -448,10 +481,6 @@ hcd_t * uhci_reset(int iobase, int irq)
 
 	/* Count the ports */
 	uhci_count_ports(hcd);
-
-	/* Reset the ports */
-	uhci_reset_ports(hcd);
-
 	/* Start the schedule */
 	isa_outw(hcd->iobase+UHCI_USBCMD, UHCI_USBCMD_CF | UHCI_USBCMD_RS);
 
