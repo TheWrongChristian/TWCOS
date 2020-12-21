@@ -98,7 +98,7 @@ usb_device_t * usb_hub_get_device(usb_hub_t * hub, int port)
 	return hub->ports[port];
 }
 
-static void usb_assign_address(usb_device_t * device)
+static void usb_initialize_device(usb_device_t * device)
 {
 	uint8_t config[] = {0x80, 0x6, 0x0, 0x1, 0x0, 0x0, 0x8, 0x0};
 	uint8_t response[] = {0, 0, 0, 0, 0, 0, 0, 0};
@@ -128,6 +128,16 @@ static void usb_assign_address(usb_device_t * device)
 		device->dev = address;
 		future_get(f1);
 		future_get(f2);
+
+		uint8_t * buf = malloc(response[0]);
+		config[6] = response[0];
+		f1 = usb_packet(endpoint, usbsetup, config, countof(config));
+		f2 = usb_packet(endpoint, usbin, buf, response[0]);
+		future_get(f1);
+		future_get(f2);
+
+		f3 = usb_packet(endpoint, usbout, 0, 0);
+		future_get(f3);
 	}
 }
 
@@ -140,9 +150,10 @@ void usb_hub_enumerate(usb_hub_t * hub)
 		usb_device_t * device = usb_hub_get_device(hub, i);
 		if (device && 0 == device->dev) {
 			/* Get the device into an addressed state */
-			usb_assign_address(device);
+			usb_initialize_device(device);
 		}
 		hub->ports[i]=device;
+		device->hub = hub;
 	}
 }
 
