@@ -2,6 +2,21 @@
 
 #if INTERFACE
 
+#include <stdint.h>
+#include <sys/types.h>
+
+enum usbpid_t { usbsetup, usbin, usbout };
+
+struct hcd_ops_t {
+	future_t * (*packet)(usb_endpoint_t * endpoint, usbpid_t pid, void * buf, size_t buflen);
+};
+
+struct hcd_t {
+	hcd_ops_t * ops;
+	/* Enough for 128 ids */
+	uint32_t ids[4];
+};
+
 struct urb_t {
 	hcd_t * hcd;
 	usbpid_t pid;
@@ -28,7 +43,7 @@ struct usb_hub_ops_t {
 
 struct usb_hub_t {
 	usb_hub_ops_t * ops;
-	usb_device_t device;
+	usb_device_t * device;
 
 	int portcount;
 	usb_device_t ** ports;
@@ -44,11 +59,15 @@ struct usb_endpoint_t {
 };
 
 struct usb_device_t {
+	/* Host controller */
+	hcd_t * hcd;
+
+	/* Device address */
 	uint8_t dev;
 	uint8_t flags;
 
 	/* Topology */
-	usb_hub_t * attachment;
+	usb_hub_t * hub;
 
 	/* End points */
 	usb_endpoint_t * endpoints;
@@ -66,29 +85,64 @@ int usb_hub_port_count(usb_hub_t * hub)
 
 void usb_hub_reset_port(usb_hub_t * hub, int port)
 {
-	check_int_bounds(port, 1, hub->portcount, "Invalid port number");
+	check_int_bounds(port, 0, hub->portcount-1, "Invalid port number");
 	hub->ops->reset_port(hub, port);
 }
 
 usb_device_t * usb_hub_get_device(usb_hub_t * hub, int port)
 {
-	check_int_bounds(port, 1, hub->portcount, "Invalid port number");
-	if (!hub->ports[port-1]) {
-		hub->ports[port-1] = hub->ops->get_device(hub, port);
+	check_int_bounds(port, 0, hub->portcount-1, "Invalid port number");
+	if (!hub->ports[port]) {
+		hub->ports[port] = hub->ops->get_device(hub, port);
 	}
-	return hub->ports[port-1];
+	return hub->ports[port];
+}
+
+static void usb_assign_address(usb_device_t * device)
+{
+	uint8_t config[] = {0x80, 0x6, 0x0, 0x1, 0x0, 0x0, 0x8, 0x0};
+	uint8_t response[] = {0, 0, 0, 0, 0, 0, 0, 0};
+	usb_endpoint_t endpoint[] = {{.device=device}};
+
+	future_t * f1 = usb_packet(endpoint, usbsetup, config, countof(config));
+	future_t * f2 = usb_packet(endpoint, usbin, response, countof(response));
+	future_get(f1);
+	future_get(f2);
+
+	future_t * f3 = usb_packet(endpoint, usbout, 0, 0);
+	future_get(f3);
+
+	/* Allocate an address for the new device */
+	int address=0;
+	for(int i=1; i<128; i++) {
+		if (bitarray_get(device->hcd->ids, i)) {
+			bitarray_set(device->hcd->ids, i, 0);
+			address = i;
+			break;
+		}
+	}
+	if (address) {
+		uint8_t setaddress[] = {0x00, 0x5, address, 0x0, 0x0, 0x0, 0x0, 0x0};
+		f1 = usb_packet(endpoint, usbsetup, setaddress, countof(setaddress));
+		f2 = usb_packet(endpoint, usbin, 0, 0);
+		device->dev = address;
+		future_get(f1);
+		future_get(f2);
+	}
 }
 
 void usb_hub_enumerate(usb_hub_t * hub)
 {
 	int portcount = usb_hub_port_count(hub);
 
-	for(int i=1; i<=portcount; i++) {
+	for(int i=0; i<portcount; i++) {
 		usb_hub_reset_port(hub, i);
 		usb_device_t * device = usb_hub_get_device(hub, i);
-		if (device) {
+		if (device && 0 == device->dev) {
+			/* Get the device into an addressed state */
+			usb_assign_address(device);
 		}
-		hub->ports[i-1]=device;
+		hub->ports[i]=device;
 	}
 }
 
@@ -100,7 +154,7 @@ hcd_t * usb_hub_get_hcd(usb_hub_t * hub)
 			return hub->ops->get_hcd(hub);
 		} else {
 			/* Walk up the attachment chain */
-			hub = hub->device.attachment;
+			hub = hub->device->hub;
 		}
 	}
 
@@ -108,15 +162,22 @@ hcd_t * usb_hub_get_hcd(usb_hub_t * hub)
 	return 0;
 }
 
-void usb_test(hcd_t * hcd)
+future_t * usb_packet(usb_endpoint_t * endpoint, usbpid_t pid, void * buf, size_t buflen)
 {
-	uint8_t config[] = {0x80, 0x6, 0x0, 0x1, 0x0, 0x0, 0x8, 0x0};
-	static uint8_t response[] = {0, 0, 0, 0, 0, 0, 0, 0};
-	usb_device_t dev[] = {{0, USB_DEVICE_LOW_SPEED, 0}};
-	usb_endpoint_t endpoint[] = {{&dev[0]}};
+	return endpoint->device->hcd->ops->packet(endpoint, pid, buf, buflen);
+}
 
-	future_t * f1 = hcd_packet(hcd, usbsetup, endpoint, config, countof(config));
-	future_t * f2 = hcd_packet(hcd, usbin, endpoint, response, countof(response));
+void usb_test(usb_hub_t * hub)
+{
+	usb_hub_enumerate(hub);
+#if 0
+	uint8_t config[] = {0x80, 0x6, 0x0, 0x1, 0x0, 0x0, 0x8, 0x0};
+	uint8_t response[] = {0, 0, 0, 0, 0, 0, 0, 0};
+	usb_device_t dev[] = {{0, USB_DEVICE_LOW_SPEED, 0}};
+	usb_endpoint_t endpoint[] = {{.device=&dev[0]}};
+
+	future_t * f1 = usb_packet(usbsetup, endpoint, config, countof(config));
+	future_t * f2 = usb_packet(usbin, endpoint, response, countof(response));
 	future_get(f1);
 	future_get(f2);
 
@@ -140,4 +201,5 @@ void usb_test(hcd_t * hcd)
 
 	f3 = hcd_packet(hcd, usbout, endpoint, 0, 0);
 	future_get(f3);
+#endif
 }

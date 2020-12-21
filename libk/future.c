@@ -4,7 +4,7 @@
 
 struct future_t {
 	interrupt_monitor_t lock[1];
-	int pending;
+	volatile int pending;
 	exception_cause * cause;
 	int status;
 	void (*cleanup)(void * p);
@@ -27,6 +27,7 @@ int future_get(future_t * future)
 
 	if (future->cleanup) {
 		future->cleanup(future->p);
+		future->cleanup = 0;
 	}
 
 	if (future->cause) {
@@ -45,9 +46,9 @@ void future_set(future_t * future, int status)
 	}
 }
 
-future_t * future_create(void (*cleanup)(void * p), void * p)
+void future_init(future_t * future, void (*cleanup)(void * p), void * p)
 {
-	future_t * future = calloc(1, sizeof(*future));
+	memset(future, 0, sizeof(*future));
 	future->pending = 1;
 	future->cleanup = cleanup;
 	future->p = p;
@@ -55,11 +56,11 @@ future_t * future_create(void (*cleanup)(void * p), void * p)
 	return future;
 }
 
-void future_pending(future_t * future)
+future_t * future_create(void (*cleanup)(void * p), void * p)
 {
-	/* This should be done to initialise, so no lock needed */
-	memset(future, 0, sizeof(*future));
-	future->pending = 1;
+	future_t * future = malloc(sizeof(*future));
+	future_init(future, cleanup, p);
+	return future;
 }
 
 void future_cancel(future_t * future, exception_cause * cause)

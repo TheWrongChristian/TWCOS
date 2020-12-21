@@ -55,6 +55,7 @@ void kernel_main() {
 		page_cache_init();
 		process_init();
 		timer_init(arch_timer_ops());
+		packet_test();
 		pci_scan(pci_probe_devfs);
 		ide_pciscan();
 		uhci_pciscan();

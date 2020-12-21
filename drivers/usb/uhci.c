@@ -92,12 +92,12 @@ enum uhci_queue {
 struct uhci_hcd_t {
 	hcd_t hcd;
 	usb_hub_t roothub;
+	usb_device_t * ports[2];
 	int iobase;
 	interrupt_monitor_t * lock;
 	thread_t * thread;
 	vmpage_t * pframelist;
 	uintptr_t * framelist;
-	int ports;
 	uhci_q * queues[maxq];
 	map_t * pending;
 
@@ -176,34 +176,6 @@ static void uhci_irq(void * p)
 	}
 }
 
-static void uhci_count_ports(uhci_hcd_t * hcd)
-{
-	for(int i=0; i<8; i++) {
-		uint16_t status = isa_inw(hcd->iobase+UHCI_PORTSC(i));
-		if (UHCI_PORTSTS_PORT & status) {
-			isa_outw(hcd->iobase+UHCI_PORTSC(i), (status & ~UHCI_PORTSTS_PORT));
-			status = isa_inw(hcd->iobase+UHCI_PORTSC(i));
-			if (0==(status & UHCI_PORTSTS_PORT)) {
-				break;
-			}
-			status = isa_inw(hcd->iobase+UHCI_PORTSC(i));
-			isa_outw(hcd->iobase+UHCI_PORTSC(i), (status | UHCI_PORTSTS_PORT));
-			status = isa_inw(hcd->iobase+UHCI_PORTSC(i));
-			if (0==(status & UHCI_PORTSTS_PORT)) {
-				break;
-			}
-			isa_outw(hcd->iobase+UHCI_PORTSC(i), (status | 0xa));
-			status = isa_inw(hcd->iobase+UHCI_PORTSC(i));
-			if (status & 0xa) {
-				break;
-			}
-			hcd->ports = i+1;
-		} else {
-			break;
-		}
-	}
-}
-
 static void uhci_reset_port(uhci_hcd_t * hcd, int port)
 {
 	uint16_t status = isa_inw(hcd->iobase+UHCI_PORTSC(port));
@@ -218,6 +190,7 @@ static void uhci_reset_port(uhci_hcd_t * hcd, int port)
 		status = isa_inw(hcd->iobase+UHCI_PORTSC(port));
 		if (0==(UHCI_PORTSTS_CS & status)) {
 			/* Nothing attached */
+			hcd->ports[port] = 0;
 			break;
 		}
 		if (status & (UHCI_PORTSTS_PEDC | UHCI_PORTSTS_CSC)) {
@@ -227,6 +200,12 @@ static void uhci_reset_port(uhci_hcd_t * hcd, int port)
 		}
 
 		if (status & UHCI_PORTSTS_PED) {
+			usb_device_t * device = calloc(1, sizeof(*device));
+			if (status & UHCI_PORTSTS_LSD) {
+				device->flags |= USB_DEVICE_LOW_SPEED;
+			}
+			device->hcd = &hcd->hcd;
+			hcd->ports[port] = device;
 			break;
 		}
 
@@ -363,7 +342,7 @@ void uhci_submit_request(urb_t * urb)
 	}
 }
 
-static future_t * uhci_packet(hcd_t * hcd, usbpid_t pid, usb_endpoint_t * endpoint, void * buf, size_t buflen);
+static future_t * uhci_packet(usb_endpoint_t * endpoint, usbpid_t pid, void * buf, size_t buflen);
 
 /* UHCI root hub */
 #if 0
@@ -379,7 +358,7 @@ static int uhci_hub_port_count(usb_hub_t * hub)
 {
 	uhci_hcd_t * hcd = container_of(hub, uhci_hcd_t, roothub);
 
-	return hcd->ports;
+	return countof(hcd->ports);
 }
 
 static void uhci_hub_reset_port(usb_hub_t * hub, int port)
@@ -392,14 +371,26 @@ static void uhci_hub_reset_port(usb_hub_t * hub, int port)
 
 static usb_device_t * uhci_hub_get_device(usb_hub_t * hub, int port)
 {
+	usb_device_t * device = hub->ports[port];
+	if (0 == device) {
+		uhci_hub_reset_port(hub, port);
+		device = hub->ports[port];
+	}
+
+	return device;
 }
 
 static void uhci_hub_disable_port(usb_hub_t * hub, int port)
 {
+	uhci_hcd_t * hcd = container_of(hub, uhci_hcd_t, roothub);
+
+	uint16_t status = isa_inw(hcd->iobase+UHCI_PORTSC(port));
+	status |= UHCI_PORTSTS_SUSPEND;
+	isa_outw(hcd->iobase+UHCI_PORTSC(port), status);
 }
 
 
-hcd_t * uhci_reset(int iobase, int irq)
+static uhci_hcd_t * uhci_reset(int iobase, int irq)
 {
 	/* Global reset 5 times with 10ms each */
 	for(int i=0; i<5; i++) {
@@ -437,6 +428,8 @@ hcd_t * uhci_reset(int iobase, int irq)
 
 	static hcd_ops_t ops = { .packet = uhci_packet };	
 	hcd->hcd.ops = &ops;
+	bitarray_setall(hcd->hcd.ids, 32*countof(hcd->hcd.ids), 1);
+	bitarray_set(hcd->hcd.ids, 0, 0);
 	vmpage_map(hcd->pframelist, kas, hcd->framelist, 1, 0);
 
 	for(int i=0; i<countof(hcd->queues); i++) {
@@ -479,8 +472,6 @@ hcd_t * uhci_reset(int iobase, int irq)
 	/* Clear all status */
 	isa_outw(hcd->iobase+UHCI_USBSTS, 0xffff);
 
-	/* Count the ports */
-	uhci_count_ports(hcd);
 	/* Start the schedule */
 	isa_outw(hcd->iobase+UHCI_USBCMD, UHCI_USBCMD_CF | UHCI_USBCMD_RS);
 
@@ -492,10 +483,19 @@ hcd_t * uhci_reset(int iobase, int irq)
 		hcd->thread = thread;
 	}
 #endif
+	hcd->roothub.ports = hcd->ports;
+
+	static usb_hub_ops_t uhci_roothub_ops = {
+		.port_count = uhci_hub_port_count,
+		.reset_port = uhci_hub_reset_port,
+		.get_device = uhci_hub_get_device,
+		.disable_port = uhci_hub_disable_port,
+	};
+	hcd->roothub.ops = &uhci_roothub_ops;
 
 	intr_add(irq, uhci_irq, hcd);
 
-	return &hcd->hcd;
+	return hcd;
 }
 
 static uhci_q * uhci_td_chain(usbpid_t pid, usb_endpoint_t * endpoint, void * buf, size_t buflen)
@@ -621,7 +621,7 @@ static void uhci_cleanup_packet(void * p)
 	uhci_q_free(req);
 }
 
-static future_t * uhci_packet(hcd_t * hcd, usbpid_t pid, usb_endpoint_t * endpoint, void * buf, size_t buflen)
+static future_t * uhci_packet(usb_endpoint_t * endpoint, usbpid_t pid, void * buf, size_t buflen)
 {
 	uhci_q * req = uhci_td_chain(pid, endpoint, buf, buflen);
 	future_t * future = future_create(uhci_cleanup_packet, req);
@@ -640,7 +640,7 @@ static future_t * uhci_packet(hcd_t * hcd, usbpid_t pid, usb_endpoint_t * endpoi
 		queue = bulkq;
 	}
 
-	uhci_hcd_t * uhci_hcd = container_of(hcd, uhci_hcd_t, hcd);
+	uhci_hcd_t * uhci_hcd = container_of(endpoint->device->hcd, uhci_hcd_t, hcd);
 	INTERRUPT_MONITOR_AUTOLOCK(uhci_hcd->lock) {
 		uhci_q * q = uhci_hcd->queues[queue];
 		uhci_q * nextq = q->vheadlink.q;
@@ -676,9 +676,9 @@ void uhci_probe(uint8_t bus, uint8_t slot, uint8_t function)
 {
 	uintptr_t bar4 = pci_bar_base(bus, slot, function, 4);
 	int irq = pci_irq(bus, slot, function);
-	static GCROOT hcd_t * hcd;
+	static GCROOT uhci_hcd_t * hcd;
 	hcd = uhci_reset(bar4, irq);
-	usb_test(hcd);
+	usb_test(&hcd->roothub);
 }
 
 void uhci_pciscan()
