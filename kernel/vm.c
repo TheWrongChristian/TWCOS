@@ -40,6 +40,8 @@
 #include <stddef.h>
 #include <stdint.h>
 
+#include <sys/types.h>
+
 #define SEGMENT_R 0x1
 #define SEGMENT_W 0x2
 #define SEGMENT_X 0x4
@@ -49,8 +51,9 @@
 enum object_type_e { OBJECT_DIRECT, OBJECT_ANON, OBJECT_VNODE };
 
 struct vmobject_ops_t {
-	vmpage_t * (*get_page)(vmobject_t * object, off_t offset);
-	vmpage_t * (*put_page)(vmobject_t * object, off_t offset, vmpage_t * page);
+	vmpage_t * (*get_page)(vmobject_t * object, off64_t offset);
+	vmpage_t * (*poll_page)(vmobject_t * object, off64_t offset);
+	vmpage_t * (*put_page)(vmobject_t * object, off64_t offset, vmpage_t * page);
 	void (*release)(vmobject_t * object);
 	vmobject_t * (*clone)(vmobject_t * object);
 };
@@ -59,26 +62,24 @@ struct vmobject_t {
 	vmobject_ops_t * ops;
 };
 
-typedef uint64_t off_t;
-
 struct segment_t {
 	void * base;
 	size_t size;
 	int perms;
 
 	/* Writes go to dirty object */
-	off_t dirty_offset;
+	off64_t dirty_offset;
 	vmobject_t * dirty;
 
 	/* Reads come from clean object, if they're not in dirty object */
-	off_t read_offset;
+	off64_t read_offset;
 	vmobject_t * clean;
 };
 
 struct address_info_t {
 	map_t * as;
 	segment_t * seg;
-	off_t offset;
+	off64_t offset;
 };
 
 #define VMPAGE_PINNED 0x1
@@ -117,7 +118,9 @@ void vmpage_mark(void * p)
 static void vmpage_finalize(void * p);
 static slab_type_t slabvmpages[] = { SLAB_TYPE(sizeof(vmpage_t), vmpage_mark, vmpage_finalize) };
 
+#if RMAP
 static GCROOT map_t * vmpages;
+#endif
 GCROOT map_t * kas;
 #define RMAP 0
 void vm_init()
@@ -132,7 +135,9 @@ void vm_init()
 
 static void vm_invalid_pointer(void * p, int write, int user, int present)
 {
+#if 0
 	dump_alloc_audit(p);
+#endif
 	kernel_panic("Invalid pointer: %p\n", p);
 }
 
@@ -193,7 +198,7 @@ void vm_page_fault(void * p, int write, int user, int present)
 
 	if (vm_resolve_address(p, info)) {
 		segment_t * seg = info->seg;
-		off_t offset = info->offset;
+		off64_t offset = info->offset;
 		map_t * as = info->as;
 
 		if (offset < seg->size) {
@@ -258,7 +263,20 @@ void vm_page_fault(void * p, int write, int user, int present)
 	vm_invalid_pointer(p, write, user, present);
 }
 
-vmpage_t * vmobject_get_page(vmobject_t * object, off_t offset)
+vmpage_t * vmobject_poll_page(vmobject_t * object, off64_t offset)
+{
+	if (object->ops->poll_page) {
+		vmpage_t * vmpage = object->ops->poll_page(object, offset);
+		if (vmpage) {
+			assert(vmpage->page);
+		}
+		return vmpage;
+	} else {
+		return vmobject_get_page(object, offset);
+	}
+}
+
+vmpage_t * vmobject_get_page(vmobject_t * object, off64_t offset)
 {
 	if (object->ops->get_page) {
 		vmpage_t * vmpage = object->ops->get_page(object, offset);
@@ -273,7 +291,7 @@ vmpage_t * vmobject_get_page(vmobject_t * object, off_t offset)
 	return 0;
 }
 
-vmpage_t * vmobject_put_page(vmobject_t * object, off_t offset, vmpage_t * vmpage)
+vmpage_t * vmobject_put_page(vmobject_t * object, off64_t offset, vmpage_t * vmpage)
 {
 	if (vmpage) {
 		assert(vmpage->page);
@@ -317,17 +335,12 @@ static void vm_as_release_walk(void * p, void * key, void * data)
 	vmobject_release(seg->clean);
 }
 
-void vm_as_release(map_t * as)
-{
-	vmap_release_asid(as);
-}
-
 /*
  * Zero filled memory
  */
-static vmpage_t * vm_zero_get_page(vmobject_t * object, off_t offset)
+static vmpage_t * vm_zero_get_page(vmobject_t * object, off64_t offset)
 {
-	return vmpage_calloc();
+	return vmpage_calloc(0);
 }
 
 static vmobject_t * vm_zero_clone(vmobject_t * object)
@@ -358,13 +371,13 @@ struct vmobject_anon_t {
 	map_t * pages;
 };
 
-static vmpage_t * vm_anon_get_page(vmobject_t * object, off_t offset)
+static vmpage_t * vm_anon_get_page(vmobject_t * object, off64_t offset)
 {
 	vmobject_anon_t * anon = container_of(object, vmobject_anon_t, vmobject);
 	return map_getip(anon->pages, offset >> ARCH_PAGE_SIZE_LOG2);
 }
 
-static vmpage_t * vm_anon_put_page(vmobject_t * object, off_t offset, vmpage_t * vmpage)
+static vmpage_t * vm_anon_put_page(vmobject_t * object, off64_t offset, vmpage_t * vmpage)
 {
 	vmobject_anon_t * anon = container_of(object, vmobject_anon_t, vmobject);
 	return map_putip(anon->pages, offset >> ARCH_PAGE_SIZE_LOG2, vmpage);
@@ -427,7 +440,7 @@ struct vmobject_heap_t {
 	page_t * pages;
 };
 
-static vmpage_t * vm_heap_get_page(vmobject_t * object, off_t offset)
+static vmpage_t * vm_heap_get_page(vmobject_t * object, off64_t offset)
 {
 	vmobject_heap_t * heap = container_of(object, vmobject_heap_t, vmobject);
 	int pageno = offset >> ARCH_PAGE_SIZE_LOG2;
@@ -435,17 +448,17 @@ static vmpage_t * vm_heap_get_page(vmobject_t * object, off_t offset)
 	if (pageno<heap->pcount) {
 		page_t page = heap->pages[pageno];
 		if (0 == page) {
-			page = page_alloc();
+			page = page_alloc(0);
 			heap->pages[pageno] = page;
 		}
-		return vmpage_alloc(0, page);
+		return vmpage_alloc(0, page, 0);
 	}
 
 	kernel_panic("Get page beyond end of heap");
 	return 0;
 }
 
-static vmobject_t * vm_heap_put_page(vmobject_t * object, off_t offset, vmpage_t * vmpage)
+static vmobject_t * vm_heap_put_page(vmobject_t * object, off64_t offset, vmpage_t * vmpage)
 {
 	vmobject_heap_t * heap = container_of(object, vmobject_heap_t, vmobject);
 	int pageno = offset >> ARCH_PAGE_SIZE_LOG2;
@@ -488,14 +501,14 @@ struct vmobject_direct_t {
 	size_t size;
 };
 
-static vmpage_t * vm_direct_get_page(vmobject_t * object, off_t offset)
+static vmpage_t * vm_direct_get_page(vmobject_t * object, off64_t offset)
 {
 	vmobject_direct_t * direct = container_of(object, vmobject_direct_t, vmobject);
 	if (offset<direct->size) {
 		int pageno = offset >> ARCH_PAGE_SIZE_LOG2;
 		vmpage_t * vmpage = map_getip(direct->pages, pageno);
 		if (0 == vmpage) {
-			vmpage = vmpage_alloc(0, direct->base + pageno);
+			vmpage = vmpage_alloc(0, direct->base + pageno, 0);
 			map_putip(direct->pages, pageno, vmpage);
 		}
 		return vmpage;
@@ -537,7 +550,14 @@ struct vmobject_vnode_t {
 	vnode_t * vnode;
 };
 
-static vmpage_t * vm_vnode_get_page(vmobject_t * object, off_t offset)
+static vmpage_t * vm_vnode_poll_page(vmobject_t * object, off64_t offset)
+{
+	vmobject_vnode_t * vno = container_of(object, vmobject_vnode_t, vmobject);
+
+	return vnode_poll_page(vno->vnode, offset);
+}
+
+static vmpage_t * vm_vnode_get_page(vmobject_t * object, off64_t offset)
 {
 	vmobject_vnode_t * vno = container_of(object, vmobject_vnode_t, vmobject);
 
@@ -555,6 +575,7 @@ static vmobject_t * vm_vnode_clone(vmobject_t * object)
 static vmobject_t * vm_object_vnode(vnode_t * vnode)
 {
 	static vmobject_ops_t vnode_ops = {
+		poll_page: vm_vnode_poll_page,
 		get_page: vm_vnode_get_page,
 		clone: vm_vnode_clone
 	};
@@ -569,10 +590,10 @@ void vm_segment_unmap(asid as, segment_t * seg)
 {
 	char * p = seg->base;
 	for(size_t offset=0; offset<seg->size; offset+=ARCH_PAGE_SIZE) {
-		vmpage_t * vmpage = vmobject_get_page(seg->dirty, offset);
+		vmpage_t * vmpage = vmobject_poll_page(seg->dirty, offset);
 		if (0 == vmpage) {
 			/* Handle case of page not in dirty pages */
-			vmpage = vmobject_get_page(seg->clean, offset);
+			vmpage = vmobject_poll_page(seg->clean, offset);
 		}
 		if (vmpage) {
 			/* Page might be mapped, unmap it */
@@ -581,7 +602,7 @@ void vm_segment_unmap(asid as, segment_t * seg)
 	}
 }
 
-segment_t * vm_segment_base( void * p, size_t size, int perms, vmobject_t * clean, off_t offset)
+segment_t * vm_segment_base( void * p, size_t size, int perms, vmobject_t * clean, off64_t offset)
 {
 	vm_init();
 	segment_t * seg = calloc(1, sizeof(*seg));
@@ -596,7 +617,7 @@ segment_t * vm_segment_base( void * p, size_t size, int perms, vmobject_t * clea
 	return seg;
 }
 
-segment_t * vm_segment_vnode(void * p, size_t size, int perms, vnode_t * vnode, off_t offset)
+segment_t * vm_segment_vnode(void * p, size_t size, int perms, vnode_t * vnode, off64_t offset)
 {
 	vmobject_t * vobject = vm_object_vnode(vnode);
 	segment_t * seg = vm_segment_base(p, size, perms, vobject, offset);
@@ -664,13 +685,32 @@ segment_t * vm_segment_copy(segment_t * from, int private)
 	return seg;
 }
 
-vmpage_t * vm_page_steal(void * p)
+vmpage_t * vm_page_get(const void * p)
 {
 	address_info_t info[1];
 
 	if (vm_resolve_address(p, info)) {
 		segment_t * seg = info->seg;
-		off_t offset = info->offset;
+		off64_t offset = info->offset;
+		map_t * as = info->as;
+
+		vmpage_t * vmpage = vmobject_get_page(seg->dirty, offset);
+		if (!vmpage) {
+			vmpage = vmobject_get_page(seg->clean, offset + seg->read_offset);
+		}
+		return vmpage;
+	}
+
+	return 0;
+}
+
+vmpage_t * vm_page_steal(const void * p)
+{
+	address_info_t info[1];
+
+	if (vm_resolve_address(p, info)) {
+		segment_t * seg = info->seg;
+		off64_t offset = info->offset;
 		map_t * as = info->as;
 
 		if (!(seg->perms & SEGMENT_P)) {
@@ -683,11 +723,37 @@ vmpage_t * vm_page_steal(void * p)
 			vmobject_put_page(seg->dirty, offset, 0);
 			vmpage_unmap(vmpage, as, p);
 		} else {
-			vmpage = vmpage_calloc();
+			vmpage = vmpage_calloc(0);
 		}
 
 		return vmpage;
 	}
+
+	return 0;
+}
+
+vmpage_t * vm_page_replace(void * p, vmpage_t * vmpage)
+{
+	address_info_t info[1];
+
+	if (vm_resolve_address(p, info)) {
+		segment_t * seg = info->seg;
+		off64_t offset = info->offset;
+		map_t * as = info->as;
+
+		if (!(seg->perms & SEGMENT_P)) {
+			/* Can't push to non-private segments */
+			return 0;
+		}
+		
+		vmpage_t * old = vmobject_put_page(seg->dirty, offset, vmpage);
+		if (old) {
+			vmpage_unmap(old, as, p);
+		}
+		return old;
+	}
+
+	kernel_panic("Invalid pointer: %p\n", p);
 
 	return 0;
 }
@@ -718,7 +784,9 @@ void * vm_kas_get( size_t size )
 	return vm_kas_get_aligned(size, ARCH_PAGE_SIZE);
 }
 
+#if RMAP
 static mutex_t vmpages_lock[1];
+#endif
 
 static void vmpage_finalize(void * p)
 {
@@ -747,7 +815,7 @@ static void vmpage_finalize(void * p)
 
 }
 
-vmpage_t * vmpage_alloc(vmpage_t * vmpage, page_t page)
+vmpage_t * vmpage_alloc(vmpage_t * vmpage, page_t page, int flags)
 {
 	if (0 == vmpage) {
 		vmpage = slab_calloc(slabvmpages);
@@ -756,16 +824,16 @@ vmpage_t * vmpage_alloc(vmpage_t * vmpage, page_t page)
 		vmpage->page = page;
 	} else {
 		vmpage->flags = VMPAGE_MANAGED;
-		vmpage->page = page_alloc();
+		vmpage->page = page_alloc(flags);
 	}
 	return vmpage;
 }
 
-vmpage_t * vmpage_calloc()
+vmpage_t * vmpage_calloc(int flags)
 {
 	vmpage_t * vmpage = slab_calloc(slabvmpages);
 	vmpage->flags = VMPAGE_MANAGED;
-	vmpage->page = page_calloc();
+	vmpage->page = page_calloc(flags);
 	return vmpage;
 }
 
@@ -809,7 +877,7 @@ void vmpage_map( vmpage_t * vmpage, asid as, void * p, int rw, int user )
 	}
 }
 
-void vmpage_unmap( vmpage_t * vmpage, asid as, void * p )
+void vmpage_unmap( vmpage_t * vmpage, asid as, const void * p )
 {
 	for(int i=0; i<VMPAGE_MAPS; i++) {
 		if (vmpage->maps[i].as == as && vmpage->maps[i].p == p) {
@@ -864,7 +932,7 @@ vmpage_t * vmpage_get_copy(vmpage_t * vmpage)
 		}
 
 		/* Get a new page to copy into */
-		vmpage_t * newpage = vmpage_alloc(0, 0);
+		vmpage_t * newpage = vmpage_alloc(0, 0, 0);
 
 		/* Copy the old page to the new page */
 		vmap_map(kas, src, vmpage->page, 0, 0);

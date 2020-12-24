@@ -1,24 +1,10 @@
 #include <stddef.h>
+#include <sys/types.h>
 
 #include "tarfs.h"
 
-typedef struct tarfs_t tarfs_t;
+
 typedef struct tarfs_header_t tarfs_header_t;
-typedef struct tarfsnode_t tarfsnode_t;
-typedef struct tarfs_dirent_t tarfs_dirent_t;
-
-struct tarfs_t {
-	map_t * vnodes;
-	map_t * tree;
-
-	dev_t * dev;
-
-	inode_t inext;
-
-	fs_t fs;
-};
-
-
 struct tarfs_header_t {
 	char name[100];
 	char mode[8];
@@ -38,19 +24,15 @@ struct tarfs_header_t {
 	char prefix[155];
 };
 
+typedef struct tarfsnode_t tarfsnode_t;
 struct tarfsnode_t {
 	/* Offset in tar file */
-	off_t offset;
+	dev_t * dev;
+	off64_t offset;
 
-	size_t size;
-	inode_t inode;
+	off64_t size;
 
 	vnode_t vnode;
-};
-
-struct tarfs_dirent_t {
-	inode_t dir;
-	char * name;
 };
 
 #define TAR_BLOCKSIZE 512
@@ -120,7 +102,7 @@ static int tarfs_validate( tarfs_header_t * h )
 	unsigned char * ucp = (unsigned char *)h;
 	signed char * scp = (signed char *)h;
 	for(int i=0; i<sizeof(*h); i++) {
-		if (ucp+i>=h->chksum && ucp+i<h->type) {
+		if (ucp+i>=(unsigned char *)h->chksum && ucp+i<(unsigned char *)h->type) {
 			/* In checksum, just use spaces */
 			usum += ' ';
 			ssum += ' ';
@@ -151,107 +133,99 @@ static int tarfs_validate( tarfs_header_t * h )
 	return 1;
 }
 
-static void tarfs_readblock( tarfs_t * fs, off_t offset, void * buf )
+static void tarfs_readblock( dev_t * dev, off64_t offset, void * buf )
 {
 	/* Round down offset */
 	offset &= ~(TAR_BLOCKSIZE-1);
 
 	/* The block read operation */
-	buf_op_t op = { write: 0, p: buf, offset: offset, size: TAR_BLOCKSIZE };
+	buf_op_t op = { .write = 0, .p = buf, .offset = offset, .size = TAR_BLOCKSIZE };
 
 	/* Submit then wait for the read to finish */
-	dev_op_submit(fs->dev, &op);
+	dev_op_submit(dev, &op);
 	dev_op_wait(&op);
 }
 
 static char * tarfs_fullname(tarfs_header_t * h)
 {
 	if (h->prefix[0]) {
-		char * fullname = malloc(256);
+		char * fullname = tmalloc(256);
 		snprintf(fullname, 255, "%s/%s", h->prefix, h->name);
 		return fullname;
 	} else {
-		return strndup(h->name, sizeof(h->name));
+		return tstrndup(h->name, sizeof(h->name));
 	}
 }
 
-static void tarfs_add_node( tarfs_t * fs, const char * fullname, tarfsnode_t * vnode )
+static void tarfs_add_node( vnode_t * root, const char * fullname, vnode_t * vnode )
 {
 	/* Skip over any leading / */
 	while('/' == *fullname) {
 		fullname++;
 	}
 
-	/* Start scanning from root */
-	inode_t dnode = 1;
-	char ** names = path_split(fullname);
-	char * file = names[0];
-	for( int i=0; names[i+1]; i++ ) {
-		file = names[i+1];
-		tarfs_dirent_t dirent = { dnode, names[i] };
-		inode_t inode = map_getpi(fs->tree, &dirent);
-		if (0 == inode) {
-			/* Fake a directory */
-			tarfsnode_t * dir = malloc(sizeof(*dir));
-			vnode_init(&dir->vnode, VNODE_DIRECTORY, &fs->fs);
-			inode = dir->inode = fs->inext++;
-			tarfs_dirent_t * newdirent = malloc(sizeof(*newdirent));
-			newdirent->dir = dnode;
-			newdirent->name = strdup(names[i]);
-			map_putpi(fs->tree, newdirent, dir->inode);
-			map_putip(fs->vnodes, dir->inode, &dir->vnode);
-		}
-		dnode = inode;
+	vnode_t * v = root;
+	const char * file;
+	const char * dir;
+
+	if (vnode) {
+		dir = dirname(tstrdup(fullname));
+		file = basename(tstrdup(fullname));
+	} else {
+		dir = fullname;
+		file = 0;
 	}
 
-	/* dnode is the directory, file is the new file name */
-	tarfs_dirent_t dirent = { dnode, file };
-	inode_t inode = map_getpi(fs->tree, &dirent);
-	if (inode) {
-		/* File already exists, discard old one */
-		map_putip(fs->vnodes, inode, &vnode->vnode);
-	} else {
-		/* New file, get new inode */
-		tarfs_dirent_t * newdirent = malloc(sizeof(*newdirent));
-		newdirent->dir = dnode;
-		newdirent->name = strdup(file);
-		vnode->inode = fs->inext++;
-
-		map_putip(fs->vnodes, vnode->inode, &vnode->vnode);
-		map_putpi(fs->tree, newdirent, vnode->inode);
+	v = vnode_newdir_hierarchy(v, dir);
+	if (file && v) {
+		vnode_put_vnode(v, file, vnode);
 	}
 }
 
-static void tarfs_regularfile( tarfs_t * fs, tarfs_header_t * h, off_t offset )
+static vmpage_t * tarfs_get_page(vnode_t * vnode, off64_t offset);
+static void tarfs_put_page(vnode_t * vnode, off64_t offset, vmpage_t * page);
+static off64_t tarfs_get_size(vnode_t * vnode);
+static void tarfs_set_size(vnode_t * vnode, off64_t size);
+
+static void tarfs_regularfile( vnode_t * root, tarfs_header_t * h, dev_t * dev, off64_t offset )
 {
+	static vnode_ops_t vnops = {
+		.get_page = tarfs_get_page,
+		.put_page = tarfs_put_page,
+		.get_size = tarfs_get_size,
+		.set_size = tarfs_set_size,
+	};
+	static fs_t fs = {
+		.vnodeops = &vnops
+	};
+
 	char * fullname = tarfs_fullname(h);
 
 	kernel_printk("Regular  : %s\n", fullname);
 
 	tarfsnode_t * node = malloc(sizeof(*node));
-	vnode_init(&node->vnode, VNODE_REGULAR, &fs->fs);
+	vnode_init(&node->vnode, VNODE_REGULAR, &fs);
+	node->dev = dev;
 	node->offset = offset;
 	node->size = tarfs_otoi(h->size, sizeof(h->size));
-	tarfs_add_node(fs, fullname, node);
+	tarfs_add_node(root, fullname, &node->vnode);
 }
 
-static void tarfs_directory( tarfs_t * fs, tarfs_header_t * h )
+static void tarfs_directory( vnode_t * root, tarfs_header_t * h )
 {
 	char * fullname = tarfs_fullname(h);
 	kernel_printk("Directory: %s\n", fullname);
 
-	tarfsnode_t * node = calloc(1, sizeof(*node));
-	vnode_init(&node->vnode, VNODE_DIRECTORY, &fs->fs);
-	tarfs_add_node(fs, fullname, node);
+	tarfs_add_node(root, fullname, NULL);
 }
 
-static void tarfs_symlink( tarfs_t * fs, tarfs_header_t * h )
+static void tarfs_symlink( vnode_t * root, tarfs_header_t * h )
 {
 	char * fullname = tarfs_fullname(h);
 	kernel_printk("Symlink  : %s\n", fullname);
 }
 
-static off_t tarfs_nextheader( tarfs_header_t * h, off_t offset )
+static off64_t tarfs_nextheader( tarfs_header_t * h, off64_t offset )
 {
 	offset += TAR_BLOCKSIZE;
 
@@ -267,110 +241,71 @@ static off_t tarfs_nextheader( tarfs_header_t * h, off_t offset )
 	return offset;
 }
 
-static int tarfs_dirent_cmp(void * p1, void * p2)
+static void tarfs_scan( vnode_t * root, dev_t * dev )
 {
-	tarfs_dirent_t * d1 = p1;
-	tarfs_dirent_t * d2 = p2;
-
-	int dir_diff = d1->dir-d2->dir;
-	if (0 == dir_diff) {
-		return strcmp(d1->name, d2->name);
-	}
-
-	return dir_diff;
-}
-
-static tarfs_dirent_t * tarfs_dirent_new(inode_t dir, char * name)
-{
-	tarfs_dirent_t * dirent = malloc(sizeof(*dirent));
-
-	dirent->dir = dir;
-	dirent->name = name;
-
-	return dirent;
-}
-
-static void tarfs_scan( tarfs_t * fs )
-{
-	fs->vnodes = vector_new();
-	fs->tree = tree_new(tarfs_dirent_cmp, TREE_TREAP);
-
-	/* Root directory vnode (inode 1) */
-	tarfsnode_t * root = malloc(sizeof(*root));
-	vnode_init(&root->vnode, VNODE_DIRECTORY, &fs->fs);
-	root->inode = 1;
-	map_putip(fs->vnodes, 1, &root->vnode);
-
-	fs->inext = 2; /* 1 is the root inode */
-	off_t offset = 0;
-	arena_t * arena = arena_get();
-	void * buf = arena_alloc(arena, TAR_BLOCKSIZE);
-	arena_state state = arena_getstate(arena);
+	off64_t offset = 0;
+	void * buf = arena_alloc(NULL, TAR_BLOCKSIZE);
 
 	KTRY {
 		while(1) {
 			tarfs_header_t * h = buf;
-			vnode_t * file = 0;
-			arena_setstate(arena, state);
 
 			/* Read the next header */
-			tarfs_readblock(fs, offset, buf);
+			tarfs_readblock(dev, offset, buf);
 
 			/* Validate header */
 			if (!tarfs_validate(h)) {
 				break;
 			}
 
-			/* Check header type */
-			switch(h->type[0]) {
-			case REGTYPE:
-			case AREGTYPE:
-				/* Regular file */
-				tarfs_regularfile(fs, h, offset);
-				break;
-			case DIRTYPE:
-				/* Directory */
-				tarfs_directory(fs, h);
-				break;
-			case SYMTYPE:
-				/* Symbolic link */
-				tarfs_symlink(fs, h);
-				break;
-			default:
-				/* Ignore other headers */
-				break;
-			}
+			ARENA_AUTOSTATE(NULL) {
+				/* Check header type */
+				switch(h->type[0]) {
+				case REGTYPE:
+				case AREGTYPE:
+					/* Regular file */
+					tarfs_regularfile(root, h, dev, offset);
+					break;
+				case DIRTYPE:
+					/* Directory */
+					tarfs_directory(root, h);
+					break;
+				case SYMTYPE:
+					/* Symbolic link */
+					tarfs_symlink(root, h);
+					break;
+				default:
+					/* Ignore other headers */
+					break;
+				}
 
-			/* Next header */
-			offset = tarfs_nextheader(h, offset);
+				/* Next header */
+				offset = tarfs_nextheader(h, offset);
+			}
 		}
 	} KCATCH(DeviceException) {
 		/* Failed to read next header, stop here */
 	}
-
-	arena_free(arena);
 }
 
-static vmpage_t * tarfs_get_page(vnode_t * vnode, off_t offset)
+static vmpage_t * tarfs_get_page(vnode_t * vnode, off64_t offset)
 {
 	tarfsnode_t * tnode = container_of(vnode, tarfsnode_t, vnode);
-	tarfs_t * tfs = container_of(vnode->fs, tarfs_t, fs);
 	int readmax = tnode->size - offset;
 	if (readmax > ARCH_PAGE_SIZE) {
 		readmax = ARCH_PAGE_SIZE;
 	}
 
 	/* Get a temporary page mapping */
-	arena_t * arena = arena_thread_get();
-	arena_state state = arena_getstate(arena);
-	void * p = arena_palloc(arena, 1);
+	arena_state state = arena_getstate(NULL);
+	void * p = arena_palloc(NULL, 1);
 	char * buf = p;
 
 	/* Copy the data into the page */
 	offset += TAR_BLOCKSIZE;
 	offset += tnode->offset;
 	for(int i=0; i<readmax; i+=TAR_BLOCKSIZE, buf+=TAR_BLOCKSIZE) {
-		tarfs_readblock(tfs, offset+i, buf);
+		tarfs_readblock(tnode->dev, offset+i, buf);
 	}
 
 	/* Reset buf to the beginning of the page */
@@ -382,55 +317,35 @@ static vmpage_t * tarfs_get_page(vnode_t * vnode, off_t offset)
 
 	/* Steal, and return the page */
 	vmpage_t * vmpage = vm_page_steal(p);
-	arena_setstate(arena, state);
+	arena_setstate(NULL, state);
 	return vmpage;
 }
 
-static void tarfs_put_page(vnode_t * vnode, off_t offset, page_t page)
+static void tarfs_put_page(vnode_t * vnode, off64_t offset, vmpage_t * page)
 {
 	KTHROW(ReadOnlyFileException, "tarfs is read-only");
 }
 
-static vnode_t * tarfs_get_vnode(vnode_t * dir, const char * name)
-{
-	tarfsnode_t * tnode = container_of(dir, tarfsnode_t, vnode);
-	tarfs_t * fs = container_of(dir->fs, tarfs_t, fs);
-	tarfs_dirent_t dirent = { tnode->inode, (char*)name };
-	inode_t inode = map_getpi(fs->tree, &dirent);
-
-	return map_getip(fs->vnodes, inode);
-}
-
-static size_t tarfs_get_size(vnode_t * vnode)
+static off64_t tarfs_get_size(vnode_t * vnode)
 {
 	tarfsnode_t * tnode = container_of(vnode, tarfsnode_t, vnode);
 
 	return tnode->size;
 }
 
-static void tarfs_set_size(vnode_t * vnode, size_t size)
+static void tarfs_set_size(vnode_t * vnode, off64_t size)
 {
-	tarfsnode_t * tnode = container_of(vnode, tarfsnode_t, vnode);
 	KTHROW(ReadOnlyFileException, "tarfs is read-only");
 }
 
 vnode_t * tarfs_open(dev_t * dev)
 {
-	static vnode_ops_t vnops = {
-		get_page: tarfs_get_page,
-		get_size: tarfs_get_size
-	};
-	static vfs_ops_t ops = {
-		get_vnode: tarfs_get_vnode,
-	};
+	vnode_t * root = vfstree_new();
+	ARENA_AUTOSTATE(NULL) {
+		tarfs_scan(root, dev);
+ 	}
 
-	tarfs_t * tarfs = malloc(sizeof(*tarfs));
-	tarfs->dev = dev;
-	tarfs->fs.vnodeops = &vnops;
-	tarfs->fs.fsops = &ops;
-	tarfs_scan(tarfs);
-
-	return map_getip(tarfs->vnodes, 1);
+	return root;
 }
 
 vnode_t * tarfs_test()

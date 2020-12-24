@@ -48,9 +48,8 @@ extern char zero_end[];
 
 void * bootstrap_alloc(size_t size)
 {
-        void * m = (void*)nextalloc;
-        size += (ALIGNMENT-1);
-        size &= (~(ALIGNMENT-1));
+        nextalloc = PTR_ALIGN_NEXT(nextalloc,ALIGNMENT);
+	void * m = nextalloc;
         nextalloc += size;
 
         return m;
@@ -58,8 +57,7 @@ void * bootstrap_alloc(size_t size)
 
 static void bootstrap_finish()
 {
-	nextalloc += ARCH_PAGE_SIZE;
-	nextalloc = (char*)((uint32_t)nextalloc & ~(ARCH_PAGE_SIZE-1));
+        nextalloc = PTR_ALIGN_NEXT(nextalloc,ARCH_PAGE_SIZE);
 }
 
 void * arch_heap_page()
@@ -79,6 +77,8 @@ int arch_is_heap_pointer(void *p)
 	return ((char*)p)>=&_bootstrap_nextalloc && (char*)p<nextalloc;
 }
 
+void * modules[8]={0};
+size_t modulesizes[8]={0};
 void * initrd=0;
 size_t initrdsize=0;
 
@@ -89,26 +89,29 @@ void arch_init()
 
 	int i;
 	ptrdiff_t koffset = _bootstrap_nextalloc - _bootstrap_end;
-	void * modstart = 0;
-	size_t modsize = 0;
 	int pcount = 0;
 
 	/* Copy for reference */
 	multiboot_copy(info);
 
-	multiboot_module_t * mod = multiboot_mod(0);
-	if (mod) {
-		modstart = (void*)(mod->mod_start+koffset);
-		modsize = mod->mod_end-mod->mod_start;
-		nextalloc = koffset + mod->mod_end;
-		nextalloc += ARCH_PAGE_SIZE;
-		nextalloc = (char*)((uint32_t)nextalloc & ~(ARCH_PAGE_SIZE-1));
+	memset(zero_start, 0, zero_end-zero_start);
+
+	/* Any multi-boot modules */
+	for(i=0; i<countof(modules); i++) {
+		multiboot_module_t * mod = multiboot_mod(i);
+		if (mod) {
+			modules[i] = (void*)(mod->mod_start+koffset);
+			modulesizes[i] = mod->mod_end-mod->mod_start;
+			nextalloc = koffset + mod->mod_end;
+			nextalloc = PTR_ALIGN_NEXT(nextalloc,ARCH_PAGE_SIZE);
+		} else {
+			break;
+		}
 	}
 
-	memset(zero_start, 0, zero_end-zero_start);
 	cli();
-	initrd = modstart;
-	initrdsize = modsize;
+	initrd = modules[0];
+	initrdsize = modulesizes[0];
 
 	for(i=0;;i++) {
 		multiboot_memory_map_t * mmap = multiboot_mmap(i);
@@ -124,7 +127,7 @@ void arch_init()
 
 				/* Only handle page ranges under 4GB */
 				if (page+count<1<<20) {
-					page_add_range(page, count);
+					page_add_range(page, count, CORE_SUB4G);
 					pcount += count;
 				}
 			}
@@ -157,14 +160,14 @@ void arch_init()
 	vm_kas_add(vm_segment_direct(code_start, data_start - code_start, SEGMENT_R | SEGMENT_X, code_page ));
 	vm_kas_add(vm_segment_direct(data_start, nextalloc - data_start, SEGMENT_R | SEGMENT_W, data_page ));
 	vm_kas_add(heap);
-	pci_scan();
+	pci_scan(pci_probe_print);
 
 	kernel_printk("Bootstrap end - %p\n", nextalloc);
 
 	/* Initialize the console */
 	console_initialize(info);
 
-	sti();
+	sti(1);
 	kernel_startlogging(1);
 }
 

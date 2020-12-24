@@ -3,7 +3,11 @@
 isr_0:
 	pushl %ebp
 	movl %esp, %ebp
+	pushl $0
 	pushl %ds
+	pushl %es
+	pushl %fs
+	pushl %gs
 	pushal
 	pushl %esp
 	pushl $0
@@ -13,6 +17,9 @@ isr_0:
 	call i386_isr
 	addl $8, %esp
 	popal
+	popl %gs
+	popl %fs
+	popl %es
 	popl %ds
 	mov %ebp, %esp
 	popl %ebp
@@ -23,7 +30,11 @@ isr_0:
 isr_1:
 	pushl %ebp
 	movl %esp, %ebp
+	pushl $0
 	pushl %ds
+	pushl %es
+	pushl %fs
+	pushl %gs
 	pushal
 	pushl %esp
 	pushl $1
@@ -33,6 +44,9 @@ isr_1:
 	call i386_isr
 	addl $8, %esp
 	popal
+	popl %gs
+	popl %fs
+	popl %es
 	popl %ds
 	mov %ebp, %esp
 	popl %ebp
@@ -43,7 +57,11 @@ isr_1:
 isr_2:
 	pushl %ebp
 	movl %esp, %ebp
+	pushl $0
 	pushl %ds
+	pushl %es
+	pushl %fs
+	pushl %gs
 	pushal
 	pushl %esp
 	pushl $2
@@ -53,6 +71,9 @@ isr_2:
 	call i386_isr
 	addl $8, %esp
 	popal
+	popl %gs
+	popl %fs
+	popl %es
 	popl %ds
 	mov %ebp, %esp
 	popl %ebp
@@ -63,7 +84,11 @@ isr_2:
 isr_3:
 	pushl %ebp
 	movl %esp, %ebp
+	pushl $0
 	pushl %ds
+	pushl %es
+	pushl %fs
+	pushl %gs
 	pushal
 	pushl %esp
 	pushl $3
@@ -73,6 +98,9 @@ isr_3:
 	call i386_isr
 	addl $8, %esp
 	popal
+	popl %gs
+	popl %fs
+	popl %es
 	popl %ds
 	mov %ebp, %esp
 	popl %ebp
@@ -83,7 +111,11 @@ isr_3:
 isr_4:
 	pushl %ebp
 	movl %esp, %ebp
+	pushl $0
 	pushl %ds
+	pushl %es
+	pushl %fs
+	pushl %gs
 	pushal
 	pushl %esp
 	pushl $4
@@ -93,6 +125,9 @@ isr_4:
 	call i386_isr
 	addl $8, %esp
 	popal
+	popl %gs
+	popl %fs
+	popl %es
 	popl %ds
 	mov %ebp, %esp
 	popl %ebp
@@ -103,7 +138,11 @@ isr_4:
 isr_5:
 	pushl %ebp
 	movl %esp, %ebp
+	pushl $0
 	pushl %ds
+	pushl %es
+	pushl %fs
+	pushl %gs
 	pushal
 	pushl %esp
 	pushl $5
@@ -113,6 +152,9 @@ isr_5:
 	call i386_isr
 	addl $8, %esp
 	popal
+	popl %gs
+	popl %fs
+	popl %es
 	popl %ds
 	mov %ebp, %esp
 	popl %ebp
@@ -123,7 +165,11 @@ isr_5:
 isr_6:
 	pushl %ebp
 	movl %esp, %ebp
+	pushl $0
 	pushl %ds
+	pushl %es
+	pushl %fs
+	pushl %gs
 	pushal
 	pushl %esp
 	pushl $6
@@ -133,6 +179,9 @@ isr_6:
 	call i386_isr
 	addl $8, %esp
 	popal
+	popl %gs
+	popl %fs
+	popl %es
 	popl %ds
 	mov %ebp, %esp
 	popl %ebp
@@ -143,7 +192,11 @@ isr_6:
 isr_7:
 	pushl %ebp
 	movl %esp, %ebp
+	pushl $0
 	pushl %ds
+	pushl %es
+	pushl %fs
+	pushl %gs
 	pushal
 	pushl %esp
 	pushl $7
@@ -153,6 +206,9 @@ isr_7:
 	call i386_isr
 	addl $8, %esp
 	popal
+	popl %gs
+	popl %fs
+	popl %es
 	popl %ds
 	mov %ebp, %esp
 	popl %ebp
@@ -165,6 +221,9 @@ isr_8:
 	pushl %esp
 	xchgl (%esp), %ebp
 	pushl %ds
+	pushl %es
+	pushl %fs
+	pushl %gs
 	pushal
 	pushl %esp
 	pushl $8
@@ -174,6 +233,9 @@ isr_8:
 	call i386_isr
 	addl $8, %esp
 	popal
+	popl %gs
+	popl %fs
+	popl %es
 	popl %ds
 	mov %ebp, %esp
 	popl %ebp
@@ -184,7 +246,11 @@ isr_8:
 isr_9:
 	pushl %ebp
 	movl %esp, %ebp
+	pushl $0
 	pushl %ds
+	pushl %es
+	pushl %fs
+	pushl %gs
 	pushal
 	pushl %esp
 	pushl $9
@@ -194,6 +260,9 @@ isr_9:
 	call i386_isr
 	addl $8, %esp
 	popal
+	popl %gs
+	popl %fs
+	popl %es
 	popl %ds
 	mov %ebp, %esp
 	popl %ebp
@@ -206,6 +275,9 @@ isr_10:
 	pushl %esp
 	xchgl (%esp), %ebp
 	pushl %ds
+	pushl %es
+	pushl %fs
+	pushl %gs
 	pushal
 	pushl %esp
 	pushl $10
@@ -215,6 +287,9 @@ isr_10:
 	call i386_isr
 	addl $8, %esp
 	popal
+	popl %gs
+	popl %fs
+	popl %es
 	popl %ds
 	mov %ebp, %esp
 	popl %ebp
@@ -227,6 +302,9 @@ isr_11:
 	pushl %esp
 	xchgl (%esp), %ebp
 	pushl %ds
+	pushl %es
+	pushl %fs
+	pushl %gs
 	pushal
 	pushl %esp
 	pushl $11
@@ -236,6 +314,9 @@ isr_11:
 	call i386_isr
 	addl $8, %esp
 	popal
+	popl %gs
+	popl %fs
+	popl %es
 	popl %ds
 	mov %ebp, %esp
 	popl %ebp
@@ -248,6 +329,9 @@ isr_12:
 	pushl %esp
 	xchgl (%esp), %ebp
 	pushl %ds
+	pushl %es
+	pushl %fs
+	pushl %gs
 	pushal
 	pushl %esp
 	pushl $12
@@ -257,6 +341,9 @@ isr_12:
 	call i386_isr
 	addl $8, %esp
 	popal
+	popl %gs
+	popl %fs
+	popl %es
 	popl %ds
 	mov %ebp, %esp
 	popl %ebp
@@ -269,6 +356,9 @@ isr_13:
 	pushl %esp
 	xchgl (%esp), %ebp
 	pushl %ds
+	pushl %es
+	pushl %fs
+	pushl %gs
 	pushal
 	pushl %esp
 	pushl $13
@@ -278,6 +368,9 @@ isr_13:
 	call i386_isr
 	addl $8, %esp
 	popal
+	popl %gs
+	popl %fs
+	popl %es
 	popl %ds
 	mov %ebp, %esp
 	popl %ebp
@@ -290,6 +383,9 @@ isr_14:
 	pushl %esp
 	xchgl (%esp), %ebp
 	pushl %ds
+	pushl %es
+	pushl %fs
+	pushl %gs
 	pushal
 	pushl %esp
 	pushl $14
@@ -299,6 +395,9 @@ isr_14:
 	call i386_isr
 	addl $8, %esp
 	popal
+	popl %gs
+	popl %fs
+	popl %es
 	popl %ds
 	mov %ebp, %esp
 	popl %ebp
@@ -309,7 +408,11 @@ isr_14:
 isr_15:
 	pushl %ebp
 	movl %esp, %ebp
+	pushl $0
 	pushl %ds
+	pushl %es
+	pushl %fs
+	pushl %gs
 	pushal
 	pushl %esp
 	pushl $15
@@ -319,6 +422,9 @@ isr_15:
 	call i386_isr
 	addl $8, %esp
 	popal
+	popl %gs
+	popl %fs
+	popl %es
 	popl %ds
 	mov %ebp, %esp
 	popl %ebp
@@ -329,7 +435,11 @@ isr_15:
 isr_16:
 	pushl %ebp
 	movl %esp, %ebp
+	pushl $0
 	pushl %ds
+	pushl %es
+	pushl %fs
+	pushl %gs
 	pushal
 	pushl %esp
 	pushl $16
@@ -339,6 +449,9 @@ isr_16:
 	call i386_isr
 	addl $8, %esp
 	popal
+	popl %gs
+	popl %fs
+	popl %es
 	popl %ds
 	mov %ebp, %esp
 	popl %ebp
@@ -349,7 +462,11 @@ isr_16:
 isr_17:
 	pushl %ebp
 	movl %esp, %ebp
+	pushl $0
 	pushl %ds
+	pushl %es
+	pushl %fs
+	pushl %gs
 	pushal
 	pushl %esp
 	pushl $17
@@ -359,6 +476,9 @@ isr_17:
 	call i386_isr
 	addl $8, %esp
 	popal
+	popl %gs
+	popl %fs
+	popl %es
 	popl %ds
 	mov %ebp, %esp
 	popl %ebp
@@ -369,7 +489,11 @@ isr_17:
 isr_18:
 	pushl %ebp
 	movl %esp, %ebp
+	pushl $0
 	pushl %ds
+	pushl %es
+	pushl %fs
+	pushl %gs
 	pushal
 	pushl %esp
 	pushl $18
@@ -379,6 +503,9 @@ isr_18:
 	call i386_isr
 	addl $8, %esp
 	popal
+	popl %gs
+	popl %fs
+	popl %es
 	popl %ds
 	mov %ebp, %esp
 	popl %ebp
@@ -389,7 +516,11 @@ isr_18:
 isr_19:
 	pushl %ebp
 	movl %esp, %ebp
+	pushl $0
 	pushl %ds
+	pushl %es
+	pushl %fs
+	pushl %gs
 	pushal
 	pushl %esp
 	pushl $19
@@ -399,6 +530,9 @@ isr_19:
 	call i386_isr
 	addl $8, %esp
 	popal
+	popl %gs
+	popl %fs
+	popl %es
 	popl %ds
 	mov %ebp, %esp
 	popl %ebp
@@ -409,7 +543,11 @@ isr_19:
 isr_20:
 	pushl %ebp
 	movl %esp, %ebp
+	pushl $0
 	pushl %ds
+	pushl %es
+	pushl %fs
+	pushl %gs
 	pushal
 	pushl %esp
 	pushl $20
@@ -419,6 +557,9 @@ isr_20:
 	call i386_isr
 	addl $8, %esp
 	popal
+	popl %gs
+	popl %fs
+	popl %es
 	popl %ds
 	mov %ebp, %esp
 	popl %ebp
@@ -429,7 +570,11 @@ isr_20:
 isr_21:
 	pushl %ebp
 	movl %esp, %ebp
+	pushl $0
 	pushl %ds
+	pushl %es
+	pushl %fs
+	pushl %gs
 	pushal
 	pushl %esp
 	pushl $21
@@ -439,6 +584,9 @@ isr_21:
 	call i386_isr
 	addl $8, %esp
 	popal
+	popl %gs
+	popl %fs
+	popl %es
 	popl %ds
 	mov %ebp, %esp
 	popl %ebp
@@ -449,7 +597,11 @@ isr_21:
 isr_22:
 	pushl %ebp
 	movl %esp, %ebp
+	pushl $0
 	pushl %ds
+	pushl %es
+	pushl %fs
+	pushl %gs
 	pushal
 	pushl %esp
 	pushl $22
@@ -459,6 +611,9 @@ isr_22:
 	call i386_isr
 	addl $8, %esp
 	popal
+	popl %gs
+	popl %fs
+	popl %es
 	popl %ds
 	mov %ebp, %esp
 	popl %ebp
@@ -469,7 +624,11 @@ isr_22:
 isr_23:
 	pushl %ebp
 	movl %esp, %ebp
+	pushl $0
 	pushl %ds
+	pushl %es
+	pushl %fs
+	pushl %gs
 	pushal
 	pushl %esp
 	pushl $23
@@ -479,6 +638,9 @@ isr_23:
 	call i386_isr
 	addl $8, %esp
 	popal
+	popl %gs
+	popl %fs
+	popl %es
 	popl %ds
 	mov %ebp, %esp
 	popl %ebp
@@ -489,7 +651,11 @@ isr_23:
 isr_24:
 	pushl %ebp
 	movl %esp, %ebp
+	pushl $0
 	pushl %ds
+	pushl %es
+	pushl %fs
+	pushl %gs
 	pushal
 	pushl %esp
 	pushl $24
@@ -499,6 +665,9 @@ isr_24:
 	call i386_isr
 	addl $8, %esp
 	popal
+	popl %gs
+	popl %fs
+	popl %es
 	popl %ds
 	mov %ebp, %esp
 	popl %ebp
@@ -509,7 +678,11 @@ isr_24:
 isr_25:
 	pushl %ebp
 	movl %esp, %ebp
+	pushl $0
 	pushl %ds
+	pushl %es
+	pushl %fs
+	pushl %gs
 	pushal
 	pushl %esp
 	pushl $25
@@ -519,6 +692,9 @@ isr_25:
 	call i386_isr
 	addl $8, %esp
 	popal
+	popl %gs
+	popl %fs
+	popl %es
 	popl %ds
 	mov %ebp, %esp
 	popl %ebp
@@ -529,7 +705,11 @@ isr_25:
 isr_26:
 	pushl %ebp
 	movl %esp, %ebp
+	pushl $0
 	pushl %ds
+	pushl %es
+	pushl %fs
+	pushl %gs
 	pushal
 	pushl %esp
 	pushl $26
@@ -539,6 +719,9 @@ isr_26:
 	call i386_isr
 	addl $8, %esp
 	popal
+	popl %gs
+	popl %fs
+	popl %es
 	popl %ds
 	mov %ebp, %esp
 	popl %ebp
@@ -549,7 +732,11 @@ isr_26:
 isr_27:
 	pushl %ebp
 	movl %esp, %ebp
+	pushl $0
 	pushl %ds
+	pushl %es
+	pushl %fs
+	pushl %gs
 	pushal
 	pushl %esp
 	pushl $27
@@ -559,6 +746,9 @@ isr_27:
 	call i386_isr
 	addl $8, %esp
 	popal
+	popl %gs
+	popl %fs
+	popl %es
 	popl %ds
 	mov %ebp, %esp
 	popl %ebp
@@ -569,7 +759,11 @@ isr_27:
 isr_28:
 	pushl %ebp
 	movl %esp, %ebp
+	pushl $0
 	pushl %ds
+	pushl %es
+	pushl %fs
+	pushl %gs
 	pushal
 	pushl %esp
 	pushl $28
@@ -579,6 +773,9 @@ isr_28:
 	call i386_isr
 	addl $8, %esp
 	popal
+	popl %gs
+	popl %fs
+	popl %es
 	popl %ds
 	mov %ebp, %esp
 	popl %ebp
@@ -589,7 +786,11 @@ isr_28:
 isr_29:
 	pushl %ebp
 	movl %esp, %ebp
+	pushl $0
 	pushl %ds
+	pushl %es
+	pushl %fs
+	pushl %gs
 	pushal
 	pushl %esp
 	pushl $29
@@ -599,6 +800,9 @@ isr_29:
 	call i386_isr
 	addl $8, %esp
 	popal
+	popl %gs
+	popl %fs
+	popl %es
 	popl %ds
 	mov %ebp, %esp
 	popl %ebp
@@ -609,7 +813,11 @@ isr_29:
 isr_30:
 	pushl %ebp
 	movl %esp, %ebp
+	pushl $0
 	pushl %ds
+	pushl %es
+	pushl %fs
+	pushl %gs
 	pushal
 	pushl %esp
 	pushl $30
@@ -619,6 +827,9 @@ isr_30:
 	call i386_isr
 	addl $8, %esp
 	popal
+	popl %gs
+	popl %fs
+	popl %es
 	popl %ds
 	mov %ebp, %esp
 	popl %ebp
@@ -629,7 +840,11 @@ isr_30:
 isr_31:
 	pushl %ebp
 	movl %esp, %ebp
+	pushl $0
 	pushl %ds
+	pushl %es
+	pushl %fs
+	pushl %gs
 	pushal
 	pushl %esp
 	pushl $31
@@ -639,6 +854,9 @@ isr_31:
 	call i386_isr
 	addl $8, %esp
 	popal
+	popl %gs
+	popl %fs
+	popl %es
 	popl %ds
 	mov %ebp, %esp
 	popl %ebp
@@ -649,7 +867,11 @@ isr_31:
 isr_32:
 	pushl %ebp
 	movl %esp, %ebp
+	pushl $0
 	pushl %ds
+	pushl %es
+	pushl %fs
+	pushl %gs
 	pushal
 	pushl %esp
 	pushl $32
@@ -659,6 +881,9 @@ isr_32:
 	call i386_isr
 	addl $8, %esp
 	popal
+	popl %gs
+	popl %fs
+	popl %es
 	popl %ds
 	mov %ebp, %esp
 	popl %ebp
@@ -669,7 +894,11 @@ isr_32:
 isr_33:
 	pushl %ebp
 	movl %esp, %ebp
+	pushl $0
 	pushl %ds
+	pushl %es
+	pushl %fs
+	pushl %gs
 	pushal
 	pushl %esp
 	pushl $33
@@ -679,6 +908,9 @@ isr_33:
 	call i386_isr
 	addl $8, %esp
 	popal
+	popl %gs
+	popl %fs
+	popl %es
 	popl %ds
 	mov %ebp, %esp
 	popl %ebp
@@ -689,7 +921,11 @@ isr_33:
 isr_34:
 	pushl %ebp
 	movl %esp, %ebp
+	pushl $0
 	pushl %ds
+	pushl %es
+	pushl %fs
+	pushl %gs
 	pushal
 	pushl %esp
 	pushl $34
@@ -699,6 +935,9 @@ isr_34:
 	call i386_isr
 	addl $8, %esp
 	popal
+	popl %gs
+	popl %fs
+	popl %es
 	popl %ds
 	mov %ebp, %esp
 	popl %ebp
@@ -709,7 +948,11 @@ isr_34:
 isr_35:
 	pushl %ebp
 	movl %esp, %ebp
+	pushl $0
 	pushl %ds
+	pushl %es
+	pushl %fs
+	pushl %gs
 	pushal
 	pushl %esp
 	pushl $35
@@ -719,6 +962,9 @@ isr_35:
 	call i386_isr
 	addl $8, %esp
 	popal
+	popl %gs
+	popl %fs
+	popl %es
 	popl %ds
 	mov %ebp, %esp
 	popl %ebp
@@ -729,7 +975,11 @@ isr_35:
 isr_36:
 	pushl %ebp
 	movl %esp, %ebp
+	pushl $0
 	pushl %ds
+	pushl %es
+	pushl %fs
+	pushl %gs
 	pushal
 	pushl %esp
 	pushl $36
@@ -739,6 +989,9 @@ isr_36:
 	call i386_isr
 	addl $8, %esp
 	popal
+	popl %gs
+	popl %fs
+	popl %es
 	popl %ds
 	mov %ebp, %esp
 	popl %ebp
@@ -749,7 +1002,11 @@ isr_36:
 isr_37:
 	pushl %ebp
 	movl %esp, %ebp
+	pushl $0
 	pushl %ds
+	pushl %es
+	pushl %fs
+	pushl %gs
 	pushal
 	pushl %esp
 	pushl $37
@@ -759,6 +1016,9 @@ isr_37:
 	call i386_isr
 	addl $8, %esp
 	popal
+	popl %gs
+	popl %fs
+	popl %es
 	popl %ds
 	mov %ebp, %esp
 	popl %ebp
@@ -769,7 +1029,11 @@ isr_37:
 isr_38:
 	pushl %ebp
 	movl %esp, %ebp
+	pushl $0
 	pushl %ds
+	pushl %es
+	pushl %fs
+	pushl %gs
 	pushal
 	pushl %esp
 	pushl $38
@@ -779,6 +1043,9 @@ isr_38:
 	call i386_isr
 	addl $8, %esp
 	popal
+	popl %gs
+	popl %fs
+	popl %es
 	popl %ds
 	mov %ebp, %esp
 	popl %ebp
@@ -789,7 +1056,11 @@ isr_38:
 isr_39:
 	pushl %ebp
 	movl %esp, %ebp
+	pushl $0
 	pushl %ds
+	pushl %es
+	pushl %fs
+	pushl %gs
 	pushal
 	pushl %esp
 	pushl $39
@@ -799,6 +1070,9 @@ isr_39:
 	call i386_isr
 	addl $8, %esp
 	popal
+	popl %gs
+	popl %fs
+	popl %es
 	popl %ds
 	mov %ebp, %esp
 	popl %ebp
@@ -809,7 +1083,11 @@ isr_39:
 isr_40:
 	pushl %ebp
 	movl %esp, %ebp
+	pushl $0
 	pushl %ds
+	pushl %es
+	pushl %fs
+	pushl %gs
 	pushal
 	pushl %esp
 	pushl $40
@@ -819,6 +1097,9 @@ isr_40:
 	call i386_isr
 	addl $8, %esp
 	popal
+	popl %gs
+	popl %fs
+	popl %es
 	popl %ds
 	mov %ebp, %esp
 	popl %ebp
@@ -829,7 +1110,11 @@ isr_40:
 isr_41:
 	pushl %ebp
 	movl %esp, %ebp
+	pushl $0
 	pushl %ds
+	pushl %es
+	pushl %fs
+	pushl %gs
 	pushal
 	pushl %esp
 	pushl $41
@@ -839,6 +1124,9 @@ isr_41:
 	call i386_isr
 	addl $8, %esp
 	popal
+	popl %gs
+	popl %fs
+	popl %es
 	popl %ds
 	mov %ebp, %esp
 	popl %ebp
@@ -849,7 +1137,11 @@ isr_41:
 isr_42:
 	pushl %ebp
 	movl %esp, %ebp
+	pushl $0
 	pushl %ds
+	pushl %es
+	pushl %fs
+	pushl %gs
 	pushal
 	pushl %esp
 	pushl $42
@@ -859,6 +1151,9 @@ isr_42:
 	call i386_isr
 	addl $8, %esp
 	popal
+	popl %gs
+	popl %fs
+	popl %es
 	popl %ds
 	mov %ebp, %esp
 	popl %ebp
@@ -869,7 +1164,11 @@ isr_42:
 isr_43:
 	pushl %ebp
 	movl %esp, %ebp
+	pushl $0
 	pushl %ds
+	pushl %es
+	pushl %fs
+	pushl %gs
 	pushal
 	pushl %esp
 	pushl $43
@@ -879,6 +1178,9 @@ isr_43:
 	call i386_isr
 	addl $8, %esp
 	popal
+	popl %gs
+	popl %fs
+	popl %es
 	popl %ds
 	mov %ebp, %esp
 	popl %ebp
@@ -889,7 +1191,11 @@ isr_43:
 isr_44:
 	pushl %ebp
 	movl %esp, %ebp
+	pushl $0
 	pushl %ds
+	pushl %es
+	pushl %fs
+	pushl %gs
 	pushal
 	pushl %esp
 	pushl $44
@@ -899,6 +1205,9 @@ isr_44:
 	call i386_isr
 	addl $8, %esp
 	popal
+	popl %gs
+	popl %fs
+	popl %es
 	popl %ds
 	mov %ebp, %esp
 	popl %ebp
@@ -909,7 +1218,11 @@ isr_44:
 isr_45:
 	pushl %ebp
 	movl %esp, %ebp
+	pushl $0
 	pushl %ds
+	pushl %es
+	pushl %fs
+	pushl %gs
 	pushal
 	pushl %esp
 	pushl $45
@@ -919,6 +1232,9 @@ isr_45:
 	call i386_isr
 	addl $8, %esp
 	popal
+	popl %gs
+	popl %fs
+	popl %es
 	popl %ds
 	mov %ebp, %esp
 	popl %ebp
@@ -929,7 +1245,11 @@ isr_45:
 isr_46:
 	pushl %ebp
 	movl %esp, %ebp
+	pushl $0
 	pushl %ds
+	pushl %es
+	pushl %fs
+	pushl %gs
 	pushal
 	pushl %esp
 	pushl $46
@@ -939,6 +1259,9 @@ isr_46:
 	call i386_isr
 	addl $8, %esp
 	popal
+	popl %gs
+	popl %fs
+	popl %es
 	popl %ds
 	mov %ebp, %esp
 	popl %ebp
@@ -949,7 +1272,11 @@ isr_46:
 isr_47:
 	pushl %ebp
 	movl %esp, %ebp
+	pushl $0
 	pushl %ds
+	pushl %es
+	pushl %fs
+	pushl %gs
 	pushal
 	pushl %esp
 	pushl $47
@@ -959,6 +1286,9 @@ isr_47:
 	call i386_isr
 	addl $8, %esp
 	popal
+	popl %gs
+	popl %fs
+	popl %es
 	popl %ds
 	mov %ebp, %esp
 	popl %ebp
@@ -969,7 +1299,11 @@ isr_47:
 isr_48:
 	pushl %ebp
 	movl %esp, %ebp
+	pushl $0
 	pushl %ds
+	pushl %es
+	pushl %fs
+	pushl %gs
 	pushal
 	pushl %esp
 	pushl $48
@@ -979,6 +1313,9 @@ isr_48:
 	call i386_isr
 	addl $8, %esp
 	popal
+	popl %gs
+	popl %fs
+	popl %es
 	popl %ds
 	mov %ebp, %esp
 	popl %ebp
@@ -989,7 +1326,11 @@ isr_48:
 isr_49:
 	pushl %ebp
 	movl %esp, %ebp
+	pushl $0
 	pushl %ds
+	pushl %es
+	pushl %fs
+	pushl %gs
 	pushal
 	pushl %esp
 	pushl $49
@@ -999,6 +1340,9 @@ isr_49:
 	call i386_isr
 	addl $8, %esp
 	popal
+	popl %gs
+	popl %fs
+	popl %es
 	popl %ds
 	mov %ebp, %esp
 	popl %ebp
@@ -1009,7 +1353,11 @@ isr_49:
 isr_50:
 	pushl %ebp
 	movl %esp, %ebp
+	pushl $0
 	pushl %ds
+	pushl %es
+	pushl %fs
+	pushl %gs
 	pushal
 	pushl %esp
 	pushl $50
@@ -1019,6 +1367,9 @@ isr_50:
 	call i386_isr
 	addl $8, %esp
 	popal
+	popl %gs
+	popl %fs
+	popl %es
 	popl %ds
 	mov %ebp, %esp
 	popl %ebp
@@ -1029,7 +1380,11 @@ isr_50:
 isr_51:
 	pushl %ebp
 	movl %esp, %ebp
+	pushl $0
 	pushl %ds
+	pushl %es
+	pushl %fs
+	pushl %gs
 	pushal
 	pushl %esp
 	pushl $51
@@ -1039,6 +1394,9 @@ isr_51:
 	call i386_isr
 	addl $8, %esp
 	popal
+	popl %gs
+	popl %fs
+	popl %es
 	popl %ds
 	mov %ebp, %esp
 	popl %ebp
@@ -1049,7 +1407,11 @@ isr_51:
 isr_52:
 	pushl %ebp
 	movl %esp, %ebp
+	pushl $0
 	pushl %ds
+	pushl %es
+	pushl %fs
+	pushl %gs
 	pushal
 	pushl %esp
 	pushl $52
@@ -1059,6 +1421,9 @@ isr_52:
 	call i386_isr
 	addl $8, %esp
 	popal
+	popl %gs
+	popl %fs
+	popl %es
 	popl %ds
 	mov %ebp, %esp
 	popl %ebp
@@ -1069,7 +1434,11 @@ isr_52:
 isr_53:
 	pushl %ebp
 	movl %esp, %ebp
+	pushl $0
 	pushl %ds
+	pushl %es
+	pushl %fs
+	pushl %gs
 	pushal
 	pushl %esp
 	pushl $53
@@ -1079,6 +1448,9 @@ isr_53:
 	call i386_isr
 	addl $8, %esp
 	popal
+	popl %gs
+	popl %fs
+	popl %es
 	popl %ds
 	mov %ebp, %esp
 	popl %ebp
@@ -1089,7 +1461,11 @@ isr_53:
 isr_54:
 	pushl %ebp
 	movl %esp, %ebp
+	pushl $0
 	pushl %ds
+	pushl %es
+	pushl %fs
+	pushl %gs
 	pushal
 	pushl %esp
 	pushl $54
@@ -1099,6 +1475,9 @@ isr_54:
 	call i386_isr
 	addl $8, %esp
 	popal
+	popl %gs
+	popl %fs
+	popl %es
 	popl %ds
 	mov %ebp, %esp
 	popl %ebp
@@ -1109,7 +1488,11 @@ isr_54:
 isr_55:
 	pushl %ebp
 	movl %esp, %ebp
+	pushl $0
 	pushl %ds
+	pushl %es
+	pushl %fs
+	pushl %gs
 	pushal
 	pushl %esp
 	pushl $55
@@ -1119,6 +1502,9 @@ isr_55:
 	call i386_isr
 	addl $8, %esp
 	popal
+	popl %gs
+	popl %fs
+	popl %es
 	popl %ds
 	mov %ebp, %esp
 	popl %ebp
@@ -1129,7 +1515,11 @@ isr_55:
 isr_56:
 	pushl %ebp
 	movl %esp, %ebp
+	pushl $0
 	pushl %ds
+	pushl %es
+	pushl %fs
+	pushl %gs
 	pushal
 	pushl %esp
 	pushl $56
@@ -1139,6 +1529,9 @@ isr_56:
 	call i386_isr
 	addl $8, %esp
 	popal
+	popl %gs
+	popl %fs
+	popl %es
 	popl %ds
 	mov %ebp, %esp
 	popl %ebp
@@ -1149,7 +1542,11 @@ isr_56:
 isr_57:
 	pushl %ebp
 	movl %esp, %ebp
+	pushl $0
 	pushl %ds
+	pushl %es
+	pushl %fs
+	pushl %gs
 	pushal
 	pushl %esp
 	pushl $57
@@ -1159,6 +1556,9 @@ isr_57:
 	call i386_isr
 	addl $8, %esp
 	popal
+	popl %gs
+	popl %fs
+	popl %es
 	popl %ds
 	mov %ebp, %esp
 	popl %ebp
@@ -1169,7 +1569,11 @@ isr_57:
 isr_58:
 	pushl %ebp
 	movl %esp, %ebp
+	pushl $0
 	pushl %ds
+	pushl %es
+	pushl %fs
+	pushl %gs
 	pushal
 	pushl %esp
 	pushl $58
@@ -1179,6 +1583,9 @@ isr_58:
 	call i386_isr
 	addl $8, %esp
 	popal
+	popl %gs
+	popl %fs
+	popl %es
 	popl %ds
 	mov %ebp, %esp
 	popl %ebp
@@ -1189,7 +1596,11 @@ isr_58:
 isr_59:
 	pushl %ebp
 	movl %esp, %ebp
+	pushl $0
 	pushl %ds
+	pushl %es
+	pushl %fs
+	pushl %gs
 	pushal
 	pushl %esp
 	pushl $59
@@ -1199,6 +1610,9 @@ isr_59:
 	call i386_isr
 	addl $8, %esp
 	popal
+	popl %gs
+	popl %fs
+	popl %es
 	popl %ds
 	mov %ebp, %esp
 	popl %ebp
@@ -1209,7 +1623,11 @@ isr_59:
 isr_60:
 	pushl %ebp
 	movl %esp, %ebp
+	pushl $0
 	pushl %ds
+	pushl %es
+	pushl %fs
+	pushl %gs
 	pushal
 	pushl %esp
 	pushl $60
@@ -1219,6 +1637,9 @@ isr_60:
 	call i386_isr
 	addl $8, %esp
 	popal
+	popl %gs
+	popl %fs
+	popl %es
 	popl %ds
 	mov %ebp, %esp
 	popl %ebp
@@ -1229,7 +1650,11 @@ isr_60:
 isr_61:
 	pushl %ebp
 	movl %esp, %ebp
+	pushl $0
 	pushl %ds
+	pushl %es
+	pushl %fs
+	pushl %gs
 	pushal
 	pushl %esp
 	pushl $61
@@ -1239,6 +1664,9 @@ isr_61:
 	call i386_isr
 	addl $8, %esp
 	popal
+	popl %gs
+	popl %fs
+	popl %es
 	popl %ds
 	mov %ebp, %esp
 	popl %ebp
@@ -1249,7 +1677,11 @@ isr_61:
 isr_62:
 	pushl %ebp
 	movl %esp, %ebp
+	pushl $0
 	pushl %ds
+	pushl %es
+	pushl %fs
+	pushl %gs
 	pushal
 	pushl %esp
 	pushl $62
@@ -1259,6 +1691,9 @@ isr_62:
 	call i386_isr
 	addl $8, %esp
 	popal
+	popl %gs
+	popl %fs
+	popl %es
 	popl %ds
 	mov %ebp, %esp
 	popl %ebp
@@ -1269,7 +1704,11 @@ isr_62:
 isr_63:
 	pushl %ebp
 	movl %esp, %ebp
+	pushl $0
 	pushl %ds
+	pushl %es
+	pushl %fs
+	pushl %gs
 	pushal
 	pushl %esp
 	pushl $63
@@ -1279,6 +1718,9 @@ isr_63:
 	call i386_isr
 	addl $8, %esp
 	popal
+	popl %gs
+	popl %fs
+	popl %es
 	popl %ds
 	mov %ebp, %esp
 	popl %ebp
@@ -1289,7 +1731,11 @@ isr_63:
 isr_64:
 	pushl %ebp
 	movl %esp, %ebp
+	pushl $0
 	pushl %ds
+	pushl %es
+	pushl %fs
+	pushl %gs
 	pushal
 	pushl %esp
 	pushl $64
@@ -1299,6 +1745,9 @@ isr_64:
 	call i386_isr
 	addl $8, %esp
 	popal
+	popl %gs
+	popl %fs
+	popl %es
 	popl %ds
 	mov %ebp, %esp
 	popl %ebp
@@ -1309,7 +1758,11 @@ isr_64:
 isr_65:
 	pushl %ebp
 	movl %esp, %ebp
+	pushl $0
 	pushl %ds
+	pushl %es
+	pushl %fs
+	pushl %gs
 	pushal
 	pushl %esp
 	pushl $65
@@ -1319,6 +1772,9 @@ isr_65:
 	call i386_isr
 	addl $8, %esp
 	popal
+	popl %gs
+	popl %fs
+	popl %es
 	popl %ds
 	mov %ebp, %esp
 	popl %ebp
@@ -1329,7 +1785,11 @@ isr_65:
 isr_66:
 	pushl %ebp
 	movl %esp, %ebp
+	pushl $0
 	pushl %ds
+	pushl %es
+	pushl %fs
+	pushl %gs
 	pushal
 	pushl %esp
 	pushl $66
@@ -1339,6 +1799,9 @@ isr_66:
 	call i386_isr
 	addl $8, %esp
 	popal
+	popl %gs
+	popl %fs
+	popl %es
 	popl %ds
 	mov %ebp, %esp
 	popl %ebp
@@ -1349,7 +1812,11 @@ isr_66:
 isr_67:
 	pushl %ebp
 	movl %esp, %ebp
+	pushl $0
 	pushl %ds
+	pushl %es
+	pushl %fs
+	pushl %gs
 	pushal
 	pushl %esp
 	pushl $67
@@ -1359,6 +1826,9 @@ isr_67:
 	call i386_isr
 	addl $8, %esp
 	popal
+	popl %gs
+	popl %fs
+	popl %es
 	popl %ds
 	mov %ebp, %esp
 	popl %ebp
@@ -1369,7 +1839,11 @@ isr_67:
 isr_68:
 	pushl %ebp
 	movl %esp, %ebp
+	pushl $0
 	pushl %ds
+	pushl %es
+	pushl %fs
+	pushl %gs
 	pushal
 	pushl %esp
 	pushl $68
@@ -1379,6 +1853,9 @@ isr_68:
 	call i386_isr
 	addl $8, %esp
 	popal
+	popl %gs
+	popl %fs
+	popl %es
 	popl %ds
 	mov %ebp, %esp
 	popl %ebp
@@ -1389,7 +1866,11 @@ isr_68:
 isr_69:
 	pushl %ebp
 	movl %esp, %ebp
+	pushl $0
 	pushl %ds
+	pushl %es
+	pushl %fs
+	pushl %gs
 	pushal
 	pushl %esp
 	pushl $69
@@ -1399,6 +1880,9 @@ isr_69:
 	call i386_isr
 	addl $8, %esp
 	popal
+	popl %gs
+	popl %fs
+	popl %es
 	popl %ds
 	mov %ebp, %esp
 	popl %ebp
@@ -1409,7 +1893,11 @@ isr_69:
 isr_70:
 	pushl %ebp
 	movl %esp, %ebp
+	pushl $0
 	pushl %ds
+	pushl %es
+	pushl %fs
+	pushl %gs
 	pushal
 	pushl %esp
 	pushl $70
@@ -1419,6 +1907,9 @@ isr_70:
 	call i386_isr
 	addl $8, %esp
 	popal
+	popl %gs
+	popl %fs
+	popl %es
 	popl %ds
 	mov %ebp, %esp
 	popl %ebp
@@ -1429,7 +1920,11 @@ isr_70:
 isr_71:
 	pushl %ebp
 	movl %esp, %ebp
+	pushl $0
 	pushl %ds
+	pushl %es
+	pushl %fs
+	pushl %gs
 	pushal
 	pushl %esp
 	pushl $71
@@ -1439,6 +1934,9 @@ isr_71:
 	call i386_isr
 	addl $8, %esp
 	popal
+	popl %gs
+	popl %fs
+	popl %es
 	popl %ds
 	mov %ebp, %esp
 	popl %ebp
@@ -1449,7 +1947,11 @@ isr_71:
 isr_72:
 	pushl %ebp
 	movl %esp, %ebp
+	pushl $0
 	pushl %ds
+	pushl %es
+	pushl %fs
+	pushl %gs
 	pushal
 	pushl %esp
 	pushl $72
@@ -1459,6 +1961,9 @@ isr_72:
 	call i386_isr
 	addl $8, %esp
 	popal
+	popl %gs
+	popl %fs
+	popl %es
 	popl %ds
 	mov %ebp, %esp
 	popl %ebp
@@ -1469,7 +1974,11 @@ isr_72:
 isr_73:
 	pushl %ebp
 	movl %esp, %ebp
+	pushl $0
 	pushl %ds
+	pushl %es
+	pushl %fs
+	pushl %gs
 	pushal
 	pushl %esp
 	pushl $73
@@ -1479,6 +1988,9 @@ isr_73:
 	call i386_isr
 	addl $8, %esp
 	popal
+	popl %gs
+	popl %fs
+	popl %es
 	popl %ds
 	mov %ebp, %esp
 	popl %ebp
@@ -1489,7 +2001,11 @@ isr_73:
 isr_74:
 	pushl %ebp
 	movl %esp, %ebp
+	pushl $0
 	pushl %ds
+	pushl %es
+	pushl %fs
+	pushl %gs
 	pushal
 	pushl %esp
 	pushl $74
@@ -1499,6 +2015,9 @@ isr_74:
 	call i386_isr
 	addl $8, %esp
 	popal
+	popl %gs
+	popl %fs
+	popl %es
 	popl %ds
 	mov %ebp, %esp
 	popl %ebp
@@ -1509,7 +2028,11 @@ isr_74:
 isr_75:
 	pushl %ebp
 	movl %esp, %ebp
+	pushl $0
 	pushl %ds
+	pushl %es
+	pushl %fs
+	pushl %gs
 	pushal
 	pushl %esp
 	pushl $75
@@ -1519,6 +2042,9 @@ isr_75:
 	call i386_isr
 	addl $8, %esp
 	popal
+	popl %gs
+	popl %fs
+	popl %es
 	popl %ds
 	mov %ebp, %esp
 	popl %ebp
@@ -1529,7 +2055,11 @@ isr_75:
 isr_76:
 	pushl %ebp
 	movl %esp, %ebp
+	pushl $0
 	pushl %ds
+	pushl %es
+	pushl %fs
+	pushl %gs
 	pushal
 	pushl %esp
 	pushl $76
@@ -1539,6 +2069,9 @@ isr_76:
 	call i386_isr
 	addl $8, %esp
 	popal
+	popl %gs
+	popl %fs
+	popl %es
 	popl %ds
 	mov %ebp, %esp
 	popl %ebp
@@ -1549,7 +2082,11 @@ isr_76:
 isr_77:
 	pushl %ebp
 	movl %esp, %ebp
+	pushl $0
 	pushl %ds
+	pushl %es
+	pushl %fs
+	pushl %gs
 	pushal
 	pushl %esp
 	pushl $77
@@ -1559,6 +2096,9 @@ isr_77:
 	call i386_isr
 	addl $8, %esp
 	popal
+	popl %gs
+	popl %fs
+	popl %es
 	popl %ds
 	mov %ebp, %esp
 	popl %ebp
@@ -1569,7 +2109,11 @@ isr_77:
 isr_78:
 	pushl %ebp
 	movl %esp, %ebp
+	pushl $0
 	pushl %ds
+	pushl %es
+	pushl %fs
+	pushl %gs
 	pushal
 	pushl %esp
 	pushl $78
@@ -1579,6 +2123,9 @@ isr_78:
 	call i386_isr
 	addl $8, %esp
 	popal
+	popl %gs
+	popl %fs
+	popl %es
 	popl %ds
 	mov %ebp, %esp
 	popl %ebp
@@ -1589,7 +2136,11 @@ isr_78:
 isr_79:
 	pushl %ebp
 	movl %esp, %ebp
+	pushl $0
 	pushl %ds
+	pushl %es
+	pushl %fs
+	pushl %gs
 	pushal
 	pushl %esp
 	pushl $79
@@ -1599,6 +2150,9 @@ isr_79:
 	call i386_isr
 	addl $8, %esp
 	popal
+	popl %gs
+	popl %fs
+	popl %es
 	popl %ds
 	mov %ebp, %esp
 	popl %ebp
@@ -1609,7 +2163,11 @@ isr_79:
 isr_80:
 	pushl %ebp
 	movl %esp, %ebp
+	pushl $0
 	pushl %ds
+	pushl %es
+	pushl %fs
+	pushl %gs
 	pushal
 	pushl %esp
 	pushl $80
@@ -1619,6 +2177,9 @@ isr_80:
 	call i386_isr
 	addl $8, %esp
 	popal
+	popl %gs
+	popl %fs
+	popl %es
 	popl %ds
 	mov %ebp, %esp
 	popl %ebp
@@ -1629,7 +2190,11 @@ isr_80:
 isr_81:
 	pushl %ebp
 	movl %esp, %ebp
+	pushl $0
 	pushl %ds
+	pushl %es
+	pushl %fs
+	pushl %gs
 	pushal
 	pushl %esp
 	pushl $81
@@ -1639,6 +2204,9 @@ isr_81:
 	call i386_isr
 	addl $8, %esp
 	popal
+	popl %gs
+	popl %fs
+	popl %es
 	popl %ds
 	mov %ebp, %esp
 	popl %ebp
@@ -1649,7 +2217,11 @@ isr_81:
 isr_82:
 	pushl %ebp
 	movl %esp, %ebp
+	pushl $0
 	pushl %ds
+	pushl %es
+	pushl %fs
+	pushl %gs
 	pushal
 	pushl %esp
 	pushl $82
@@ -1659,6 +2231,9 @@ isr_82:
 	call i386_isr
 	addl $8, %esp
 	popal
+	popl %gs
+	popl %fs
+	popl %es
 	popl %ds
 	mov %ebp, %esp
 	popl %ebp
@@ -1669,7 +2244,11 @@ isr_82:
 isr_83:
 	pushl %ebp
 	movl %esp, %ebp
+	pushl $0
 	pushl %ds
+	pushl %es
+	pushl %fs
+	pushl %gs
 	pushal
 	pushl %esp
 	pushl $83
@@ -1679,6 +2258,9 @@ isr_83:
 	call i386_isr
 	addl $8, %esp
 	popal
+	popl %gs
+	popl %fs
+	popl %es
 	popl %ds
 	mov %ebp, %esp
 	popl %ebp
@@ -1689,7 +2271,11 @@ isr_83:
 isr_84:
 	pushl %ebp
 	movl %esp, %ebp
+	pushl $0
 	pushl %ds
+	pushl %es
+	pushl %fs
+	pushl %gs
 	pushal
 	pushl %esp
 	pushl $84
@@ -1699,6 +2285,9 @@ isr_84:
 	call i386_isr
 	addl $8, %esp
 	popal
+	popl %gs
+	popl %fs
+	popl %es
 	popl %ds
 	mov %ebp, %esp
 	popl %ebp
@@ -1709,7 +2298,11 @@ isr_84:
 isr_85:
 	pushl %ebp
 	movl %esp, %ebp
+	pushl $0
 	pushl %ds
+	pushl %es
+	pushl %fs
+	pushl %gs
 	pushal
 	pushl %esp
 	pushl $85
@@ -1719,6 +2312,9 @@ isr_85:
 	call i386_isr
 	addl $8, %esp
 	popal
+	popl %gs
+	popl %fs
+	popl %es
 	popl %ds
 	mov %ebp, %esp
 	popl %ebp
@@ -1729,7 +2325,11 @@ isr_85:
 isr_86:
 	pushl %ebp
 	movl %esp, %ebp
+	pushl $0
 	pushl %ds
+	pushl %es
+	pushl %fs
+	pushl %gs
 	pushal
 	pushl %esp
 	pushl $86
@@ -1739,6 +2339,9 @@ isr_86:
 	call i386_isr
 	addl $8, %esp
 	popal
+	popl %gs
+	popl %fs
+	popl %es
 	popl %ds
 	mov %ebp, %esp
 	popl %ebp
@@ -1749,7 +2352,11 @@ isr_86:
 isr_87:
 	pushl %ebp
 	movl %esp, %ebp
+	pushl $0
 	pushl %ds
+	pushl %es
+	pushl %fs
+	pushl %gs
 	pushal
 	pushl %esp
 	pushl $87
@@ -1759,6 +2366,9 @@ isr_87:
 	call i386_isr
 	addl $8, %esp
 	popal
+	popl %gs
+	popl %fs
+	popl %es
 	popl %ds
 	mov %ebp, %esp
 	popl %ebp
@@ -1769,7 +2379,11 @@ isr_87:
 isr_88:
 	pushl %ebp
 	movl %esp, %ebp
+	pushl $0
 	pushl %ds
+	pushl %es
+	pushl %fs
+	pushl %gs
 	pushal
 	pushl %esp
 	pushl $88
@@ -1779,6 +2393,9 @@ isr_88:
 	call i386_isr
 	addl $8, %esp
 	popal
+	popl %gs
+	popl %fs
+	popl %es
 	popl %ds
 	mov %ebp, %esp
 	popl %ebp
@@ -1789,7 +2406,11 @@ isr_88:
 isr_89:
 	pushl %ebp
 	movl %esp, %ebp
+	pushl $0
 	pushl %ds
+	pushl %es
+	pushl %fs
+	pushl %gs
 	pushal
 	pushl %esp
 	pushl $89
@@ -1799,6 +2420,9 @@ isr_89:
 	call i386_isr
 	addl $8, %esp
 	popal
+	popl %gs
+	popl %fs
+	popl %es
 	popl %ds
 	mov %ebp, %esp
 	popl %ebp
@@ -1809,7 +2433,11 @@ isr_89:
 isr_90:
 	pushl %ebp
 	movl %esp, %ebp
+	pushl $0
 	pushl %ds
+	pushl %es
+	pushl %fs
+	pushl %gs
 	pushal
 	pushl %esp
 	pushl $90
@@ -1819,6 +2447,9 @@ isr_90:
 	call i386_isr
 	addl $8, %esp
 	popal
+	popl %gs
+	popl %fs
+	popl %es
 	popl %ds
 	mov %ebp, %esp
 	popl %ebp
@@ -1829,7 +2460,11 @@ isr_90:
 isr_91:
 	pushl %ebp
 	movl %esp, %ebp
+	pushl $0
 	pushl %ds
+	pushl %es
+	pushl %fs
+	pushl %gs
 	pushal
 	pushl %esp
 	pushl $91
@@ -1839,6 +2474,9 @@ isr_91:
 	call i386_isr
 	addl $8, %esp
 	popal
+	popl %gs
+	popl %fs
+	popl %es
 	popl %ds
 	mov %ebp, %esp
 	popl %ebp
@@ -1849,7 +2487,11 @@ isr_91:
 isr_92:
 	pushl %ebp
 	movl %esp, %ebp
+	pushl $0
 	pushl %ds
+	pushl %es
+	pushl %fs
+	pushl %gs
 	pushal
 	pushl %esp
 	pushl $92
@@ -1859,6 +2501,9 @@ isr_92:
 	call i386_isr
 	addl $8, %esp
 	popal
+	popl %gs
+	popl %fs
+	popl %es
 	popl %ds
 	mov %ebp, %esp
 	popl %ebp
@@ -1869,7 +2514,11 @@ isr_92:
 isr_93:
 	pushl %ebp
 	movl %esp, %ebp
+	pushl $0
 	pushl %ds
+	pushl %es
+	pushl %fs
+	pushl %gs
 	pushal
 	pushl %esp
 	pushl $93
@@ -1879,6 +2528,9 @@ isr_93:
 	call i386_isr
 	addl $8, %esp
 	popal
+	popl %gs
+	popl %fs
+	popl %es
 	popl %ds
 	mov %ebp, %esp
 	popl %ebp
@@ -1889,7 +2541,11 @@ isr_93:
 isr_94:
 	pushl %ebp
 	movl %esp, %ebp
+	pushl $0
 	pushl %ds
+	pushl %es
+	pushl %fs
+	pushl %gs
 	pushal
 	pushl %esp
 	pushl $94
@@ -1899,6 +2555,9 @@ isr_94:
 	call i386_isr
 	addl $8, %esp
 	popal
+	popl %gs
+	popl %fs
+	popl %es
 	popl %ds
 	mov %ebp, %esp
 	popl %ebp
@@ -1909,7 +2568,11 @@ isr_94:
 isr_95:
 	pushl %ebp
 	movl %esp, %ebp
+	pushl $0
 	pushl %ds
+	pushl %es
+	pushl %fs
+	pushl %gs
 	pushal
 	pushl %esp
 	pushl $95
@@ -1919,6 +2582,9 @@ isr_95:
 	call i386_isr
 	addl $8, %esp
 	popal
+	popl %gs
+	popl %fs
+	popl %es
 	popl %ds
 	mov %ebp, %esp
 	popl %ebp
@@ -1929,7 +2595,11 @@ isr_95:
 isr_96:
 	pushl %ebp
 	movl %esp, %ebp
+	pushl $0
 	pushl %ds
+	pushl %es
+	pushl %fs
+	pushl %gs
 	pushal
 	pushl %esp
 	pushl $96
@@ -1939,6 +2609,9 @@ isr_96:
 	call i386_isr
 	addl $8, %esp
 	popal
+	popl %gs
+	popl %fs
+	popl %es
 	popl %ds
 	mov %ebp, %esp
 	popl %ebp
@@ -1949,7 +2622,11 @@ isr_96:
 isr_97:
 	pushl %ebp
 	movl %esp, %ebp
+	pushl $0
 	pushl %ds
+	pushl %es
+	pushl %fs
+	pushl %gs
 	pushal
 	pushl %esp
 	pushl $97
@@ -1959,6 +2636,9 @@ isr_97:
 	call i386_isr
 	addl $8, %esp
 	popal
+	popl %gs
+	popl %fs
+	popl %es
 	popl %ds
 	mov %ebp, %esp
 	popl %ebp
@@ -1969,7 +2649,11 @@ isr_97:
 isr_98:
 	pushl %ebp
 	movl %esp, %ebp
+	pushl $0
 	pushl %ds
+	pushl %es
+	pushl %fs
+	pushl %gs
 	pushal
 	pushl %esp
 	pushl $98
@@ -1979,6 +2663,9 @@ isr_98:
 	call i386_isr
 	addl $8, %esp
 	popal
+	popl %gs
+	popl %fs
+	popl %es
 	popl %ds
 	mov %ebp, %esp
 	popl %ebp
@@ -1989,7 +2676,11 @@ isr_98:
 isr_99:
 	pushl %ebp
 	movl %esp, %ebp
+	pushl $0
 	pushl %ds
+	pushl %es
+	pushl %fs
+	pushl %gs
 	pushal
 	pushl %esp
 	pushl $99
@@ -1999,6 +2690,9 @@ isr_99:
 	call i386_isr
 	addl $8, %esp
 	popal
+	popl %gs
+	popl %fs
+	popl %es
 	popl %ds
 	mov %ebp, %esp
 	popl %ebp
@@ -2009,7 +2703,11 @@ isr_99:
 isr_100:
 	pushl %ebp
 	movl %esp, %ebp
+	pushl $0
 	pushl %ds
+	pushl %es
+	pushl %fs
+	pushl %gs
 	pushal
 	pushl %esp
 	pushl $100
@@ -2019,6 +2717,9 @@ isr_100:
 	call i386_isr
 	addl $8, %esp
 	popal
+	popl %gs
+	popl %fs
+	popl %es
 	popl %ds
 	mov %ebp, %esp
 	popl %ebp
@@ -2029,7 +2730,11 @@ isr_100:
 isr_101:
 	pushl %ebp
 	movl %esp, %ebp
+	pushl $0
 	pushl %ds
+	pushl %es
+	pushl %fs
+	pushl %gs
 	pushal
 	pushl %esp
 	pushl $101
@@ -2039,6 +2744,9 @@ isr_101:
 	call i386_isr
 	addl $8, %esp
 	popal
+	popl %gs
+	popl %fs
+	popl %es
 	popl %ds
 	mov %ebp, %esp
 	popl %ebp
@@ -2049,7 +2757,11 @@ isr_101:
 isr_102:
 	pushl %ebp
 	movl %esp, %ebp
+	pushl $0
 	pushl %ds
+	pushl %es
+	pushl %fs
+	pushl %gs
 	pushal
 	pushl %esp
 	pushl $102
@@ -2059,6 +2771,9 @@ isr_102:
 	call i386_isr
 	addl $8, %esp
 	popal
+	popl %gs
+	popl %fs
+	popl %es
 	popl %ds
 	mov %ebp, %esp
 	popl %ebp
@@ -2069,7 +2784,11 @@ isr_102:
 isr_103:
 	pushl %ebp
 	movl %esp, %ebp
+	pushl $0
 	pushl %ds
+	pushl %es
+	pushl %fs
+	pushl %gs
 	pushal
 	pushl %esp
 	pushl $103
@@ -2079,6 +2798,9 @@ isr_103:
 	call i386_isr
 	addl $8, %esp
 	popal
+	popl %gs
+	popl %fs
+	popl %es
 	popl %ds
 	mov %ebp, %esp
 	popl %ebp
@@ -2089,7 +2811,11 @@ isr_103:
 isr_104:
 	pushl %ebp
 	movl %esp, %ebp
+	pushl $0
 	pushl %ds
+	pushl %es
+	pushl %fs
+	pushl %gs
 	pushal
 	pushl %esp
 	pushl $104
@@ -2099,6 +2825,9 @@ isr_104:
 	call i386_isr
 	addl $8, %esp
 	popal
+	popl %gs
+	popl %fs
+	popl %es
 	popl %ds
 	mov %ebp, %esp
 	popl %ebp
@@ -2109,7 +2838,11 @@ isr_104:
 isr_105:
 	pushl %ebp
 	movl %esp, %ebp
+	pushl $0
 	pushl %ds
+	pushl %es
+	pushl %fs
+	pushl %gs
 	pushal
 	pushl %esp
 	pushl $105
@@ -2119,6 +2852,9 @@ isr_105:
 	call i386_isr
 	addl $8, %esp
 	popal
+	popl %gs
+	popl %fs
+	popl %es
 	popl %ds
 	mov %ebp, %esp
 	popl %ebp
@@ -2129,7 +2865,11 @@ isr_105:
 isr_106:
 	pushl %ebp
 	movl %esp, %ebp
+	pushl $0
 	pushl %ds
+	pushl %es
+	pushl %fs
+	pushl %gs
 	pushal
 	pushl %esp
 	pushl $106
@@ -2139,6 +2879,9 @@ isr_106:
 	call i386_isr
 	addl $8, %esp
 	popal
+	popl %gs
+	popl %fs
+	popl %es
 	popl %ds
 	mov %ebp, %esp
 	popl %ebp
@@ -2149,7 +2892,11 @@ isr_106:
 isr_107:
 	pushl %ebp
 	movl %esp, %ebp
+	pushl $0
 	pushl %ds
+	pushl %es
+	pushl %fs
+	pushl %gs
 	pushal
 	pushl %esp
 	pushl $107
@@ -2159,6 +2906,9 @@ isr_107:
 	call i386_isr
 	addl $8, %esp
 	popal
+	popl %gs
+	popl %fs
+	popl %es
 	popl %ds
 	mov %ebp, %esp
 	popl %ebp
@@ -2169,7 +2919,11 @@ isr_107:
 isr_108:
 	pushl %ebp
 	movl %esp, %ebp
+	pushl $0
 	pushl %ds
+	pushl %es
+	pushl %fs
+	pushl %gs
 	pushal
 	pushl %esp
 	pushl $108
@@ -2179,6 +2933,9 @@ isr_108:
 	call i386_isr
 	addl $8, %esp
 	popal
+	popl %gs
+	popl %fs
+	popl %es
 	popl %ds
 	mov %ebp, %esp
 	popl %ebp
@@ -2189,7 +2946,11 @@ isr_108:
 isr_109:
 	pushl %ebp
 	movl %esp, %ebp
+	pushl $0
 	pushl %ds
+	pushl %es
+	pushl %fs
+	pushl %gs
 	pushal
 	pushl %esp
 	pushl $109
@@ -2199,6 +2960,9 @@ isr_109:
 	call i386_isr
 	addl $8, %esp
 	popal
+	popl %gs
+	popl %fs
+	popl %es
 	popl %ds
 	mov %ebp, %esp
 	popl %ebp
@@ -2209,7 +2973,11 @@ isr_109:
 isr_110:
 	pushl %ebp
 	movl %esp, %ebp
+	pushl $0
 	pushl %ds
+	pushl %es
+	pushl %fs
+	pushl %gs
 	pushal
 	pushl %esp
 	pushl $110
@@ -2219,6 +2987,9 @@ isr_110:
 	call i386_isr
 	addl $8, %esp
 	popal
+	popl %gs
+	popl %fs
+	popl %es
 	popl %ds
 	mov %ebp, %esp
 	popl %ebp
@@ -2229,7 +3000,11 @@ isr_110:
 isr_111:
 	pushl %ebp
 	movl %esp, %ebp
+	pushl $0
 	pushl %ds
+	pushl %es
+	pushl %fs
+	pushl %gs
 	pushal
 	pushl %esp
 	pushl $111
@@ -2239,6 +3014,9 @@ isr_111:
 	call i386_isr
 	addl $8, %esp
 	popal
+	popl %gs
+	popl %fs
+	popl %es
 	popl %ds
 	mov %ebp, %esp
 	popl %ebp
@@ -2249,7 +3027,11 @@ isr_111:
 isr_112:
 	pushl %ebp
 	movl %esp, %ebp
+	pushl $0
 	pushl %ds
+	pushl %es
+	pushl %fs
+	pushl %gs
 	pushal
 	pushl %esp
 	pushl $112
@@ -2259,6 +3041,9 @@ isr_112:
 	call i386_isr
 	addl $8, %esp
 	popal
+	popl %gs
+	popl %fs
+	popl %es
 	popl %ds
 	mov %ebp, %esp
 	popl %ebp
@@ -2269,7 +3054,11 @@ isr_112:
 isr_113:
 	pushl %ebp
 	movl %esp, %ebp
+	pushl $0
 	pushl %ds
+	pushl %es
+	pushl %fs
+	pushl %gs
 	pushal
 	pushl %esp
 	pushl $113
@@ -2279,6 +3068,9 @@ isr_113:
 	call i386_isr
 	addl $8, %esp
 	popal
+	popl %gs
+	popl %fs
+	popl %es
 	popl %ds
 	mov %ebp, %esp
 	popl %ebp
@@ -2289,7 +3081,11 @@ isr_113:
 isr_114:
 	pushl %ebp
 	movl %esp, %ebp
+	pushl $0
 	pushl %ds
+	pushl %es
+	pushl %fs
+	pushl %gs
 	pushal
 	pushl %esp
 	pushl $114
@@ -2299,6 +3095,9 @@ isr_114:
 	call i386_isr
 	addl $8, %esp
 	popal
+	popl %gs
+	popl %fs
+	popl %es
 	popl %ds
 	mov %ebp, %esp
 	popl %ebp
@@ -2309,7 +3108,11 @@ isr_114:
 isr_115:
 	pushl %ebp
 	movl %esp, %ebp
+	pushl $0
 	pushl %ds
+	pushl %es
+	pushl %fs
+	pushl %gs
 	pushal
 	pushl %esp
 	pushl $115
@@ -2319,6 +3122,9 @@ isr_115:
 	call i386_isr
 	addl $8, %esp
 	popal
+	popl %gs
+	popl %fs
+	popl %es
 	popl %ds
 	mov %ebp, %esp
 	popl %ebp
@@ -2329,7 +3135,11 @@ isr_115:
 isr_116:
 	pushl %ebp
 	movl %esp, %ebp
+	pushl $0
 	pushl %ds
+	pushl %es
+	pushl %fs
+	pushl %gs
 	pushal
 	pushl %esp
 	pushl $116
@@ -2339,6 +3149,9 @@ isr_116:
 	call i386_isr
 	addl $8, %esp
 	popal
+	popl %gs
+	popl %fs
+	popl %es
 	popl %ds
 	mov %ebp, %esp
 	popl %ebp
@@ -2349,7 +3162,11 @@ isr_116:
 isr_117:
 	pushl %ebp
 	movl %esp, %ebp
+	pushl $0
 	pushl %ds
+	pushl %es
+	pushl %fs
+	pushl %gs
 	pushal
 	pushl %esp
 	pushl $117
@@ -2359,6 +3176,9 @@ isr_117:
 	call i386_isr
 	addl $8, %esp
 	popal
+	popl %gs
+	popl %fs
+	popl %es
 	popl %ds
 	mov %ebp, %esp
 	popl %ebp
@@ -2369,7 +3189,11 @@ isr_117:
 isr_118:
 	pushl %ebp
 	movl %esp, %ebp
+	pushl $0
 	pushl %ds
+	pushl %es
+	pushl %fs
+	pushl %gs
 	pushal
 	pushl %esp
 	pushl $118
@@ -2379,6 +3203,9 @@ isr_118:
 	call i386_isr
 	addl $8, %esp
 	popal
+	popl %gs
+	popl %fs
+	popl %es
 	popl %ds
 	mov %ebp, %esp
 	popl %ebp
@@ -2389,7 +3216,11 @@ isr_118:
 isr_119:
 	pushl %ebp
 	movl %esp, %ebp
+	pushl $0
 	pushl %ds
+	pushl %es
+	pushl %fs
+	pushl %gs
 	pushal
 	pushl %esp
 	pushl $119
@@ -2399,6 +3230,9 @@ isr_119:
 	call i386_isr
 	addl $8, %esp
 	popal
+	popl %gs
+	popl %fs
+	popl %es
 	popl %ds
 	mov %ebp, %esp
 	popl %ebp
@@ -2409,7 +3243,11 @@ isr_119:
 isr_120:
 	pushl %ebp
 	movl %esp, %ebp
+	pushl $0
 	pushl %ds
+	pushl %es
+	pushl %fs
+	pushl %gs
 	pushal
 	pushl %esp
 	pushl $120
@@ -2419,6 +3257,9 @@ isr_120:
 	call i386_isr
 	addl $8, %esp
 	popal
+	popl %gs
+	popl %fs
+	popl %es
 	popl %ds
 	mov %ebp, %esp
 	popl %ebp
@@ -2429,7 +3270,11 @@ isr_120:
 isr_121:
 	pushl %ebp
 	movl %esp, %ebp
+	pushl $0
 	pushl %ds
+	pushl %es
+	pushl %fs
+	pushl %gs
 	pushal
 	pushl %esp
 	pushl $121
@@ -2439,6 +3284,9 @@ isr_121:
 	call i386_isr
 	addl $8, %esp
 	popal
+	popl %gs
+	popl %fs
+	popl %es
 	popl %ds
 	mov %ebp, %esp
 	popl %ebp
@@ -2449,7 +3297,11 @@ isr_121:
 isr_122:
 	pushl %ebp
 	movl %esp, %ebp
+	pushl $0
 	pushl %ds
+	pushl %es
+	pushl %fs
+	pushl %gs
 	pushal
 	pushl %esp
 	pushl $122
@@ -2459,6 +3311,9 @@ isr_122:
 	call i386_isr
 	addl $8, %esp
 	popal
+	popl %gs
+	popl %fs
+	popl %es
 	popl %ds
 	mov %ebp, %esp
 	popl %ebp
@@ -2469,7 +3324,11 @@ isr_122:
 isr_123:
 	pushl %ebp
 	movl %esp, %ebp
+	pushl $0
 	pushl %ds
+	pushl %es
+	pushl %fs
+	pushl %gs
 	pushal
 	pushl %esp
 	pushl $123
@@ -2479,6 +3338,9 @@ isr_123:
 	call i386_isr
 	addl $8, %esp
 	popal
+	popl %gs
+	popl %fs
+	popl %es
 	popl %ds
 	mov %ebp, %esp
 	popl %ebp
@@ -2489,7 +3351,11 @@ isr_123:
 isr_124:
 	pushl %ebp
 	movl %esp, %ebp
+	pushl $0
 	pushl %ds
+	pushl %es
+	pushl %fs
+	pushl %gs
 	pushal
 	pushl %esp
 	pushl $124
@@ -2499,6 +3365,9 @@ isr_124:
 	call i386_isr
 	addl $8, %esp
 	popal
+	popl %gs
+	popl %fs
+	popl %es
 	popl %ds
 	mov %ebp, %esp
 	popl %ebp
@@ -2509,7 +3378,11 @@ isr_124:
 isr_125:
 	pushl %ebp
 	movl %esp, %ebp
+	pushl $0
 	pushl %ds
+	pushl %es
+	pushl %fs
+	pushl %gs
 	pushal
 	pushl %esp
 	pushl $125
@@ -2519,6 +3392,9 @@ isr_125:
 	call i386_isr
 	addl $8, %esp
 	popal
+	popl %gs
+	popl %fs
+	popl %es
 	popl %ds
 	mov %ebp, %esp
 	popl %ebp
@@ -2529,7 +3405,11 @@ isr_125:
 isr_126:
 	pushl %ebp
 	movl %esp, %ebp
+	pushl $0
 	pushl %ds
+	pushl %es
+	pushl %fs
+	pushl %gs
 	pushal
 	pushl %esp
 	pushl $126
@@ -2539,6 +3419,9 @@ isr_126:
 	call i386_isr
 	addl $8, %esp
 	popal
+	popl %gs
+	popl %fs
+	popl %es
 	popl %ds
 	mov %ebp, %esp
 	popl %ebp
@@ -2549,7 +3432,11 @@ isr_126:
 isr_127:
 	pushl %ebp
 	movl %esp, %ebp
+	pushl $0
 	pushl %ds
+	pushl %es
+	pushl %fs
+	pushl %gs
 	pushal
 	pushl %esp
 	pushl $127
@@ -2559,6 +3446,9 @@ isr_127:
 	call i386_isr
 	addl $8, %esp
 	popal
+	popl %gs
+	popl %fs
+	popl %es
 	popl %ds
 	mov %ebp, %esp
 	popl %ebp
@@ -2569,7 +3459,11 @@ isr_127:
 isr_128:
 	pushl %ebp
 	movl %esp, %ebp
+	pushl $0
 	pushl %ds
+	pushl %es
+	pushl %fs
+	pushl %gs
 	pushal
 	pushl %esp
 	pushl $128
@@ -2579,6 +3473,9 @@ isr_128:
 	call i386_isr
 	addl $8, %esp
 	popal
+	popl %gs
+	popl %fs
+	popl %es
 	popl %ds
 	mov %ebp, %esp
 	popl %ebp
@@ -2589,7 +3486,11 @@ isr_128:
 isr_129:
 	pushl %ebp
 	movl %esp, %ebp
+	pushl $0
 	pushl %ds
+	pushl %es
+	pushl %fs
+	pushl %gs
 	pushal
 	pushl %esp
 	pushl $129
@@ -2599,6 +3500,9 @@ isr_129:
 	call i386_isr
 	addl $8, %esp
 	popal
+	popl %gs
+	popl %fs
+	popl %es
 	popl %ds
 	mov %ebp, %esp
 	popl %ebp
@@ -2609,7 +3513,11 @@ isr_129:
 isr_130:
 	pushl %ebp
 	movl %esp, %ebp
+	pushl $0
 	pushl %ds
+	pushl %es
+	pushl %fs
+	pushl %gs
 	pushal
 	pushl %esp
 	pushl $130
@@ -2619,6 +3527,9 @@ isr_130:
 	call i386_isr
 	addl $8, %esp
 	popal
+	popl %gs
+	popl %fs
+	popl %es
 	popl %ds
 	mov %ebp, %esp
 	popl %ebp
@@ -2629,7 +3540,11 @@ isr_130:
 isr_131:
 	pushl %ebp
 	movl %esp, %ebp
+	pushl $0
 	pushl %ds
+	pushl %es
+	pushl %fs
+	pushl %gs
 	pushal
 	pushl %esp
 	pushl $131
@@ -2639,6 +3554,9 @@ isr_131:
 	call i386_isr
 	addl $8, %esp
 	popal
+	popl %gs
+	popl %fs
+	popl %es
 	popl %ds
 	mov %ebp, %esp
 	popl %ebp
@@ -2649,7 +3567,11 @@ isr_131:
 isr_132:
 	pushl %ebp
 	movl %esp, %ebp
+	pushl $0
 	pushl %ds
+	pushl %es
+	pushl %fs
+	pushl %gs
 	pushal
 	pushl %esp
 	pushl $132
@@ -2659,6 +3581,9 @@ isr_132:
 	call i386_isr
 	addl $8, %esp
 	popal
+	popl %gs
+	popl %fs
+	popl %es
 	popl %ds
 	mov %ebp, %esp
 	popl %ebp
@@ -2669,7 +3594,11 @@ isr_132:
 isr_133:
 	pushl %ebp
 	movl %esp, %ebp
+	pushl $0
 	pushl %ds
+	pushl %es
+	pushl %fs
+	pushl %gs
 	pushal
 	pushl %esp
 	pushl $133
@@ -2679,6 +3608,9 @@ isr_133:
 	call i386_isr
 	addl $8, %esp
 	popal
+	popl %gs
+	popl %fs
+	popl %es
 	popl %ds
 	mov %ebp, %esp
 	popl %ebp
@@ -2689,7 +3621,11 @@ isr_133:
 isr_134:
 	pushl %ebp
 	movl %esp, %ebp
+	pushl $0
 	pushl %ds
+	pushl %es
+	pushl %fs
+	pushl %gs
 	pushal
 	pushl %esp
 	pushl $134
@@ -2699,6 +3635,9 @@ isr_134:
 	call i386_isr
 	addl $8, %esp
 	popal
+	popl %gs
+	popl %fs
+	popl %es
 	popl %ds
 	mov %ebp, %esp
 	popl %ebp
@@ -2709,7 +3648,11 @@ isr_134:
 isr_135:
 	pushl %ebp
 	movl %esp, %ebp
+	pushl $0
 	pushl %ds
+	pushl %es
+	pushl %fs
+	pushl %gs
 	pushal
 	pushl %esp
 	pushl $135
@@ -2719,6 +3662,9 @@ isr_135:
 	call i386_isr
 	addl $8, %esp
 	popal
+	popl %gs
+	popl %fs
+	popl %es
 	popl %ds
 	mov %ebp, %esp
 	popl %ebp
@@ -2729,7 +3675,11 @@ isr_135:
 isr_136:
 	pushl %ebp
 	movl %esp, %ebp
+	pushl $0
 	pushl %ds
+	pushl %es
+	pushl %fs
+	pushl %gs
 	pushal
 	pushl %esp
 	pushl $136
@@ -2739,6 +3689,9 @@ isr_136:
 	call i386_isr
 	addl $8, %esp
 	popal
+	popl %gs
+	popl %fs
+	popl %es
 	popl %ds
 	mov %ebp, %esp
 	popl %ebp
@@ -2749,7 +3702,11 @@ isr_136:
 isr_137:
 	pushl %ebp
 	movl %esp, %ebp
+	pushl $0
 	pushl %ds
+	pushl %es
+	pushl %fs
+	pushl %gs
 	pushal
 	pushl %esp
 	pushl $137
@@ -2759,6 +3716,9 @@ isr_137:
 	call i386_isr
 	addl $8, %esp
 	popal
+	popl %gs
+	popl %fs
+	popl %es
 	popl %ds
 	mov %ebp, %esp
 	popl %ebp
@@ -2769,7 +3729,11 @@ isr_137:
 isr_138:
 	pushl %ebp
 	movl %esp, %ebp
+	pushl $0
 	pushl %ds
+	pushl %es
+	pushl %fs
+	pushl %gs
 	pushal
 	pushl %esp
 	pushl $138
@@ -2779,6 +3743,9 @@ isr_138:
 	call i386_isr
 	addl $8, %esp
 	popal
+	popl %gs
+	popl %fs
+	popl %es
 	popl %ds
 	mov %ebp, %esp
 	popl %ebp
@@ -2789,7 +3756,11 @@ isr_138:
 isr_139:
 	pushl %ebp
 	movl %esp, %ebp
+	pushl $0
 	pushl %ds
+	pushl %es
+	pushl %fs
+	pushl %gs
 	pushal
 	pushl %esp
 	pushl $139
@@ -2799,6 +3770,9 @@ isr_139:
 	call i386_isr
 	addl $8, %esp
 	popal
+	popl %gs
+	popl %fs
+	popl %es
 	popl %ds
 	mov %ebp, %esp
 	popl %ebp
@@ -2809,7 +3783,11 @@ isr_139:
 isr_140:
 	pushl %ebp
 	movl %esp, %ebp
+	pushl $0
 	pushl %ds
+	pushl %es
+	pushl %fs
+	pushl %gs
 	pushal
 	pushl %esp
 	pushl $140
@@ -2819,6 +3797,9 @@ isr_140:
 	call i386_isr
 	addl $8, %esp
 	popal
+	popl %gs
+	popl %fs
+	popl %es
 	popl %ds
 	mov %ebp, %esp
 	popl %ebp
@@ -2829,7 +3810,11 @@ isr_140:
 isr_141:
 	pushl %ebp
 	movl %esp, %ebp
+	pushl $0
 	pushl %ds
+	pushl %es
+	pushl %fs
+	pushl %gs
 	pushal
 	pushl %esp
 	pushl $141
@@ -2839,6 +3824,9 @@ isr_141:
 	call i386_isr
 	addl $8, %esp
 	popal
+	popl %gs
+	popl %fs
+	popl %es
 	popl %ds
 	mov %ebp, %esp
 	popl %ebp
@@ -2849,7 +3837,11 @@ isr_141:
 isr_142:
 	pushl %ebp
 	movl %esp, %ebp
+	pushl $0
 	pushl %ds
+	pushl %es
+	pushl %fs
+	pushl %gs
 	pushal
 	pushl %esp
 	pushl $142
@@ -2859,6 +3851,9 @@ isr_142:
 	call i386_isr
 	addl $8, %esp
 	popal
+	popl %gs
+	popl %fs
+	popl %es
 	popl %ds
 	mov %ebp, %esp
 	popl %ebp
@@ -2869,7 +3864,11 @@ isr_142:
 isr_143:
 	pushl %ebp
 	movl %esp, %ebp
+	pushl $0
 	pushl %ds
+	pushl %es
+	pushl %fs
+	pushl %gs
 	pushal
 	pushl %esp
 	pushl $143
@@ -2879,6 +3878,9 @@ isr_143:
 	call i386_isr
 	addl $8, %esp
 	popal
+	popl %gs
+	popl %fs
+	popl %es
 	popl %ds
 	mov %ebp, %esp
 	popl %ebp
@@ -2889,7 +3891,11 @@ isr_143:
 isr_144:
 	pushl %ebp
 	movl %esp, %ebp
+	pushl $0
 	pushl %ds
+	pushl %es
+	pushl %fs
+	pushl %gs
 	pushal
 	pushl %esp
 	pushl $144
@@ -2899,6 +3905,9 @@ isr_144:
 	call i386_isr
 	addl $8, %esp
 	popal
+	popl %gs
+	popl %fs
+	popl %es
 	popl %ds
 	mov %ebp, %esp
 	popl %ebp
@@ -2909,7 +3918,11 @@ isr_144:
 isr_145:
 	pushl %ebp
 	movl %esp, %ebp
+	pushl $0
 	pushl %ds
+	pushl %es
+	pushl %fs
+	pushl %gs
 	pushal
 	pushl %esp
 	pushl $145
@@ -2919,6 +3932,9 @@ isr_145:
 	call i386_isr
 	addl $8, %esp
 	popal
+	popl %gs
+	popl %fs
+	popl %es
 	popl %ds
 	mov %ebp, %esp
 	popl %ebp
@@ -2929,7 +3945,11 @@ isr_145:
 isr_146:
 	pushl %ebp
 	movl %esp, %ebp
+	pushl $0
 	pushl %ds
+	pushl %es
+	pushl %fs
+	pushl %gs
 	pushal
 	pushl %esp
 	pushl $146
@@ -2939,6 +3959,9 @@ isr_146:
 	call i386_isr
 	addl $8, %esp
 	popal
+	popl %gs
+	popl %fs
+	popl %es
 	popl %ds
 	mov %ebp, %esp
 	popl %ebp
@@ -2949,7 +3972,11 @@ isr_146:
 isr_147:
 	pushl %ebp
 	movl %esp, %ebp
+	pushl $0
 	pushl %ds
+	pushl %es
+	pushl %fs
+	pushl %gs
 	pushal
 	pushl %esp
 	pushl $147
@@ -2959,6 +3986,9 @@ isr_147:
 	call i386_isr
 	addl $8, %esp
 	popal
+	popl %gs
+	popl %fs
+	popl %es
 	popl %ds
 	mov %ebp, %esp
 	popl %ebp
@@ -2969,7 +3999,11 @@ isr_147:
 isr_148:
 	pushl %ebp
 	movl %esp, %ebp
+	pushl $0
 	pushl %ds
+	pushl %es
+	pushl %fs
+	pushl %gs
 	pushal
 	pushl %esp
 	pushl $148
@@ -2979,6 +4013,9 @@ isr_148:
 	call i386_isr
 	addl $8, %esp
 	popal
+	popl %gs
+	popl %fs
+	popl %es
 	popl %ds
 	mov %ebp, %esp
 	popl %ebp
@@ -2989,7 +4026,11 @@ isr_148:
 isr_149:
 	pushl %ebp
 	movl %esp, %ebp
+	pushl $0
 	pushl %ds
+	pushl %es
+	pushl %fs
+	pushl %gs
 	pushal
 	pushl %esp
 	pushl $149
@@ -2999,6 +4040,9 @@ isr_149:
 	call i386_isr
 	addl $8, %esp
 	popal
+	popl %gs
+	popl %fs
+	popl %es
 	popl %ds
 	mov %ebp, %esp
 	popl %ebp
@@ -3009,7 +4053,11 @@ isr_149:
 isr_150:
 	pushl %ebp
 	movl %esp, %ebp
+	pushl $0
 	pushl %ds
+	pushl %es
+	pushl %fs
+	pushl %gs
 	pushal
 	pushl %esp
 	pushl $150
@@ -3019,6 +4067,9 @@ isr_150:
 	call i386_isr
 	addl $8, %esp
 	popal
+	popl %gs
+	popl %fs
+	popl %es
 	popl %ds
 	mov %ebp, %esp
 	popl %ebp
@@ -3029,7 +4080,11 @@ isr_150:
 isr_151:
 	pushl %ebp
 	movl %esp, %ebp
+	pushl $0
 	pushl %ds
+	pushl %es
+	pushl %fs
+	pushl %gs
 	pushal
 	pushl %esp
 	pushl $151
@@ -3039,6 +4094,9 @@ isr_151:
 	call i386_isr
 	addl $8, %esp
 	popal
+	popl %gs
+	popl %fs
+	popl %es
 	popl %ds
 	mov %ebp, %esp
 	popl %ebp
@@ -3049,7 +4107,11 @@ isr_151:
 isr_152:
 	pushl %ebp
 	movl %esp, %ebp
+	pushl $0
 	pushl %ds
+	pushl %es
+	pushl %fs
+	pushl %gs
 	pushal
 	pushl %esp
 	pushl $152
@@ -3059,6 +4121,9 @@ isr_152:
 	call i386_isr
 	addl $8, %esp
 	popal
+	popl %gs
+	popl %fs
+	popl %es
 	popl %ds
 	mov %ebp, %esp
 	popl %ebp
@@ -3069,7 +4134,11 @@ isr_152:
 isr_153:
 	pushl %ebp
 	movl %esp, %ebp
+	pushl $0
 	pushl %ds
+	pushl %es
+	pushl %fs
+	pushl %gs
 	pushal
 	pushl %esp
 	pushl $153
@@ -3079,6 +4148,9 @@ isr_153:
 	call i386_isr
 	addl $8, %esp
 	popal
+	popl %gs
+	popl %fs
+	popl %es
 	popl %ds
 	mov %ebp, %esp
 	popl %ebp
@@ -3089,7 +4161,11 @@ isr_153:
 isr_154:
 	pushl %ebp
 	movl %esp, %ebp
+	pushl $0
 	pushl %ds
+	pushl %es
+	pushl %fs
+	pushl %gs
 	pushal
 	pushl %esp
 	pushl $154
@@ -3099,6 +4175,9 @@ isr_154:
 	call i386_isr
 	addl $8, %esp
 	popal
+	popl %gs
+	popl %fs
+	popl %es
 	popl %ds
 	mov %ebp, %esp
 	popl %ebp
@@ -3109,7 +4188,11 @@ isr_154:
 isr_155:
 	pushl %ebp
 	movl %esp, %ebp
+	pushl $0
 	pushl %ds
+	pushl %es
+	pushl %fs
+	pushl %gs
 	pushal
 	pushl %esp
 	pushl $155
@@ -3119,6 +4202,9 @@ isr_155:
 	call i386_isr
 	addl $8, %esp
 	popal
+	popl %gs
+	popl %fs
+	popl %es
 	popl %ds
 	mov %ebp, %esp
 	popl %ebp
@@ -3129,7 +4215,11 @@ isr_155:
 isr_156:
 	pushl %ebp
 	movl %esp, %ebp
+	pushl $0
 	pushl %ds
+	pushl %es
+	pushl %fs
+	pushl %gs
 	pushal
 	pushl %esp
 	pushl $156
@@ -3139,6 +4229,9 @@ isr_156:
 	call i386_isr
 	addl $8, %esp
 	popal
+	popl %gs
+	popl %fs
+	popl %es
 	popl %ds
 	mov %ebp, %esp
 	popl %ebp
@@ -3149,7 +4242,11 @@ isr_156:
 isr_157:
 	pushl %ebp
 	movl %esp, %ebp
+	pushl $0
 	pushl %ds
+	pushl %es
+	pushl %fs
+	pushl %gs
 	pushal
 	pushl %esp
 	pushl $157
@@ -3159,6 +4256,9 @@ isr_157:
 	call i386_isr
 	addl $8, %esp
 	popal
+	popl %gs
+	popl %fs
+	popl %es
 	popl %ds
 	mov %ebp, %esp
 	popl %ebp
@@ -3169,7 +4269,11 @@ isr_157:
 isr_158:
 	pushl %ebp
 	movl %esp, %ebp
+	pushl $0
 	pushl %ds
+	pushl %es
+	pushl %fs
+	pushl %gs
 	pushal
 	pushl %esp
 	pushl $158
@@ -3179,6 +4283,9 @@ isr_158:
 	call i386_isr
 	addl $8, %esp
 	popal
+	popl %gs
+	popl %fs
+	popl %es
 	popl %ds
 	mov %ebp, %esp
 	popl %ebp
@@ -3189,7 +4296,11 @@ isr_158:
 isr_159:
 	pushl %ebp
 	movl %esp, %ebp
+	pushl $0
 	pushl %ds
+	pushl %es
+	pushl %fs
+	pushl %gs
 	pushal
 	pushl %esp
 	pushl $159
@@ -3199,6 +4310,9 @@ isr_159:
 	call i386_isr
 	addl $8, %esp
 	popal
+	popl %gs
+	popl %fs
+	popl %es
 	popl %ds
 	mov %ebp, %esp
 	popl %ebp
@@ -3209,7 +4323,11 @@ isr_159:
 isr_160:
 	pushl %ebp
 	movl %esp, %ebp
+	pushl $0
 	pushl %ds
+	pushl %es
+	pushl %fs
+	pushl %gs
 	pushal
 	pushl %esp
 	pushl $160
@@ -3219,6 +4337,9 @@ isr_160:
 	call i386_isr
 	addl $8, %esp
 	popal
+	popl %gs
+	popl %fs
+	popl %es
 	popl %ds
 	mov %ebp, %esp
 	popl %ebp
@@ -3229,7 +4350,11 @@ isr_160:
 isr_161:
 	pushl %ebp
 	movl %esp, %ebp
+	pushl $0
 	pushl %ds
+	pushl %es
+	pushl %fs
+	pushl %gs
 	pushal
 	pushl %esp
 	pushl $161
@@ -3239,6 +4364,9 @@ isr_161:
 	call i386_isr
 	addl $8, %esp
 	popal
+	popl %gs
+	popl %fs
+	popl %es
 	popl %ds
 	mov %ebp, %esp
 	popl %ebp
@@ -3249,7 +4377,11 @@ isr_161:
 isr_162:
 	pushl %ebp
 	movl %esp, %ebp
+	pushl $0
 	pushl %ds
+	pushl %es
+	pushl %fs
+	pushl %gs
 	pushal
 	pushl %esp
 	pushl $162
@@ -3259,6 +4391,9 @@ isr_162:
 	call i386_isr
 	addl $8, %esp
 	popal
+	popl %gs
+	popl %fs
+	popl %es
 	popl %ds
 	mov %ebp, %esp
 	popl %ebp
@@ -3269,7 +4404,11 @@ isr_162:
 isr_163:
 	pushl %ebp
 	movl %esp, %ebp
+	pushl $0
 	pushl %ds
+	pushl %es
+	pushl %fs
+	pushl %gs
 	pushal
 	pushl %esp
 	pushl $163
@@ -3279,6 +4418,9 @@ isr_163:
 	call i386_isr
 	addl $8, %esp
 	popal
+	popl %gs
+	popl %fs
+	popl %es
 	popl %ds
 	mov %ebp, %esp
 	popl %ebp
@@ -3289,7 +4431,11 @@ isr_163:
 isr_164:
 	pushl %ebp
 	movl %esp, %ebp
+	pushl $0
 	pushl %ds
+	pushl %es
+	pushl %fs
+	pushl %gs
 	pushal
 	pushl %esp
 	pushl $164
@@ -3299,6 +4445,9 @@ isr_164:
 	call i386_isr
 	addl $8, %esp
 	popal
+	popl %gs
+	popl %fs
+	popl %es
 	popl %ds
 	mov %ebp, %esp
 	popl %ebp
@@ -3309,7 +4458,11 @@ isr_164:
 isr_165:
 	pushl %ebp
 	movl %esp, %ebp
+	pushl $0
 	pushl %ds
+	pushl %es
+	pushl %fs
+	pushl %gs
 	pushal
 	pushl %esp
 	pushl $165
@@ -3319,6 +4472,9 @@ isr_165:
 	call i386_isr
 	addl $8, %esp
 	popal
+	popl %gs
+	popl %fs
+	popl %es
 	popl %ds
 	mov %ebp, %esp
 	popl %ebp
@@ -3329,7 +4485,11 @@ isr_165:
 isr_166:
 	pushl %ebp
 	movl %esp, %ebp
+	pushl $0
 	pushl %ds
+	pushl %es
+	pushl %fs
+	pushl %gs
 	pushal
 	pushl %esp
 	pushl $166
@@ -3339,6 +4499,9 @@ isr_166:
 	call i386_isr
 	addl $8, %esp
 	popal
+	popl %gs
+	popl %fs
+	popl %es
 	popl %ds
 	mov %ebp, %esp
 	popl %ebp
@@ -3349,7 +4512,11 @@ isr_166:
 isr_167:
 	pushl %ebp
 	movl %esp, %ebp
+	pushl $0
 	pushl %ds
+	pushl %es
+	pushl %fs
+	pushl %gs
 	pushal
 	pushl %esp
 	pushl $167
@@ -3359,6 +4526,9 @@ isr_167:
 	call i386_isr
 	addl $8, %esp
 	popal
+	popl %gs
+	popl %fs
+	popl %es
 	popl %ds
 	mov %ebp, %esp
 	popl %ebp
@@ -3369,7 +4539,11 @@ isr_167:
 isr_168:
 	pushl %ebp
 	movl %esp, %ebp
+	pushl $0
 	pushl %ds
+	pushl %es
+	pushl %fs
+	pushl %gs
 	pushal
 	pushl %esp
 	pushl $168
@@ -3379,6 +4553,9 @@ isr_168:
 	call i386_isr
 	addl $8, %esp
 	popal
+	popl %gs
+	popl %fs
+	popl %es
 	popl %ds
 	mov %ebp, %esp
 	popl %ebp
@@ -3389,7 +4566,11 @@ isr_168:
 isr_169:
 	pushl %ebp
 	movl %esp, %ebp
+	pushl $0
 	pushl %ds
+	pushl %es
+	pushl %fs
+	pushl %gs
 	pushal
 	pushl %esp
 	pushl $169
@@ -3399,6 +4580,9 @@ isr_169:
 	call i386_isr
 	addl $8, %esp
 	popal
+	popl %gs
+	popl %fs
+	popl %es
 	popl %ds
 	mov %ebp, %esp
 	popl %ebp
@@ -3409,7 +4593,11 @@ isr_169:
 isr_170:
 	pushl %ebp
 	movl %esp, %ebp
+	pushl $0
 	pushl %ds
+	pushl %es
+	pushl %fs
+	pushl %gs
 	pushal
 	pushl %esp
 	pushl $170
@@ -3419,6 +4607,9 @@ isr_170:
 	call i386_isr
 	addl $8, %esp
 	popal
+	popl %gs
+	popl %fs
+	popl %es
 	popl %ds
 	mov %ebp, %esp
 	popl %ebp
@@ -3429,7 +4620,11 @@ isr_170:
 isr_171:
 	pushl %ebp
 	movl %esp, %ebp
+	pushl $0
 	pushl %ds
+	pushl %es
+	pushl %fs
+	pushl %gs
 	pushal
 	pushl %esp
 	pushl $171
@@ -3439,6 +4634,9 @@ isr_171:
 	call i386_isr
 	addl $8, %esp
 	popal
+	popl %gs
+	popl %fs
+	popl %es
 	popl %ds
 	mov %ebp, %esp
 	popl %ebp
@@ -3449,7 +4647,11 @@ isr_171:
 isr_172:
 	pushl %ebp
 	movl %esp, %ebp
+	pushl $0
 	pushl %ds
+	pushl %es
+	pushl %fs
+	pushl %gs
 	pushal
 	pushl %esp
 	pushl $172
@@ -3459,6 +4661,9 @@ isr_172:
 	call i386_isr
 	addl $8, %esp
 	popal
+	popl %gs
+	popl %fs
+	popl %es
 	popl %ds
 	mov %ebp, %esp
 	popl %ebp
@@ -3469,7 +4674,11 @@ isr_172:
 isr_173:
 	pushl %ebp
 	movl %esp, %ebp
+	pushl $0
 	pushl %ds
+	pushl %es
+	pushl %fs
+	pushl %gs
 	pushal
 	pushl %esp
 	pushl $173
@@ -3479,6 +4688,9 @@ isr_173:
 	call i386_isr
 	addl $8, %esp
 	popal
+	popl %gs
+	popl %fs
+	popl %es
 	popl %ds
 	mov %ebp, %esp
 	popl %ebp
@@ -3489,7 +4701,11 @@ isr_173:
 isr_174:
 	pushl %ebp
 	movl %esp, %ebp
+	pushl $0
 	pushl %ds
+	pushl %es
+	pushl %fs
+	pushl %gs
 	pushal
 	pushl %esp
 	pushl $174
@@ -3499,6 +4715,9 @@ isr_174:
 	call i386_isr
 	addl $8, %esp
 	popal
+	popl %gs
+	popl %fs
+	popl %es
 	popl %ds
 	mov %ebp, %esp
 	popl %ebp
@@ -3509,7 +4728,11 @@ isr_174:
 isr_175:
 	pushl %ebp
 	movl %esp, %ebp
+	pushl $0
 	pushl %ds
+	pushl %es
+	pushl %fs
+	pushl %gs
 	pushal
 	pushl %esp
 	pushl $175
@@ -3519,6 +4742,9 @@ isr_175:
 	call i386_isr
 	addl $8, %esp
 	popal
+	popl %gs
+	popl %fs
+	popl %es
 	popl %ds
 	mov %ebp, %esp
 	popl %ebp
@@ -3529,7 +4755,11 @@ isr_175:
 isr_176:
 	pushl %ebp
 	movl %esp, %ebp
+	pushl $0
 	pushl %ds
+	pushl %es
+	pushl %fs
+	pushl %gs
 	pushal
 	pushl %esp
 	pushl $176
@@ -3539,6 +4769,9 @@ isr_176:
 	call i386_isr
 	addl $8, %esp
 	popal
+	popl %gs
+	popl %fs
+	popl %es
 	popl %ds
 	mov %ebp, %esp
 	popl %ebp
@@ -3549,7 +4782,11 @@ isr_176:
 isr_177:
 	pushl %ebp
 	movl %esp, %ebp
+	pushl $0
 	pushl %ds
+	pushl %es
+	pushl %fs
+	pushl %gs
 	pushal
 	pushl %esp
 	pushl $177
@@ -3559,6 +4796,9 @@ isr_177:
 	call i386_isr
 	addl $8, %esp
 	popal
+	popl %gs
+	popl %fs
+	popl %es
 	popl %ds
 	mov %ebp, %esp
 	popl %ebp
@@ -3569,7 +4809,11 @@ isr_177:
 isr_178:
 	pushl %ebp
 	movl %esp, %ebp
+	pushl $0
 	pushl %ds
+	pushl %es
+	pushl %fs
+	pushl %gs
 	pushal
 	pushl %esp
 	pushl $178
@@ -3579,6 +4823,9 @@ isr_178:
 	call i386_isr
 	addl $8, %esp
 	popal
+	popl %gs
+	popl %fs
+	popl %es
 	popl %ds
 	mov %ebp, %esp
 	popl %ebp
@@ -3589,7 +4836,11 @@ isr_178:
 isr_179:
 	pushl %ebp
 	movl %esp, %ebp
+	pushl $0
 	pushl %ds
+	pushl %es
+	pushl %fs
+	pushl %gs
 	pushal
 	pushl %esp
 	pushl $179
@@ -3599,6 +4850,9 @@ isr_179:
 	call i386_isr
 	addl $8, %esp
 	popal
+	popl %gs
+	popl %fs
+	popl %es
 	popl %ds
 	mov %ebp, %esp
 	popl %ebp
@@ -3609,7 +4863,11 @@ isr_179:
 isr_180:
 	pushl %ebp
 	movl %esp, %ebp
+	pushl $0
 	pushl %ds
+	pushl %es
+	pushl %fs
+	pushl %gs
 	pushal
 	pushl %esp
 	pushl $180
@@ -3619,6 +4877,9 @@ isr_180:
 	call i386_isr
 	addl $8, %esp
 	popal
+	popl %gs
+	popl %fs
+	popl %es
 	popl %ds
 	mov %ebp, %esp
 	popl %ebp
@@ -3629,7 +4890,11 @@ isr_180:
 isr_181:
 	pushl %ebp
 	movl %esp, %ebp
+	pushl $0
 	pushl %ds
+	pushl %es
+	pushl %fs
+	pushl %gs
 	pushal
 	pushl %esp
 	pushl $181
@@ -3639,6 +4904,9 @@ isr_181:
 	call i386_isr
 	addl $8, %esp
 	popal
+	popl %gs
+	popl %fs
+	popl %es
 	popl %ds
 	mov %ebp, %esp
 	popl %ebp
@@ -3649,7 +4917,11 @@ isr_181:
 isr_182:
 	pushl %ebp
 	movl %esp, %ebp
+	pushl $0
 	pushl %ds
+	pushl %es
+	pushl %fs
+	pushl %gs
 	pushal
 	pushl %esp
 	pushl $182
@@ -3659,6 +4931,9 @@ isr_182:
 	call i386_isr
 	addl $8, %esp
 	popal
+	popl %gs
+	popl %fs
+	popl %es
 	popl %ds
 	mov %ebp, %esp
 	popl %ebp
@@ -3669,7 +4944,11 @@ isr_182:
 isr_183:
 	pushl %ebp
 	movl %esp, %ebp
+	pushl $0
 	pushl %ds
+	pushl %es
+	pushl %fs
+	pushl %gs
 	pushal
 	pushl %esp
 	pushl $183
@@ -3679,6 +4958,9 @@ isr_183:
 	call i386_isr
 	addl $8, %esp
 	popal
+	popl %gs
+	popl %fs
+	popl %es
 	popl %ds
 	mov %ebp, %esp
 	popl %ebp
@@ -3689,7 +4971,11 @@ isr_183:
 isr_184:
 	pushl %ebp
 	movl %esp, %ebp
+	pushl $0
 	pushl %ds
+	pushl %es
+	pushl %fs
+	pushl %gs
 	pushal
 	pushl %esp
 	pushl $184
@@ -3699,6 +4985,9 @@ isr_184:
 	call i386_isr
 	addl $8, %esp
 	popal
+	popl %gs
+	popl %fs
+	popl %es
 	popl %ds
 	mov %ebp, %esp
 	popl %ebp
@@ -3709,7 +4998,11 @@ isr_184:
 isr_185:
 	pushl %ebp
 	movl %esp, %ebp
+	pushl $0
 	pushl %ds
+	pushl %es
+	pushl %fs
+	pushl %gs
 	pushal
 	pushl %esp
 	pushl $185
@@ -3719,6 +5012,9 @@ isr_185:
 	call i386_isr
 	addl $8, %esp
 	popal
+	popl %gs
+	popl %fs
+	popl %es
 	popl %ds
 	mov %ebp, %esp
 	popl %ebp
@@ -3729,7 +5025,11 @@ isr_185:
 isr_186:
 	pushl %ebp
 	movl %esp, %ebp
+	pushl $0
 	pushl %ds
+	pushl %es
+	pushl %fs
+	pushl %gs
 	pushal
 	pushl %esp
 	pushl $186
@@ -3739,6 +5039,9 @@ isr_186:
 	call i386_isr
 	addl $8, %esp
 	popal
+	popl %gs
+	popl %fs
+	popl %es
 	popl %ds
 	mov %ebp, %esp
 	popl %ebp
@@ -3749,7 +5052,11 @@ isr_186:
 isr_187:
 	pushl %ebp
 	movl %esp, %ebp
+	pushl $0
 	pushl %ds
+	pushl %es
+	pushl %fs
+	pushl %gs
 	pushal
 	pushl %esp
 	pushl $187
@@ -3759,6 +5066,9 @@ isr_187:
 	call i386_isr
 	addl $8, %esp
 	popal
+	popl %gs
+	popl %fs
+	popl %es
 	popl %ds
 	mov %ebp, %esp
 	popl %ebp
@@ -3769,7 +5079,11 @@ isr_187:
 isr_188:
 	pushl %ebp
 	movl %esp, %ebp
+	pushl $0
 	pushl %ds
+	pushl %es
+	pushl %fs
+	pushl %gs
 	pushal
 	pushl %esp
 	pushl $188
@@ -3779,6 +5093,9 @@ isr_188:
 	call i386_isr
 	addl $8, %esp
 	popal
+	popl %gs
+	popl %fs
+	popl %es
 	popl %ds
 	mov %ebp, %esp
 	popl %ebp
@@ -3789,7 +5106,11 @@ isr_188:
 isr_189:
 	pushl %ebp
 	movl %esp, %ebp
+	pushl $0
 	pushl %ds
+	pushl %es
+	pushl %fs
+	pushl %gs
 	pushal
 	pushl %esp
 	pushl $189
@@ -3799,6 +5120,9 @@ isr_189:
 	call i386_isr
 	addl $8, %esp
 	popal
+	popl %gs
+	popl %fs
+	popl %es
 	popl %ds
 	mov %ebp, %esp
 	popl %ebp
@@ -3809,7 +5133,11 @@ isr_189:
 isr_190:
 	pushl %ebp
 	movl %esp, %ebp
+	pushl $0
 	pushl %ds
+	pushl %es
+	pushl %fs
+	pushl %gs
 	pushal
 	pushl %esp
 	pushl $190
@@ -3819,6 +5147,9 @@ isr_190:
 	call i386_isr
 	addl $8, %esp
 	popal
+	popl %gs
+	popl %fs
+	popl %es
 	popl %ds
 	mov %ebp, %esp
 	popl %ebp
@@ -3829,7 +5160,11 @@ isr_190:
 isr_191:
 	pushl %ebp
 	movl %esp, %ebp
+	pushl $0
 	pushl %ds
+	pushl %es
+	pushl %fs
+	pushl %gs
 	pushal
 	pushl %esp
 	pushl $191
@@ -3839,6 +5174,9 @@ isr_191:
 	call i386_isr
 	addl $8, %esp
 	popal
+	popl %gs
+	popl %fs
+	popl %es
 	popl %ds
 	mov %ebp, %esp
 	popl %ebp
@@ -3849,7 +5187,11 @@ isr_191:
 isr_192:
 	pushl %ebp
 	movl %esp, %ebp
+	pushl $0
 	pushl %ds
+	pushl %es
+	pushl %fs
+	pushl %gs
 	pushal
 	pushl %esp
 	pushl $192
@@ -3859,6 +5201,9 @@ isr_192:
 	call i386_isr
 	addl $8, %esp
 	popal
+	popl %gs
+	popl %fs
+	popl %es
 	popl %ds
 	mov %ebp, %esp
 	popl %ebp
@@ -3869,7 +5214,11 @@ isr_192:
 isr_193:
 	pushl %ebp
 	movl %esp, %ebp
+	pushl $0
 	pushl %ds
+	pushl %es
+	pushl %fs
+	pushl %gs
 	pushal
 	pushl %esp
 	pushl $193
@@ -3879,6 +5228,9 @@ isr_193:
 	call i386_isr
 	addl $8, %esp
 	popal
+	popl %gs
+	popl %fs
+	popl %es
 	popl %ds
 	mov %ebp, %esp
 	popl %ebp
@@ -3889,7 +5241,11 @@ isr_193:
 isr_194:
 	pushl %ebp
 	movl %esp, %ebp
+	pushl $0
 	pushl %ds
+	pushl %es
+	pushl %fs
+	pushl %gs
 	pushal
 	pushl %esp
 	pushl $194
@@ -3899,6 +5255,9 @@ isr_194:
 	call i386_isr
 	addl $8, %esp
 	popal
+	popl %gs
+	popl %fs
+	popl %es
 	popl %ds
 	mov %ebp, %esp
 	popl %ebp
@@ -3909,7 +5268,11 @@ isr_194:
 isr_195:
 	pushl %ebp
 	movl %esp, %ebp
+	pushl $0
 	pushl %ds
+	pushl %es
+	pushl %fs
+	pushl %gs
 	pushal
 	pushl %esp
 	pushl $195
@@ -3919,6 +5282,9 @@ isr_195:
 	call i386_isr
 	addl $8, %esp
 	popal
+	popl %gs
+	popl %fs
+	popl %es
 	popl %ds
 	mov %ebp, %esp
 	popl %ebp
@@ -3929,7 +5295,11 @@ isr_195:
 isr_196:
 	pushl %ebp
 	movl %esp, %ebp
+	pushl $0
 	pushl %ds
+	pushl %es
+	pushl %fs
+	pushl %gs
 	pushal
 	pushl %esp
 	pushl $196
@@ -3939,6 +5309,9 @@ isr_196:
 	call i386_isr
 	addl $8, %esp
 	popal
+	popl %gs
+	popl %fs
+	popl %es
 	popl %ds
 	mov %ebp, %esp
 	popl %ebp
@@ -3949,7 +5322,11 @@ isr_196:
 isr_197:
 	pushl %ebp
 	movl %esp, %ebp
+	pushl $0
 	pushl %ds
+	pushl %es
+	pushl %fs
+	pushl %gs
 	pushal
 	pushl %esp
 	pushl $197
@@ -3959,6 +5336,9 @@ isr_197:
 	call i386_isr
 	addl $8, %esp
 	popal
+	popl %gs
+	popl %fs
+	popl %es
 	popl %ds
 	mov %ebp, %esp
 	popl %ebp
@@ -3969,7 +5349,11 @@ isr_197:
 isr_198:
 	pushl %ebp
 	movl %esp, %ebp
+	pushl $0
 	pushl %ds
+	pushl %es
+	pushl %fs
+	pushl %gs
 	pushal
 	pushl %esp
 	pushl $198
@@ -3979,6 +5363,9 @@ isr_198:
 	call i386_isr
 	addl $8, %esp
 	popal
+	popl %gs
+	popl %fs
+	popl %es
 	popl %ds
 	mov %ebp, %esp
 	popl %ebp
@@ -3989,7 +5376,11 @@ isr_198:
 isr_199:
 	pushl %ebp
 	movl %esp, %ebp
+	pushl $0
 	pushl %ds
+	pushl %es
+	pushl %fs
+	pushl %gs
 	pushal
 	pushl %esp
 	pushl $199
@@ -3999,6 +5390,9 @@ isr_199:
 	call i386_isr
 	addl $8, %esp
 	popal
+	popl %gs
+	popl %fs
+	popl %es
 	popl %ds
 	mov %ebp, %esp
 	popl %ebp
@@ -4009,7 +5403,11 @@ isr_199:
 isr_200:
 	pushl %ebp
 	movl %esp, %ebp
+	pushl $0
 	pushl %ds
+	pushl %es
+	pushl %fs
+	pushl %gs
 	pushal
 	pushl %esp
 	pushl $200
@@ -4019,6 +5417,9 @@ isr_200:
 	call i386_isr
 	addl $8, %esp
 	popal
+	popl %gs
+	popl %fs
+	popl %es
 	popl %ds
 	mov %ebp, %esp
 	popl %ebp
@@ -4029,7 +5430,11 @@ isr_200:
 isr_201:
 	pushl %ebp
 	movl %esp, %ebp
+	pushl $0
 	pushl %ds
+	pushl %es
+	pushl %fs
+	pushl %gs
 	pushal
 	pushl %esp
 	pushl $201
@@ -4039,6 +5444,9 @@ isr_201:
 	call i386_isr
 	addl $8, %esp
 	popal
+	popl %gs
+	popl %fs
+	popl %es
 	popl %ds
 	mov %ebp, %esp
 	popl %ebp
@@ -4049,7 +5457,11 @@ isr_201:
 isr_202:
 	pushl %ebp
 	movl %esp, %ebp
+	pushl $0
 	pushl %ds
+	pushl %es
+	pushl %fs
+	pushl %gs
 	pushal
 	pushl %esp
 	pushl $202
@@ -4059,6 +5471,9 @@ isr_202:
 	call i386_isr
 	addl $8, %esp
 	popal
+	popl %gs
+	popl %fs
+	popl %es
 	popl %ds
 	mov %ebp, %esp
 	popl %ebp
@@ -4069,7 +5484,11 @@ isr_202:
 isr_203:
 	pushl %ebp
 	movl %esp, %ebp
+	pushl $0
 	pushl %ds
+	pushl %es
+	pushl %fs
+	pushl %gs
 	pushal
 	pushl %esp
 	pushl $203
@@ -4079,6 +5498,9 @@ isr_203:
 	call i386_isr
 	addl $8, %esp
 	popal
+	popl %gs
+	popl %fs
+	popl %es
 	popl %ds
 	mov %ebp, %esp
 	popl %ebp
@@ -4089,7 +5511,11 @@ isr_203:
 isr_204:
 	pushl %ebp
 	movl %esp, %ebp
+	pushl $0
 	pushl %ds
+	pushl %es
+	pushl %fs
+	pushl %gs
 	pushal
 	pushl %esp
 	pushl $204
@@ -4099,6 +5525,9 @@ isr_204:
 	call i386_isr
 	addl $8, %esp
 	popal
+	popl %gs
+	popl %fs
+	popl %es
 	popl %ds
 	mov %ebp, %esp
 	popl %ebp
@@ -4109,7 +5538,11 @@ isr_204:
 isr_205:
 	pushl %ebp
 	movl %esp, %ebp
+	pushl $0
 	pushl %ds
+	pushl %es
+	pushl %fs
+	pushl %gs
 	pushal
 	pushl %esp
 	pushl $205
@@ -4119,6 +5552,9 @@ isr_205:
 	call i386_isr
 	addl $8, %esp
 	popal
+	popl %gs
+	popl %fs
+	popl %es
 	popl %ds
 	mov %ebp, %esp
 	popl %ebp
@@ -4129,7 +5565,11 @@ isr_205:
 isr_206:
 	pushl %ebp
 	movl %esp, %ebp
+	pushl $0
 	pushl %ds
+	pushl %es
+	pushl %fs
+	pushl %gs
 	pushal
 	pushl %esp
 	pushl $206
@@ -4139,6 +5579,9 @@ isr_206:
 	call i386_isr
 	addl $8, %esp
 	popal
+	popl %gs
+	popl %fs
+	popl %es
 	popl %ds
 	mov %ebp, %esp
 	popl %ebp
@@ -4149,7 +5592,11 @@ isr_206:
 isr_207:
 	pushl %ebp
 	movl %esp, %ebp
+	pushl $0
 	pushl %ds
+	pushl %es
+	pushl %fs
+	pushl %gs
 	pushal
 	pushl %esp
 	pushl $207
@@ -4159,6 +5606,9 @@ isr_207:
 	call i386_isr
 	addl $8, %esp
 	popal
+	popl %gs
+	popl %fs
+	popl %es
 	popl %ds
 	mov %ebp, %esp
 	popl %ebp
@@ -4169,7 +5619,11 @@ isr_207:
 isr_208:
 	pushl %ebp
 	movl %esp, %ebp
+	pushl $0
 	pushl %ds
+	pushl %es
+	pushl %fs
+	pushl %gs
 	pushal
 	pushl %esp
 	pushl $208
@@ -4179,6 +5633,9 @@ isr_208:
 	call i386_isr
 	addl $8, %esp
 	popal
+	popl %gs
+	popl %fs
+	popl %es
 	popl %ds
 	mov %ebp, %esp
 	popl %ebp
@@ -4189,7 +5646,11 @@ isr_208:
 isr_209:
 	pushl %ebp
 	movl %esp, %ebp
+	pushl $0
 	pushl %ds
+	pushl %es
+	pushl %fs
+	pushl %gs
 	pushal
 	pushl %esp
 	pushl $209
@@ -4199,6 +5660,9 @@ isr_209:
 	call i386_isr
 	addl $8, %esp
 	popal
+	popl %gs
+	popl %fs
+	popl %es
 	popl %ds
 	mov %ebp, %esp
 	popl %ebp
@@ -4209,7 +5673,11 @@ isr_209:
 isr_210:
 	pushl %ebp
 	movl %esp, %ebp
+	pushl $0
 	pushl %ds
+	pushl %es
+	pushl %fs
+	pushl %gs
 	pushal
 	pushl %esp
 	pushl $210
@@ -4219,6 +5687,9 @@ isr_210:
 	call i386_isr
 	addl $8, %esp
 	popal
+	popl %gs
+	popl %fs
+	popl %es
 	popl %ds
 	mov %ebp, %esp
 	popl %ebp
@@ -4229,7 +5700,11 @@ isr_210:
 isr_211:
 	pushl %ebp
 	movl %esp, %ebp
+	pushl $0
 	pushl %ds
+	pushl %es
+	pushl %fs
+	pushl %gs
 	pushal
 	pushl %esp
 	pushl $211
@@ -4239,6 +5714,9 @@ isr_211:
 	call i386_isr
 	addl $8, %esp
 	popal
+	popl %gs
+	popl %fs
+	popl %es
 	popl %ds
 	mov %ebp, %esp
 	popl %ebp
@@ -4249,7 +5727,11 @@ isr_211:
 isr_212:
 	pushl %ebp
 	movl %esp, %ebp
+	pushl $0
 	pushl %ds
+	pushl %es
+	pushl %fs
+	pushl %gs
 	pushal
 	pushl %esp
 	pushl $212
@@ -4259,6 +5741,9 @@ isr_212:
 	call i386_isr
 	addl $8, %esp
 	popal
+	popl %gs
+	popl %fs
+	popl %es
 	popl %ds
 	mov %ebp, %esp
 	popl %ebp
@@ -4269,7 +5754,11 @@ isr_212:
 isr_213:
 	pushl %ebp
 	movl %esp, %ebp
+	pushl $0
 	pushl %ds
+	pushl %es
+	pushl %fs
+	pushl %gs
 	pushal
 	pushl %esp
 	pushl $213
@@ -4279,6 +5768,9 @@ isr_213:
 	call i386_isr
 	addl $8, %esp
 	popal
+	popl %gs
+	popl %fs
+	popl %es
 	popl %ds
 	mov %ebp, %esp
 	popl %ebp
@@ -4289,7 +5781,11 @@ isr_213:
 isr_214:
 	pushl %ebp
 	movl %esp, %ebp
+	pushl $0
 	pushl %ds
+	pushl %es
+	pushl %fs
+	pushl %gs
 	pushal
 	pushl %esp
 	pushl $214
@@ -4299,6 +5795,9 @@ isr_214:
 	call i386_isr
 	addl $8, %esp
 	popal
+	popl %gs
+	popl %fs
+	popl %es
 	popl %ds
 	mov %ebp, %esp
 	popl %ebp
@@ -4309,7 +5808,11 @@ isr_214:
 isr_215:
 	pushl %ebp
 	movl %esp, %ebp
+	pushl $0
 	pushl %ds
+	pushl %es
+	pushl %fs
+	pushl %gs
 	pushal
 	pushl %esp
 	pushl $215
@@ -4319,6 +5822,9 @@ isr_215:
 	call i386_isr
 	addl $8, %esp
 	popal
+	popl %gs
+	popl %fs
+	popl %es
 	popl %ds
 	mov %ebp, %esp
 	popl %ebp
@@ -4329,7 +5835,11 @@ isr_215:
 isr_216:
 	pushl %ebp
 	movl %esp, %ebp
+	pushl $0
 	pushl %ds
+	pushl %es
+	pushl %fs
+	pushl %gs
 	pushal
 	pushl %esp
 	pushl $216
@@ -4339,6 +5849,9 @@ isr_216:
 	call i386_isr
 	addl $8, %esp
 	popal
+	popl %gs
+	popl %fs
+	popl %es
 	popl %ds
 	mov %ebp, %esp
 	popl %ebp
@@ -4349,7 +5862,11 @@ isr_216:
 isr_217:
 	pushl %ebp
 	movl %esp, %ebp
+	pushl $0
 	pushl %ds
+	pushl %es
+	pushl %fs
+	pushl %gs
 	pushal
 	pushl %esp
 	pushl $217
@@ -4359,6 +5876,9 @@ isr_217:
 	call i386_isr
 	addl $8, %esp
 	popal
+	popl %gs
+	popl %fs
+	popl %es
 	popl %ds
 	mov %ebp, %esp
 	popl %ebp
@@ -4369,7 +5889,11 @@ isr_217:
 isr_218:
 	pushl %ebp
 	movl %esp, %ebp
+	pushl $0
 	pushl %ds
+	pushl %es
+	pushl %fs
+	pushl %gs
 	pushal
 	pushl %esp
 	pushl $218
@@ -4379,6 +5903,9 @@ isr_218:
 	call i386_isr
 	addl $8, %esp
 	popal
+	popl %gs
+	popl %fs
+	popl %es
 	popl %ds
 	mov %ebp, %esp
 	popl %ebp
@@ -4389,7 +5916,11 @@ isr_218:
 isr_219:
 	pushl %ebp
 	movl %esp, %ebp
+	pushl $0
 	pushl %ds
+	pushl %es
+	pushl %fs
+	pushl %gs
 	pushal
 	pushl %esp
 	pushl $219
@@ -4399,6 +5930,9 @@ isr_219:
 	call i386_isr
 	addl $8, %esp
 	popal
+	popl %gs
+	popl %fs
+	popl %es
 	popl %ds
 	mov %ebp, %esp
 	popl %ebp
@@ -4409,7 +5943,11 @@ isr_219:
 isr_220:
 	pushl %ebp
 	movl %esp, %ebp
+	pushl $0
 	pushl %ds
+	pushl %es
+	pushl %fs
+	pushl %gs
 	pushal
 	pushl %esp
 	pushl $220
@@ -4419,6 +5957,9 @@ isr_220:
 	call i386_isr
 	addl $8, %esp
 	popal
+	popl %gs
+	popl %fs
+	popl %es
 	popl %ds
 	mov %ebp, %esp
 	popl %ebp
@@ -4429,7 +5970,11 @@ isr_220:
 isr_221:
 	pushl %ebp
 	movl %esp, %ebp
+	pushl $0
 	pushl %ds
+	pushl %es
+	pushl %fs
+	pushl %gs
 	pushal
 	pushl %esp
 	pushl $221
@@ -4439,6 +5984,9 @@ isr_221:
 	call i386_isr
 	addl $8, %esp
 	popal
+	popl %gs
+	popl %fs
+	popl %es
 	popl %ds
 	mov %ebp, %esp
 	popl %ebp
@@ -4449,7 +5997,11 @@ isr_221:
 isr_222:
 	pushl %ebp
 	movl %esp, %ebp
+	pushl $0
 	pushl %ds
+	pushl %es
+	pushl %fs
+	pushl %gs
 	pushal
 	pushl %esp
 	pushl $222
@@ -4459,6 +6011,9 @@ isr_222:
 	call i386_isr
 	addl $8, %esp
 	popal
+	popl %gs
+	popl %fs
+	popl %es
 	popl %ds
 	mov %ebp, %esp
 	popl %ebp
@@ -4469,7 +6024,11 @@ isr_222:
 isr_223:
 	pushl %ebp
 	movl %esp, %ebp
+	pushl $0
 	pushl %ds
+	pushl %es
+	pushl %fs
+	pushl %gs
 	pushal
 	pushl %esp
 	pushl $223
@@ -4479,6 +6038,9 @@ isr_223:
 	call i386_isr
 	addl $8, %esp
 	popal
+	popl %gs
+	popl %fs
+	popl %es
 	popl %ds
 	mov %ebp, %esp
 	popl %ebp
@@ -4489,7 +6051,11 @@ isr_223:
 isr_224:
 	pushl %ebp
 	movl %esp, %ebp
+	pushl $0
 	pushl %ds
+	pushl %es
+	pushl %fs
+	pushl %gs
 	pushal
 	pushl %esp
 	pushl $224
@@ -4499,6 +6065,9 @@ isr_224:
 	call i386_isr
 	addl $8, %esp
 	popal
+	popl %gs
+	popl %fs
+	popl %es
 	popl %ds
 	mov %ebp, %esp
 	popl %ebp
@@ -4509,7 +6078,11 @@ isr_224:
 isr_225:
 	pushl %ebp
 	movl %esp, %ebp
+	pushl $0
 	pushl %ds
+	pushl %es
+	pushl %fs
+	pushl %gs
 	pushal
 	pushl %esp
 	pushl $225
@@ -4519,6 +6092,9 @@ isr_225:
 	call i386_isr
 	addl $8, %esp
 	popal
+	popl %gs
+	popl %fs
+	popl %es
 	popl %ds
 	mov %ebp, %esp
 	popl %ebp
@@ -4529,7 +6105,11 @@ isr_225:
 isr_226:
 	pushl %ebp
 	movl %esp, %ebp
+	pushl $0
 	pushl %ds
+	pushl %es
+	pushl %fs
+	pushl %gs
 	pushal
 	pushl %esp
 	pushl $226
@@ -4539,6 +6119,9 @@ isr_226:
 	call i386_isr
 	addl $8, %esp
 	popal
+	popl %gs
+	popl %fs
+	popl %es
 	popl %ds
 	mov %ebp, %esp
 	popl %ebp
@@ -4549,7 +6132,11 @@ isr_226:
 isr_227:
 	pushl %ebp
 	movl %esp, %ebp
+	pushl $0
 	pushl %ds
+	pushl %es
+	pushl %fs
+	pushl %gs
 	pushal
 	pushl %esp
 	pushl $227
@@ -4559,6 +6146,9 @@ isr_227:
 	call i386_isr
 	addl $8, %esp
 	popal
+	popl %gs
+	popl %fs
+	popl %es
 	popl %ds
 	mov %ebp, %esp
 	popl %ebp
@@ -4569,7 +6159,11 @@ isr_227:
 isr_228:
 	pushl %ebp
 	movl %esp, %ebp
+	pushl $0
 	pushl %ds
+	pushl %es
+	pushl %fs
+	pushl %gs
 	pushal
 	pushl %esp
 	pushl $228
@@ -4579,6 +6173,9 @@ isr_228:
 	call i386_isr
 	addl $8, %esp
 	popal
+	popl %gs
+	popl %fs
+	popl %es
 	popl %ds
 	mov %ebp, %esp
 	popl %ebp
@@ -4589,7 +6186,11 @@ isr_228:
 isr_229:
 	pushl %ebp
 	movl %esp, %ebp
+	pushl $0
 	pushl %ds
+	pushl %es
+	pushl %fs
+	pushl %gs
 	pushal
 	pushl %esp
 	pushl $229
@@ -4599,6 +6200,9 @@ isr_229:
 	call i386_isr
 	addl $8, %esp
 	popal
+	popl %gs
+	popl %fs
+	popl %es
 	popl %ds
 	mov %ebp, %esp
 	popl %ebp
@@ -4609,7 +6213,11 @@ isr_229:
 isr_230:
 	pushl %ebp
 	movl %esp, %ebp
+	pushl $0
 	pushl %ds
+	pushl %es
+	pushl %fs
+	pushl %gs
 	pushal
 	pushl %esp
 	pushl $230
@@ -4619,6 +6227,9 @@ isr_230:
 	call i386_isr
 	addl $8, %esp
 	popal
+	popl %gs
+	popl %fs
+	popl %es
 	popl %ds
 	mov %ebp, %esp
 	popl %ebp
@@ -4629,7 +6240,11 @@ isr_230:
 isr_231:
 	pushl %ebp
 	movl %esp, %ebp
+	pushl $0
 	pushl %ds
+	pushl %es
+	pushl %fs
+	pushl %gs
 	pushal
 	pushl %esp
 	pushl $231
@@ -4639,6 +6254,9 @@ isr_231:
 	call i386_isr
 	addl $8, %esp
 	popal
+	popl %gs
+	popl %fs
+	popl %es
 	popl %ds
 	mov %ebp, %esp
 	popl %ebp
@@ -4649,7 +6267,11 @@ isr_231:
 isr_232:
 	pushl %ebp
 	movl %esp, %ebp
+	pushl $0
 	pushl %ds
+	pushl %es
+	pushl %fs
+	pushl %gs
 	pushal
 	pushl %esp
 	pushl $232
@@ -4659,6 +6281,9 @@ isr_232:
 	call i386_isr
 	addl $8, %esp
 	popal
+	popl %gs
+	popl %fs
+	popl %es
 	popl %ds
 	mov %ebp, %esp
 	popl %ebp
@@ -4669,7 +6294,11 @@ isr_232:
 isr_233:
 	pushl %ebp
 	movl %esp, %ebp
+	pushl $0
 	pushl %ds
+	pushl %es
+	pushl %fs
+	pushl %gs
 	pushal
 	pushl %esp
 	pushl $233
@@ -4679,6 +6308,9 @@ isr_233:
 	call i386_isr
 	addl $8, %esp
 	popal
+	popl %gs
+	popl %fs
+	popl %es
 	popl %ds
 	mov %ebp, %esp
 	popl %ebp
@@ -4689,7 +6321,11 @@ isr_233:
 isr_234:
 	pushl %ebp
 	movl %esp, %ebp
+	pushl $0
 	pushl %ds
+	pushl %es
+	pushl %fs
+	pushl %gs
 	pushal
 	pushl %esp
 	pushl $234
@@ -4699,6 +6335,9 @@ isr_234:
 	call i386_isr
 	addl $8, %esp
 	popal
+	popl %gs
+	popl %fs
+	popl %es
 	popl %ds
 	mov %ebp, %esp
 	popl %ebp
@@ -4709,7 +6348,11 @@ isr_234:
 isr_235:
 	pushl %ebp
 	movl %esp, %ebp
+	pushl $0
 	pushl %ds
+	pushl %es
+	pushl %fs
+	pushl %gs
 	pushal
 	pushl %esp
 	pushl $235
@@ -4719,6 +6362,9 @@ isr_235:
 	call i386_isr
 	addl $8, %esp
 	popal
+	popl %gs
+	popl %fs
+	popl %es
 	popl %ds
 	mov %ebp, %esp
 	popl %ebp
@@ -4729,7 +6375,11 @@ isr_235:
 isr_236:
 	pushl %ebp
 	movl %esp, %ebp
+	pushl $0
 	pushl %ds
+	pushl %es
+	pushl %fs
+	pushl %gs
 	pushal
 	pushl %esp
 	pushl $236
@@ -4739,6 +6389,9 @@ isr_236:
 	call i386_isr
 	addl $8, %esp
 	popal
+	popl %gs
+	popl %fs
+	popl %es
 	popl %ds
 	mov %ebp, %esp
 	popl %ebp
@@ -4749,7 +6402,11 @@ isr_236:
 isr_237:
 	pushl %ebp
 	movl %esp, %ebp
+	pushl $0
 	pushl %ds
+	pushl %es
+	pushl %fs
+	pushl %gs
 	pushal
 	pushl %esp
 	pushl $237
@@ -4759,6 +6416,9 @@ isr_237:
 	call i386_isr
 	addl $8, %esp
 	popal
+	popl %gs
+	popl %fs
+	popl %es
 	popl %ds
 	mov %ebp, %esp
 	popl %ebp
@@ -4769,7 +6429,11 @@ isr_237:
 isr_238:
 	pushl %ebp
 	movl %esp, %ebp
+	pushl $0
 	pushl %ds
+	pushl %es
+	pushl %fs
+	pushl %gs
 	pushal
 	pushl %esp
 	pushl $238
@@ -4779,6 +6443,9 @@ isr_238:
 	call i386_isr
 	addl $8, %esp
 	popal
+	popl %gs
+	popl %fs
+	popl %es
 	popl %ds
 	mov %ebp, %esp
 	popl %ebp
@@ -4789,7 +6456,11 @@ isr_238:
 isr_239:
 	pushl %ebp
 	movl %esp, %ebp
+	pushl $0
 	pushl %ds
+	pushl %es
+	pushl %fs
+	pushl %gs
 	pushal
 	pushl %esp
 	pushl $239
@@ -4799,6 +6470,9 @@ isr_239:
 	call i386_isr
 	addl $8, %esp
 	popal
+	popl %gs
+	popl %fs
+	popl %es
 	popl %ds
 	mov %ebp, %esp
 	popl %ebp
@@ -4809,7 +6483,11 @@ isr_239:
 isr_240:
 	pushl %ebp
 	movl %esp, %ebp
+	pushl $0
 	pushl %ds
+	pushl %es
+	pushl %fs
+	pushl %gs
 	pushal
 	pushl %esp
 	pushl $240
@@ -4819,6 +6497,9 @@ isr_240:
 	call i386_isr
 	addl $8, %esp
 	popal
+	popl %gs
+	popl %fs
+	popl %es
 	popl %ds
 	mov %ebp, %esp
 	popl %ebp
@@ -4829,7 +6510,11 @@ isr_240:
 isr_241:
 	pushl %ebp
 	movl %esp, %ebp
+	pushl $0
 	pushl %ds
+	pushl %es
+	pushl %fs
+	pushl %gs
 	pushal
 	pushl %esp
 	pushl $241
@@ -4839,6 +6524,9 @@ isr_241:
 	call i386_isr
 	addl $8, %esp
 	popal
+	popl %gs
+	popl %fs
+	popl %es
 	popl %ds
 	mov %ebp, %esp
 	popl %ebp
@@ -4849,7 +6537,11 @@ isr_241:
 isr_242:
 	pushl %ebp
 	movl %esp, %ebp
+	pushl $0
 	pushl %ds
+	pushl %es
+	pushl %fs
+	pushl %gs
 	pushal
 	pushl %esp
 	pushl $242
@@ -4859,6 +6551,9 @@ isr_242:
 	call i386_isr
 	addl $8, %esp
 	popal
+	popl %gs
+	popl %fs
+	popl %es
 	popl %ds
 	mov %ebp, %esp
 	popl %ebp
@@ -4869,7 +6564,11 @@ isr_242:
 isr_243:
 	pushl %ebp
 	movl %esp, %ebp
+	pushl $0
 	pushl %ds
+	pushl %es
+	pushl %fs
+	pushl %gs
 	pushal
 	pushl %esp
 	pushl $243
@@ -4879,6 +6578,9 @@ isr_243:
 	call i386_isr
 	addl $8, %esp
 	popal
+	popl %gs
+	popl %fs
+	popl %es
 	popl %ds
 	mov %ebp, %esp
 	popl %ebp
@@ -4889,7 +6591,11 @@ isr_243:
 isr_244:
 	pushl %ebp
 	movl %esp, %ebp
+	pushl $0
 	pushl %ds
+	pushl %es
+	pushl %fs
+	pushl %gs
 	pushal
 	pushl %esp
 	pushl $244
@@ -4899,6 +6605,9 @@ isr_244:
 	call i386_isr
 	addl $8, %esp
 	popal
+	popl %gs
+	popl %fs
+	popl %es
 	popl %ds
 	mov %ebp, %esp
 	popl %ebp
@@ -4909,7 +6618,11 @@ isr_244:
 isr_245:
 	pushl %ebp
 	movl %esp, %ebp
+	pushl $0
 	pushl %ds
+	pushl %es
+	pushl %fs
+	pushl %gs
 	pushal
 	pushl %esp
 	pushl $245
@@ -4919,6 +6632,9 @@ isr_245:
 	call i386_isr
 	addl $8, %esp
 	popal
+	popl %gs
+	popl %fs
+	popl %es
 	popl %ds
 	mov %ebp, %esp
 	popl %ebp
@@ -4929,7 +6645,11 @@ isr_245:
 isr_246:
 	pushl %ebp
 	movl %esp, %ebp
+	pushl $0
 	pushl %ds
+	pushl %es
+	pushl %fs
+	pushl %gs
 	pushal
 	pushl %esp
 	pushl $246
@@ -4939,6 +6659,9 @@ isr_246:
 	call i386_isr
 	addl $8, %esp
 	popal
+	popl %gs
+	popl %fs
+	popl %es
 	popl %ds
 	mov %ebp, %esp
 	popl %ebp
@@ -4949,7 +6672,11 @@ isr_246:
 isr_247:
 	pushl %ebp
 	movl %esp, %ebp
+	pushl $0
 	pushl %ds
+	pushl %es
+	pushl %fs
+	pushl %gs
 	pushal
 	pushl %esp
 	pushl $247
@@ -4959,6 +6686,9 @@ isr_247:
 	call i386_isr
 	addl $8, %esp
 	popal
+	popl %gs
+	popl %fs
+	popl %es
 	popl %ds
 	mov %ebp, %esp
 	popl %ebp
@@ -4969,7 +6699,11 @@ isr_247:
 isr_248:
 	pushl %ebp
 	movl %esp, %ebp
+	pushl $0
 	pushl %ds
+	pushl %es
+	pushl %fs
+	pushl %gs
 	pushal
 	pushl %esp
 	pushl $248
@@ -4979,6 +6713,9 @@ isr_248:
 	call i386_isr
 	addl $8, %esp
 	popal
+	popl %gs
+	popl %fs
+	popl %es
 	popl %ds
 	mov %ebp, %esp
 	popl %ebp
@@ -4989,7 +6726,11 @@ isr_248:
 isr_249:
 	pushl %ebp
 	movl %esp, %ebp
+	pushl $0
 	pushl %ds
+	pushl %es
+	pushl %fs
+	pushl %gs
 	pushal
 	pushl %esp
 	pushl $249
@@ -4999,6 +6740,9 @@ isr_249:
 	call i386_isr
 	addl $8, %esp
 	popal
+	popl %gs
+	popl %fs
+	popl %es
 	popl %ds
 	mov %ebp, %esp
 	popl %ebp
@@ -5009,7 +6753,11 @@ isr_249:
 isr_250:
 	pushl %ebp
 	movl %esp, %ebp
+	pushl $0
 	pushl %ds
+	pushl %es
+	pushl %fs
+	pushl %gs
 	pushal
 	pushl %esp
 	pushl $250
@@ -5019,6 +6767,9 @@ isr_250:
 	call i386_isr
 	addl $8, %esp
 	popal
+	popl %gs
+	popl %fs
+	popl %es
 	popl %ds
 	mov %ebp, %esp
 	popl %ebp
@@ -5029,7 +6780,11 @@ isr_250:
 isr_251:
 	pushl %ebp
 	movl %esp, %ebp
+	pushl $0
 	pushl %ds
+	pushl %es
+	pushl %fs
+	pushl %gs
 	pushal
 	pushl %esp
 	pushl $251
@@ -5039,6 +6794,9 @@ isr_251:
 	call i386_isr
 	addl $8, %esp
 	popal
+	popl %gs
+	popl %fs
+	popl %es
 	popl %ds
 	mov %ebp, %esp
 	popl %ebp
@@ -5049,7 +6807,11 @@ isr_251:
 isr_252:
 	pushl %ebp
 	movl %esp, %ebp
+	pushl $0
 	pushl %ds
+	pushl %es
+	pushl %fs
+	pushl %gs
 	pushal
 	pushl %esp
 	pushl $252
@@ -5059,6 +6821,9 @@ isr_252:
 	call i386_isr
 	addl $8, %esp
 	popal
+	popl %gs
+	popl %fs
+	popl %es
 	popl %ds
 	mov %ebp, %esp
 	popl %ebp
@@ -5069,7 +6834,11 @@ isr_252:
 isr_253:
 	pushl %ebp
 	movl %esp, %ebp
+	pushl $0
 	pushl %ds
+	pushl %es
+	pushl %fs
+	pushl %gs
 	pushal
 	pushl %esp
 	pushl $253
@@ -5079,6 +6848,9 @@ isr_253:
 	call i386_isr
 	addl $8, %esp
 	popal
+	popl %gs
+	popl %fs
+	popl %es
 	popl %ds
 	mov %ebp, %esp
 	popl %ebp
@@ -5089,7 +6861,11 @@ isr_253:
 isr_254:
 	pushl %ebp
 	movl %esp, %ebp
+	pushl $0
 	pushl %ds
+	pushl %es
+	pushl %fs
+	pushl %gs
 	pushal
 	pushl %esp
 	pushl $254
@@ -5099,6 +6875,9 @@ isr_254:
 	call i386_isr
 	addl $8, %esp
 	popal
+	popl %gs
+	popl %fs
+	popl %es
 	popl %ds
 	mov %ebp, %esp
 	popl %ebp
@@ -5109,7 +6888,11 @@ isr_254:
 isr_255:
 	pushl %ebp
 	movl %esp, %ebp
+	pushl $0
 	pushl %ds
+	pushl %es
+	pushl %fs
+	pushl %gs
 	pushal
 	pushl %esp
 	pushl $255
@@ -5119,6 +6902,9 @@ isr_255:
 	call i386_isr
 	addl $8, %esp
 	popal
+	popl %gs
+	popl %fs
+	popl %es
 	popl %ds
 	mov %ebp, %esp
 	popl %ebp

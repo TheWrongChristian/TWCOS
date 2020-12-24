@@ -41,7 +41,7 @@ void * memset(void *s, int c, size_t n)
 	}
 
 	p = (char*)p4end;
-	for(;p<p1end; p++) {
+	for(;p<end; p++) {
 		*p = c;
 	}
 
@@ -68,6 +68,7 @@ void *memmove(void *dest, const void *src, size_t n)
 		for(int i=n-1; i>=0; i--) {
 			cd[i] = cs[i];
 		}
+		return dest;
 	} else {
 		return memcpy(dest, src, n);
 	}
@@ -152,6 +153,28 @@ int strlen(const char * s)
 	}
 
 	return l;
+}
+
+char * strcpy(char * dest, const char * src)
+{
+	int i;
+	for(i=0; src[i]; i++) {
+		dest[i] = src[i];
+	}
+	dest[i] = 0;
+
+	return dest;
+}
+
+char * strncpy(char * dest, const char * src, size_t maxlen)
+{
+	int i;
+	for(i=0; src[i] && i<maxlen; i++) {
+		dest[i] = src[i];
+	}
+	dest[i] = 0;
+
+	return dest;
 }
 
 char * strdup( const char * s)

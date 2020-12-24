@@ -1,6 +1,7 @@
 #include "slab.h"
 
 #if INTERFACE
+#include <sys/types.h>
 #include <stddef.h>
 #include <stdint.h>
 
@@ -14,7 +15,6 @@ struct slab_type_t {
 	void (*mark)(void *);
 	void (*finalize)(void *);
 	mutex_t lock[1];
-	vmpage_t vmpage[1];
 };
 
 struct slab_weakref_t {
@@ -46,14 +46,23 @@ struct slab_weakref_t {
 exception_def OutOfMemoryException = { "OutOfMemoryException", &Exception };
 exception_def AllocationTooBigException = { "AllocationTooBigException", &Exception };
 
-typedef uintptr_t * slab_slot_p;
+typedef struct slab_slot_t slab_slot_t;
+struct slab_slot_t {
+	uint64_t seq;
+#ifdef DEBUG
+	char * file;
+	int line;
+	void * backtrace[9];
+#endif
+};
+
 typedef struct slab {
 	uint32_t magic;
 	struct slab * next, * prev;
 	slab_type_t * type;
 	uint32_t * available;
 	uint32_t * finalize;
-	slab_slot_p data;
+	char * data;
 } slab_t;
 
 static slab_type_t * types;
@@ -113,19 +122,21 @@ static slab_t * slab_new(slab_type_t * stype)
 		/* Initialize type */
 		stype->first = 0;
 		stype->magic = 997 * (uint32_t)stype;
-		stype->slotsize = 1+(stype->esize+sizeof(*stype->first->data)-1)/sizeof(*stype->first->data);
+		stype->slotsize = ROUNDUP(stype->esize+sizeof(slab_slot_t), sizeof(intptr_t));
 
 		/*           <-----------------d------------------>
 		 * | slab_t |a|f|              data                |
 		 *  <-----------------page size------------------->
 		 * data + a + f = ARCH_PAGE_SIZE-sizeof(slab_t)
-		 * c*s + c/8+4 + c/8+4 = psz-slab_t = d
-		 * 8*c*s + c + 32 + c + 32 = 8*d
-		 * 8*c*s + 2*c = 8*d - 64
-		 * c*(8*s + 2) = 8*d - 64
-		 * c = (8*d - 64) / (8*s + 2)
+		 * c*s + (c+31)/8 + (c+31)/8 = psz-slab_t = d
+		 * c*s + (c+31)/4 = psz-slab_t = d
+		 * 4c*s + (c+31) = psz-slab_t = 4d
+		 * 4c*s + c + 31 = psz-slab_t = 4d
+		 * 4c*s + c = 4d - 31
+		 * c(4s + 1) = 4d - 31
+		 * c = (4d - 31) / (4s + 1)
 		 */
-		stype->count = (8*(ARCH_PAGE_SIZE-sizeof(slab_t))-64)/ (8 * stype->slotsize * sizeof(*stype->first->data) + 2);
+		stype->count = (4*(ARCH_PAGE_SIZE-sizeof(slab_t))-31) / (4 * stype->slotsize + 1);
 		slab_lock(0);
 		LIST_APPEND(types, stype);
 		slab_unlock();
@@ -138,7 +149,7 @@ static slab_t * slab_new(slab_type_t * stype)
 		slab->type = stype;
 		slab->available = (uint32_t*)(slab+1);
 		slab->finalize = slab->available + (slab->type->count+32)/32;
-		slab->data = (slab_slot_p)(slab->finalize + (slab->type->count+32)/32);
+		slab->data = (slab_slot_t*)(slab->finalize + (slab->type->count+32)/32);
 		bitarray_setall(slab->available, stype->count, 1);
 
 		LIST_PREPEND(stype->first, slab);
@@ -168,8 +179,22 @@ static void debug_checkbuf(void * p, size_t l)
 }
 
 
-#define SLAB_SLOT(slab, slot) (slab->data + slab->type->slotsize*slot)
+#define SLAB_SLOT(slab, slot) ((slab_slot_t*)(slab->data + slab->type->slotsize*slot))
 #define SLAB_SLOT_USER(slab, slot) (SLAB_SLOT(slab, slot)+1)
+
+#if 1
+#define SLAB_SLOT_NUM(slab, p) ((((char*)p)-slab->data) / slab->type->slotsize)
+#else
+static int SLAB_SLOT_NUM(slab_t * slab, void * p)
+{
+	char * user = p;
+	ptrdiff_t diff = user - slab->data;
+	int slot = diff / slab->type->slotsize;
+	assert(slot<slab->type->count);
+	return slot;
+}
+#endif
+
 
 void * slab_alloc_p(slab_type_t * stype)
 {
@@ -181,14 +206,20 @@ void * slab_alloc_p(slab_type_t * stype)
 	while(slab) {
 		assert(stype == slab->type);
 		int slot = bitarray_firstset(slab->available, slab->type->count);
+		assert(slot<slab->type->count);
 		if (slot>=0) {
+			if (bitarray_get(slab->finalize, slot)) {
+				kernel_break();
+			}
 			bitarray_set(slab->available, slot, 0);
-			bitarray_set(slab->finalize, slot, 0);
+			//bitarray_set(slab->finalize, slot, 0);
 			stype->first = slab;
 			slab_unlock();
 			mutex_unlock(stype->lock);
+			slab_slot_t * entry = SLAB_SLOT(slab, slot);
 			void * p = SLAB_SLOT_USER(slab, slot);
-			*SLAB_SLOT(slab, slot) = ++seq;
+			assert(p==(void*)(entry+1));
+			SLAB_SLOT(slab, slot)->seq = ++seq;
 			debug_checkbuf(p, slab->type->esize);
 			debug_fillbuf(p, slab->type->esize, 0x0a);
 			return p;
@@ -247,12 +278,13 @@ static struct gccontext {
 	/* The block to be scanned */
 	void ** from;
 	void ** to;
-
+#if 0
 	/* Previous context */
 	arena_state state;
 	struct gccontext * prev;
-} * context = 0;
-static arena_t * gcarena = 0;
+#endif
+} context[256];
+
 static int gclevel = 0;
 
 void slab_gc_begin()
@@ -277,7 +309,6 @@ void slab_gc_begin()
 
 		LIST_NEXT(types, stype);
 	}
-	gcarena = arena_get();
 
 	/* Put the roots in the queue */
 	extern char gcroot_start[];
@@ -291,7 +322,7 @@ static slab_t * slab_get(void * p)
 		/* Check magic numbers */
 		slab_t * slab = ARCH_PAGE_ALIGN(p);
 
-		if (slab == ARCH_PAGE_ALIGN(slab->data) && slab->magic == slab->type->magic && (slab_slot_p)slab->data <= (slab_slot_p)p) {
+		if (slab == ARCH_PAGE_ALIGN(slab->data) && slab->magic == slab->type->magic && (slab_slot_t*)slab->data <= (slab_slot_t*)p) {
 			return slab;
 		}
 	}
@@ -299,14 +330,17 @@ static slab_t * slab_get(void * p)
 	return 0;
 }
 
-#define SLAB_SLOT_NUM(slab, p) (((slab_slot_p)p-slab->data) / slab->type->slotsize)
-
 void slab_gc_mark(void * root)
 {
 	slab_t * slab = slab_get(root);
 	if (slab) {
 		/* Entry within the slab */
 		int slot = SLAB_SLOT_NUM(slab, root);
+		if (slot>=slab->type->count) {
+			/* Not a valid pointer - don't mark */
+			return;
+		}
+		assert(slot<slab->type->count);
 
 		/* Adjust root to point to the start of the slab slot */
 		root = SLAB_SLOT_USER(slab, slot);
@@ -321,13 +355,7 @@ void slab_gc_mark(void * root)
 				slab->type->mark(root);
 			} else {
 				/* Generic mark */
-				struct gccontext * new = arena_calloc(gcarena, sizeof(*new));
-				new->state = arena_getstate(gcarena);
-				new->from = root;
-				new->to = new->from + slab->type->esize/sizeof(*new->to);
-				new->prev = context;
-				context = new;
-				gclevel++;
+				slab_gc_mark_block(root, slab->type->esize);
 			}
 		}
 	}
@@ -335,13 +363,9 @@ void slab_gc_mark(void * root)
 
 void slab_gc_mark_range(void * from, void * to)
 {
-	struct gccontext * new = arena_calloc(gcarena, sizeof(*new));
-	new->from = from;
-	new->to = to;
-	new->state = arena_getstate(gcarena);
-	new->prev = context;
-	context = new;
 	gclevel++;
+	context[gclevel].from = from;
+	context[gclevel].to = to;
 }
 
 void slab_gc()
@@ -349,13 +373,12 @@ void slab_gc()
 	mutex_t lock[1] = {0};
 
 	MUTEX_AUTOLOCK(lock) {
-		while(context) {
+		while(gclevel) {
 			/* Check the next pointer in the block */
-			if (context->from && context->from < context->to) {
-				slab_gc_mark(*context->from++);
+			if (context[gclevel].from && context[gclevel].from < context[gclevel].to) {
+				slab_gc_mark(*context[gclevel].from++);
 			} else {
-				arena_setstate(gcarena, context->state);
-				context = context->prev;
+				context[gclevel].from = context[gclevel].to = 0;
 				gclevel--;
 			}
 		}
@@ -379,26 +402,18 @@ void slab_gc_end()
 		slab_t * slab = stype->first;
 
 		while(slab) {
-			if (stype->finalize) {
-				/* Step through each finalizable slot */
-				int slot=bitarray_firstset(slab->finalize, stype->count);
-				while(slot>=0) {
+			/* Step through each finalizable slot */
+			int slot=bitarray_firstset(slab->finalize, stype->count);
+			while(slot>=0) {
+				slab_slot_t * entry = SLAB_SLOT(slab, slot);
+				if (stype->finalize) {
 					slab->type->finalize(SLAB_SLOT_USER(slab, slot));
-					*SLAB_SLOT(slab, slot) = 0;
-					bitarray_set(slab->finalize, slot, 0);
-					bitarray_set(slab->available, slot, 1);
-					slot=bitarray_firstset(slab->finalize, stype->count);
 				}
-			} else {
-				/* Step through each finalizable slot */
-				int slot=bitarray_firstset(slab->finalize, stype->count);
-				while(slot>=0) {
-					/* Clear seq number */
-					*SLAB_SLOT(slab, slot) = 0;
-					bitarray_set(slab->finalize, slot, 0);
-					bitarray_set(slab->available, slot, 1);
-					slot=bitarray_firstset(slab->finalize, stype->count);
-				}
+				debug_fillbuf(entry+1, slab->type->esize, 0xc0);
+				entry->seq = 0;
+				bitarray_set(slab->finalize, slot, 0);
+				bitarray_set(slab->available, slot, 1);
+				slot=bitarray_firstset(slab->finalize, stype->count);
 			}
 
 			/* Release page if now empty */
@@ -414,7 +429,6 @@ void slab_gc_end()
 
 		LIST_NEXT(types, stype);
 	}
-	arena_free(gcarena);
 	slab_unlock();
 }
 
@@ -452,7 +466,7 @@ slab_weakref_t * slab_weakref(void * p)
 	if (slab) {
 		slab_weakref_t * ref = slab_alloc(weakrefs);
 		int slot = SLAB_SLOT_NUM(slab, p);
-		ref->seq = *SLAB_SLOT(slab, slot);
+		ref->seq = SLAB_SLOT(slab, slot)->seq;
 		ref->p = p;
 		ref->chances=0;
 
@@ -467,7 +481,7 @@ void * slab_weakref_get(slab_weakref_t * ref)
 	slab_t * slab = slab_get(ref->p);
 	if (slab) {
 		int slot = SLAB_SLOT_NUM(slab, ref->p);
-		if (ref->seq == *SLAB_SLOT(slab, slot)) {
+		if (ref->seq == SLAB_SLOT(slab, slot)->seq) {
 			return ref->p;
 		}
 	}
@@ -475,65 +489,66 @@ void * slab_weakref_get(slab_weakref_t * ref)
 	return 0;
 }
 
+#define SLAB_MAX_DATA_AREA(slots) ROUNDDOWN((((ARCH_PAGE_SIZE-sizeof(slab_t)-2*sizeof(uint32_t))/slots)-sizeof(slab_slot_t)),8)
 static slab_type_t pools[] = {
-	SLAB_TYPE(8, 0, slab_malloc_finalize),
-	SLAB_TYPE(12, 0, slab_malloc_finalize),
-	SLAB_TYPE(16, 0, slab_malloc_finalize),
-	SLAB_TYPE(24, 0, slab_malloc_finalize),
-	SLAB_TYPE(32, 0, slab_malloc_finalize),
-	SLAB_TYPE(48, 0, slab_malloc_finalize),
-	SLAB_TYPE(64, 0, slab_malloc_finalize),
-	SLAB_TYPE(96, 0, slab_malloc_finalize),
-	SLAB_TYPE(128, 0, slab_malloc_finalize),
-	SLAB_TYPE(196, 0, slab_malloc_finalize),
-	SLAB_TYPE(256, 0, slab_malloc_finalize),
-	SLAB_TYPE(384, 0, slab_malloc_finalize),
-	SLAB_TYPE(512, 0, slab_malloc_finalize),
-	SLAB_TYPE(768, 0, slab_malloc_finalize),
-	SLAB_TYPE(1024, 0, slab_malloc_finalize),
-	SLAB_TYPE(1536, 0, slab_malloc_finalize),
-	SLAB_TYPE((ARCH_PAGE_SIZE-2*sizeof(uint32_t))/2, 0, slab_malloc_finalize),
-	SLAB_TYPE((ARCH_PAGE_SIZE-2*sizeof(uint32_t)), 0, slab_malloc_finalize),
+	SLAB_TYPE(8, 0, 0),
+	SLAB_TYPE(12, 0, 0),
+	SLAB_TYPE(16, 0, 0),
+	SLAB_TYPE(24, 0, 0),
+	SLAB_TYPE(32, 0, 0),
+	SLAB_TYPE(48, 0, 0),
+	SLAB_TYPE(64, 0, 0),
+	SLAB_TYPE(96, 0, 0),
+	SLAB_TYPE(128, 0, 0),
+	SLAB_TYPE(196, 0, 0),
+	SLAB_TYPE(256, 0, 0),
+	SLAB_TYPE(384, 0, 0),
+	SLAB_TYPE(512, 0, 0),
+	SLAB_TYPE(768, 0, 0),
+	SLAB_TYPE(1024, 0, 0),
+	SLAB_TYPE(SLAB_MAX_DATA_AREA(3), 0, 0),
+	SLAB_TYPE(SLAB_MAX_DATA_AREA(2), 0, 0),
+	SLAB_TYPE(SLAB_MAX_DATA_AREA(1), 0, 0),
 };
 
 #ifdef DEBUG
 
-static struct {
-	void * p;
-	char * file;
-	int line;
-	size_t size;
-	slab_type_t * type;
-} audit[32];
+static slab_slot_t * audit[32];
 
 void * add_alloc_audit(void * p, char * file, int line, size_t size, slab_type_t * type)
 {
 	static int next = 0;
 
-	audit[next].p = p;
-	audit[next].file = file;
-	audit[next].line = line;
-	audit[next].size = size;
-	audit[next].type = type;
+	slab_slot_t * slot = ((slab_slot_t *)p)-1;
+	audit[next] = slot;
 
-	if (sizeof(audit)/sizeof(audit[0]) == ++next) {
+	if (countof(audit) == ++next) {
 		next = 0;
 	}
+
+#if DEBUG
+	slot->file = file;
+	slot->line = line;
+	thread_backtrace(slot->backtrace, countof(slot->backtrace));
+#endif
 
 	return p;
 }
 
+#if 0
 void dump_alloc_audit(void * p)
 {
-	for(int i=0; i<sizeof(audit)/sizeof(audit[0]); i++) {
+	for(int i=0; i<countof(audit); i++) {
+		slab_slot_t * slot = audit[i];
 		char * cp = (char*)p;
-		char * base = (char*)audit[i].p;
+		char * base = (char*)slot+1;
 
-		if (cp>=base && cp<base+audit[i].size) {
-			kernel_printk("pointer alloc'd at %s:%d\n", audit[i].file, audit[i].line);
+		if (cp>=base && cp<base+slot->size) {
+			kernel_printk("pointer alloc'd at %s:%d\n", slot->file, slot->line);
 		}
 	}
 }
+#endif
 
 void * malloc_d(size_t size, char * file, int line)
 {

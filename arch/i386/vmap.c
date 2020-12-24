@@ -21,9 +21,6 @@ static __attribute__((section(".aligned"))) pte_t pgktbl[1024];
 /*
  * Page dirs are at the top of the address space
  */
-#if 0
-static pgtbls_t * pgtbls = (void *)(0xffffffff << (2 + ARCH_PAGE_TABLE_SIZE_LOG2 + ASID_COUNT_LOG2));
-#endif
 static pgtbls_t * pgtbls = (void *)((intptr_t)(-ASID_COUNT*sizeof(pgtbls_t)));
 
 
@@ -168,7 +165,7 @@ static void vmap_set_pte(asid vid, void * vaddress, pte_t pte)
 			ptrdiff_t koffset = (uint32_t)(_bootstrap_nextalloc - _bootstrap_end);
 
 			/* page_alloc might end up needing lock */
-			page_t page = page_alloc();
+			page_t page = page_alloc(0);
 
 			if (((uintptr_t)vaddress)<koffset) {
 				/* User mapping, just this ASID */
@@ -182,12 +179,6 @@ static void vmap_set_pte(asid vid, void * vaddress, pte_t pte)
 
 			/* Clean directory */
 			memset(pgtbl + (vpage&~0x3ff), 0, ARCH_PAGE_SIZE);
-#if 0
-			for(i=0; i<1024; i++) {
-				pgtbl[vpage & 0x3ff + i] = 0;
-			}
-			page_clean(page);
-#endif
 		}
 		pgtbl[vpage] = pte;
 		/* FIXME: Only need this if vid is current or kernel as */

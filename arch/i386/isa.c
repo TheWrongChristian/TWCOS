@@ -3,6 +3,15 @@
 
 #include "isa.h"
 
+#if INTERFACE
+
+#define IRQMAX 16
+
+#endif
+
+/* PIT clock */
+#define PIT_HZ		1193182
+
 /* reinitialize the PIC controllers, giving them specified vector offsets
    rather than 8h and 70h, as configured by default */
 
@@ -15,13 +24,15 @@
 #define PIC_EOI		0x20
 
 #define PIC_IRQ_BASE	0x20
-
  
 #define ICW1_ICW4	0x01		/* ICW4 (not) needed */
 #define ICW1_SINGLE	0x02		/* Single (cascade) mode */
 #define ICW1_INTERVAL4	0x04		/* Call address interval 4 (8) */
 #define ICW1_LEVEL	0x08		/* Level triggered (edge) mode */
 #define ICW1_INIT	0x10		/* Initialization - required! */
+
+#define ICW3_READ_IRR	0x0a		/* OCW3 irq ready next CMD read */
+#define ICW3_READ_ISR	0x0b		/* OCW3 irq service next CMD read */
  
 #define ICW4_8086	0x01		/* 8086/88 (MCS-80/85) mode */
 #define ICW4_AUTO	0x02		/* Auto (normal) EOI */
@@ -38,6 +49,8 @@ arguments:
 static void io_wait()
 {
 }
+
+int irqmax = IRQMAX;
 
 void PIC_eoi(int irq)
 {
@@ -83,33 +96,110 @@ static irq_func irq_table[] =  {
 	0, 0, 0, 0
 };
 
-static volatile uint32_t irq_flag = 0;
-static void isa_irq(uint32_t num, uint32_t * state)
+/* Helper func */
+static uint16_t PIC_get_irq_reg(int ocw3)
+{
+    /* OCW3 to PIC CMD to get the register values.  PIC2 is chained, and
+     * represents IRQs 8-15.  PIC1 is IRQs 0-7, with 2 being the chain */
+    outb(PIC1_COMMAND, ocw3);
+    outb(PIC2_COMMAND, ocw3);
+    return (inb(PIC2_COMMAND) << 8) | inb(PIC1_COMMAND);
+}
+
+/* Returns the combined value of the cascaded PICs irq request register */
+uint16_t PIC_get_irr(void)
+{
+    return PIC_get_irq_reg(ICW3_READ_IRR);
+}
+
+/* Returns the combined value of the cascaded PICs irq service register */
+uint16_t PIC_get_isr(void)
+{
+    return PIC_get_irq_reg(ICW3_READ_ISR);
+}
+
+static void PIC_set_mask(int irq) {
+	uint16_t port;
+	uint8_t value;
+
+	if(irq < 8) {
+		port = PIC1_DATA;
+	} else {
+		port = PIC2_DATA;
+		irq -= 8;
+	}
+	value = inb(port) | (1 << irq);
+	outb(port, value);        
+}
+ 
+static void PIC_clear_mask(int irq) {
+	uint16_t port;
+	uint8_t value;
+
+	if(irq < 8) {
+		port = PIC1_DATA;
+	} else {
+		port = PIC2_DATA;
+		irq -= 8;
+	}
+	value = inb(port) & ~(1 << irq);
+	outb(port, value);        
+}
+
+static unsigned long spurious = 0;
+int inirq;
+void i386_irq(uint32_t num, arch_trap_frame_t * state)
 {
 	int irq = num - PIC_IRQ_BASE;
 
-	irq_flag |= (1 << irq);
+	/* Check for spurious IRQ */
+	if (15 == irq || 7 == irq) {
+		uint16_t isr = PIC_get_isr();
+		if (!(isr & (1<<irq))) {
+			/* Spurious */
+			if (15==irq) {
+				/* EOI for cascade */
+				PIC_eoi(2);
+			}
+			spurious++;
+			return;
+		}
+	}
 
+	inirq = 1;
 	if (irq_table[irq]) {
 		irq_table[irq](irq);
 	}
+	inirq = 0;
 
 	PIC_eoi(irq);
 }
 
-void i386_irq(uint32_t num, uint32_t * state)
+#if 0
+int irq_isblocked(int irq)
 {
-	int irq = num - PIC_IRQ_BASE;
+	uint16_t port;
+	uint8_t value;
 
-	irq_flag |= (1 << irq);
-
-	if (irq_table[irq]) {
-		irq_table[irq](irq);
+	if(irq < 8) {
+		port = PIC1_DATA;
+	} else {
+		port = PIC2_DATA;
+		irq -= 8;
 	}
-
-	PIC_eoi(irq);
+	return inb(port) & (1 << irq);
 }
 
+void irq_start(int irq)
+{
+	PIC_set_mask(irq);
+}
+
+void irq_end(int irq)
+{
+	PIC_clear_mask(irq);
+}
+#endif
 irq_func add_irq(int irq, irq_func handler)
 {
 	irq_func old = irq_table[irq];
@@ -121,27 +211,6 @@ irq_func add_irq(int irq, irq_func handler)
 		outb(PIC2_DATA, inb(PIC2_DATA) & ~(1<<(irq-8)));
 	}
 	return old;
-}
-
-static int wait_irq()
-{
-	int irq = 0;
-
-	while(0 == irq_flag) {
-		hlt();
-	}
-
-	for(; irq<16; irq++) {
-		int mask = 1<<irq;
-		if (irq_flag & mask) {
-			cli();
-			irq_flag &= ~mask;
-			sti();
-			return irq;
-		}
-	}
-
-	return 0;
 }
 
 typedef timerspec_t tickspec_t;
@@ -194,7 +263,7 @@ static void pit_timer_set(void (*expire)(), timerspec_t usec)
 {
 	SPIN_AUTOLOCK(pit_lock) {
 		pit_expire = expire;
-		ticks = 1193182 * usec / 1000000;
+		ticks = PIT_HZ * usec / 1000000;
 
 		pit_set();
 	}
@@ -215,7 +284,7 @@ static timerspec_t pit_timer_clear()
 		pit_expire = 0;
 	}
 
-	return remaining * 1000000 / 1193182;
+	return remaining * 1000000 / PIT_HZ;
 }
 
 timer_ops_t * arch_timer_ops()
@@ -233,6 +302,26 @@ timer_ops_t * arch_timer_ops()
 void arch_idle()
 {
 	hlt();
+}
+
+uint32_t isa_inl(uint16_t port)
+{
+	return inl(port);
+}
+
+void isa_outl(uint16_t port, uint32_t data)
+{
+	outl(port, data);
+}
+
+uint16_t isa_inw(uint16_t port)
+{
+	return inw(port);
+}
+
+void isa_outw(uint16_t port, uint16_t data)
+{
+	outw(port, data);
 }
 
 uint8_t isa_inb(uint16_t port)

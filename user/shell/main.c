@@ -2,6 +2,7 @@
 #include <stdlib.h>
 #include <ctype.h>
 #include <string.h>
+#include <unistd.h>
 
 #include "main.h"
 
@@ -38,8 +39,9 @@ void command_loop()
 
 	while(1) {
 #if 1
-		fgets(buf, sizeof(buf), stdin);
-		tokenizer_tokenize(t, buf, sizeof(buf), consumer, NULL);
+		if (fgets(buf, sizeof(buf), stdin)>0) {
+			tokenizer_tokenize(t, buf, sizeof(buf), consumer, NULL);
+		}
 #else
 		char str[]="for(int i=0; i<10; i++) { printf(\"\\\"\\n\\\"\");}";
 		tokenizer_tokenize(t, str, sizeof(str), consumer, NULL);
@@ -57,8 +59,15 @@ int main(int argc, char * argv[], char * envp[])
 			waitpid(0, &status, 0);
 		}
 	} else {
+		char buf[1024];
+		int fd = open("/", 0, 0);
+		int read = getdents(fd, buf, sizeof(buf));
+		close(fd);
 		printf("\033[48;5;2mHello world from pid\033[48;5;0m %d\r", getpid());
 		fflush(stdout);
+#if 1
+		usleep((1+getpid()%100)*1000);
+#endif
 		execve(argv[0], argv, envp);
 	}
 #else

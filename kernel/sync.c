@@ -5,8 +5,10 @@
 #include <stdint.h>
 #include <stddef.h>
 
+typedef int spin_t;
+
 struct mutex_t {
-	int spin;
+	spin_t spin;
 	int count;
 	int getting;
 	int state;
@@ -26,6 +28,11 @@ struct rwlock_t {
 	thread_t * writer;
 };
 
+struct interrupt_monitor_t {
+	spin_t spin;
+	thread_t * waiting;
+};
+
 #define INIT_ONCE() \
 	do { \
 		static int inited = 0; \
@@ -37,9 +44,10 @@ struct rwlock_t {
 
 #define AUTOLOCK_CONCAT(a, b) a ## b
 #define AUTOLOCK_VAR(line) AUTOLOCK_CONCAT(s,line)
-#define SPIN_AUTOLOCK(lock) int AUTOLOCK_VAR(__LINE__) = 0; while((AUTOLOCK_VAR(__LINE__) =spin_autolock(lock, AUTOLOCK_VAR(__LINE__) )))
+#define SPIN_AUTOLOCK(lock) spin_t AUTOLOCK_VAR(__LINE__) = 0; while((AUTOLOCK_VAR(__LINE__) =spin_autolock(lock, AUTOLOCK_VAR(__LINE__) )))
 #define MUTEX_AUTOLOCK(lock) int AUTOLOCK_VAR(__LINE__) = 0; while((AUTOLOCK_VAR(__LINE__) =mutex_autolock(lock, AUTOLOCK_VAR(__LINE__) )))
 #define MONITOR_AUTOLOCK(lock) int AUTOLOCK_VAR(__LINE__) = 0; while((AUTOLOCK_VAR(__LINE__) =monitor_autolock(lock, AUTOLOCK_VAR(__LINE__) )))
+#define INTERRUPT_MONITOR_AUTOLOCK(lock) int AUTOLOCK_VAR(__LINE__) = 0; while((AUTOLOCK_VAR(__LINE__) =interrupt_monitor_autolock(lock, AUTOLOCK_VAR(__LINE__) )))
 #define READER_AUTOLOCK(lock) int AUTOLOCK_VAR(__LINE__) = 0; while((AUTOLOCK_VAR(__LINE__) =rwlock_autolock(lock, AUTOLOCK_VAR(__LINE__), 0)))
 #define WRITER_AUTOLOCK(lock) int AUTOLOCK_VAR(__LINE__) = 0; while((AUTOLOCK_VAR(__LINE__) =rwlock_autolock(lock, AUTOLOCK_VAR(__LINE__), 1)))
 
@@ -70,17 +78,17 @@ static mutex_t locktablelock;
 
 static int contended;
 
-int spin_trylock(int * l)
+int spin_trylock(spin_t * l)
 {
 	return arch_spin_trylock(l);
 }
 
-void spin_unlock(int * l)
+void spin_unlock(spin_t * l)
 {
 	arch_spin_unlock(l);
 }
 
-void spin_lock(int * l)
+void spin_lock(spin_t * l)
 {
 	arch_spin_lock(l);
 }
@@ -98,7 +106,7 @@ int mutex_autolock(mutex_t * lock, int state)
         return state;
 } 
 
-int spin_autolock(int * lock, int state)
+int spin_autolock(spin_t * lock, int state)
 {
         if (state) {
                 spin_unlock(lock);
@@ -124,7 +132,20 @@ int monitor_autolock(monitor_t * lock, int state)
         return state;
 } 
 
-int rwlock_autolock(monitor_t * lock, int state, int write)
+int interrupt_monitor_autolock(interrupt_monitor_t * lock, int state)
+{
+        if (state) {
+                interrupt_monitor_leave(lock);
+                state = 0;
+        } else {
+                interrupt_monitor_enter(lock);
+                state = 1;
+        }
+
+        return state;
+} 
+
+int rwlock_autolock(rwlock_t * lock, int state, int write)
 {
         if (state) {
 		rwlock_unlock(lock);
@@ -219,8 +240,10 @@ void monitor_leave(monitor_t * monitor)
 
 void monitor_wait(monitor_t * monitor)
 {
-	monitor->waiting = thread_queue(monitor->waiting, 0, THREAD_SLEEPING);
 	int count = monitor->lock->count;
+	assert(1==count);
+
+	monitor->waiting = thread_queue(monitor->waiting, 0, THREAD_SLEEPING);
 	mutex_unlock(monitor->lock);
 	thread_schedule();
 	mutex_lock(monitor->lock);
@@ -242,6 +265,55 @@ void monitor_broadcast(monitor_t * monitor)
 	while(monitor->waiting) {
 		monitor_signal(monitor);
 	}
+}
+
+void interrupt_monitor_enter(interrupt_monitor_t * monitor)
+{
+	spin_lock(&monitor->spin);
+}
+
+void interrupt_monitor_leave(interrupt_monitor_t * monitor)
+{
+	spin_unlock(&monitor->spin);
+}
+
+void interrupt_monitor_wait(interrupt_monitor_t * monitor)
+{
+	monitor->waiting = thread_queue(monitor->waiting, 0, THREAD_SLEEPING);
+	spin_unlock(&monitor->spin);
+	thread_schedule();
+	spin_lock(&monitor->spin);
+}
+
+void interrupt_monitor_signal(interrupt_monitor_t * monitor)
+{
+	thread_t * resume = monitor->waiting;
+
+	if (resume) {
+		LIST_DELETE(monitor->waiting, resume);
+		thread_resume(resume);
+	}
+}
+
+void interrupt_monitor_broadcast(interrupt_monitor_t * monitor)
+{
+	while(monitor->waiting) {
+		interrupt_monitor_signal(monitor);
+	}
+}
+
+static interrupt_monitor_t locks[32] = {0};
+static void interrupt_monitor_irq_trigger(int irq)
+{
+	INTERRUPT_MONITOR_AUTOLOCK(locks+irq) {
+                interrupt_monitor_broadcast(locks+irq);
+        }
+}
+
+interrupt_monitor_t * interrupt_monitor_irq(int irq)
+{
+	add_irq(irq, interrupt_monitor_irq_trigger);
+	return locks+irq;
 }
 
 #if 0

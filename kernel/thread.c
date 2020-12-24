@@ -96,7 +96,7 @@ thread_t * thread_queue(thread_t * queue, thread_t * thread, tstate state)
 
 /* Simple RR scheduler */
 static GCROOT thread_t * queue[THREAD_PRIORITIES];
-static int queuelock;
+static spin_t queuelock;
 
 static void scheduler_lock()
 {
@@ -108,24 +108,24 @@ static void scheduler_unlock()
 	spin_unlock(&queuelock);
 }
 
-void thread_preempt()
+int thread_preempt()
 {
 	thread_t * this = arch_get_thread();
 	tpriority priority = this->priority;
 	scheduler_lock();
 	queue[priority] = thread_prequeue(queue[priority], this, THREAD_RUNNABLE);
 	scheduler_unlock();
-	thread_schedule();
+	return thread_schedule();
 }
 
-void thread_yield()
+int thread_yield()
 {
 	thread_t * this = arch_get_thread();
 	tpriority priority = this->priority;
 	scheduler_lock();
 	queue[priority] = thread_queue(queue[priority], this, THREAD_RUNNABLE);
 	scheduler_unlock();
-	thread_schedule();
+	return thread_schedule();
 }
 
 void thread_resume(thread_t * thread)
@@ -136,7 +136,7 @@ void thread_resume(thread_t * thread)
 	scheduler_unlock();
 }
 
-void thread_schedule()
+int thread_schedule()
 {
 	while(1) {
 		int i;
@@ -156,11 +156,12 @@ void thread_schedule()
 					}
 					arch_thread_switch(next);
 					current->accts[current->acct].tstart = timer_uptime();
+					return 1;
 				} else {
 					/* Restore thread state to running */
 					current->state = THREAD_RUNNING;
+					return 0;
 				}
-				return;
 			}
 		}
 		// kernel_printk("Empty run queue!\n");
@@ -317,6 +318,7 @@ static void thread_mark(void * p)
 {
 	thread_t * thread = (thread_t *)p;
 
+	slab_gc_mark(thread->name);
 	if (thread->state != THREAD_TERMINATED) {
 		/* Mark live state only */
 		arch_thread_mark(thread);
@@ -336,9 +338,9 @@ static void thread_finalize(void * p)
 	arch_thread_finalize(thread);
 }
 
-void ** thread_backtrace(int levels)
+void ** thread_backtrace(void ** buffer, int levels)
 {
-	return arch_thread_backtrace(levels);
+	return arch_thread_backtrace(buffer, levels);
 }
 
 void thread_init()
@@ -354,7 +356,7 @@ void thread_init()
 static void thread_test2();
 static void thread_test1(rwlock_t * rw)
 {
-	void ** bt = thread_backtrace(15);
+	void ** bt = thread_backtrace(NULL, 15);
 	kernel_printk("thread_test1\n");
 	while(*bt) {
 		kernel_printk("\t%p\n", *bt++);
@@ -367,7 +369,7 @@ static void thread_test1(rwlock_t * rw)
 
 static void thread_test2(rwlock_t * rw)
 {
-	void ** bt = thread_backtrace(15);
+	void ** bt = thread_backtrace(NULL, 15);
 	kernel_printk("thread_test2\n");
 	while(*bt) {
 		kernel_printk("\t%p\n", *bt++);

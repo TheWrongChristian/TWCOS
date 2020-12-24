@@ -57,7 +57,7 @@ struct console_framebuffer
 	framebuffer_t * bitmapfb;
 } console[1];
 
-static GCROOT monitor_t * keyq_lock;
+static GCROOT interrupt_monitor_t * keyq_lock;
 static uint8_t keyq [256];
 #define keyq_ptr(i) ((i)%sizeof(keyq))
 static int keyhead;
@@ -111,15 +111,15 @@ static int keyq_translate(uint8_t scancode)
  */
 static void keyb_isr()
 {
-	uint8_t scancode = inb(0x60);
+	const uint8_t scancode = inb(0x60);
 	int head = keyhead;
 
-	MONITOR_AUTOLOCK(keyq_lock) {
+	INTERRUPT_MONITOR_AUTOLOCK(keyq_lock) {
 		if (keyq_ptr(head+1) != keyq_ptr(keytail)) {
 			keyq[keyq_ptr(head++)] = scancode;
 		}
 		keyhead = head;
-		monitor_broadcast(keyq_lock);
+		interrupt_monitor_broadcast(keyq_lock);
 	}
 }
 
@@ -131,21 +131,20 @@ int keyq_empty()
 {
 	int empty = 0;
 
-	MONITOR_AUTOLOCK(keyq_lock) {
+	INTERRUPT_MONITOR_AUTOLOCK(keyq_lock) {
 		empty = (keyhead == keytail);
 	}
 
 	return empty;
 }
 
-uint8_t keyq_get()
+/* Must hold keyq_lock */
+static uint8_t keyq_get()
 {
 	uint8_t scancode = 0;
 
-	MONITOR_AUTOLOCK(keyq_lock) {
-		if (keyq_ptr(keyhead) != keyq_ptr(keytail)) {
-			scancode = keyq[keyq_ptr(keytail++)];
-		}
+	if (keyq_ptr(keyhead) != keyq_ptr(keytail)) {
+		scancode = keyq[keyq_ptr(keytail++)];
 	}
 
 	return scancode;
@@ -164,21 +163,22 @@ void console_input(int key)
 void keyb_thread()
 {
 	while(1) {
-		MONITOR_AUTOLOCK(keyq_lock) {
-			uint8_t scancode = keyq_get();
+		uint8_t scancode;
+		INTERRUPT_MONITOR_AUTOLOCK(keyq_lock) {
+			scancode = keyq_get();
+			while(!scancode) {
+				interrupt_monitor_wait(keyq_lock);
+				scancode = keyq_get();
+			}
+		}
+		if (scancode) {
+			const int release = scancode >> 7;
 
-			if (scancode) {
-				int release = scancode >> 7;
-				scancode &= 0x7f;
-
-				int key = keyq_translate(scancode);
-				if (release) {
-					console_input(-key);
-				} else {
-					console_input(key);
-				}
+			const int key = keyq_translate(scancode & 0x7f);
+			if (release) {
+				console_input(-key);
 			} else {
-				monitor_wait(keyq_lock);
+				console_input(key);
 			}
 		}
 	}
@@ -204,6 +204,7 @@ void console_initialize(multiboot_info_t * info)
 		size_t fbsize = sizeof(*console->buffer)*console->width*console->height;
 		console->buffer = vm_kas_get(fbsize);
 		segment_t * seg = vm_segment_anonymous(console->buffer, fbsize, SEGMENT_R | SEGMENT_W);
+		vm_kas_add(seg);
 
 		/* Initialise bitmap fb */
 		console->bitmapfb = fb;
@@ -217,10 +218,11 @@ void console_initialize(multiboot_info_t * info)
 		console->height = 25;
 		console->width = 80;
 		console->buffer = fb_create(0xb8000, 160, 25);
-	} else {
+	} else if (info->framebuffer_type == MULTIBOOT_FRAMEBUFFER_TYPE_EGA_TEXT) {
 		console->height = info->framebuffer_height;
 		console->width = info->framebuffer_width;
 		console->buffer = fb_create(info->framebuffer_addr, info->framebuffer_pitch, info->framebuffer_height);
+	} else {
 	}
 
 	console->left = 0;
@@ -655,7 +657,7 @@ void dev_console_submit( dev_t * dev, buf_op_t * op )
 
 vnode_t * console_dev()
 {
-	static dev_ops_t ops = { submit: dev_console_submit };
+	static dev_ops_t ops = { .submit = dev_console_submit };
 	static dev_t dev = { .ops = &ops };
 
 	return dev_vnode(&dev);

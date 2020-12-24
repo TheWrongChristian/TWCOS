@@ -40,7 +40,7 @@ void * fb_create(uintptr_t addr, size_t pitch, size_t height)
 	page_t paddr = addr >> ARCH_PAGE_SIZE_LOG2;
 
 	/* FB size */
-	size_t fbsize = PTR_ALIGN_NEXT(pitch*height, ARCH_PAGE_SIZE);
+	size_t fbsize = ROUNDUP(pitch*height, ARCH_PAGE_SIZE);
 
 	/* Memory */
 	void * p = vm_kas_get_aligned(fbsize, ARCH_PAGE_SIZE);
@@ -52,7 +52,7 @@ void * fb_create(uintptr_t addr, size_t pitch, size_t height)
 
 uint32_t fb_color_rgb(int red, int green, int blue)
 {
-	return red<<16 + green<<8 + blue;
+	return (red<<16) + (green<<8) + blue;
 }
 
 static GCROOT psf_font_t * consolefont=0;

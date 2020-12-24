@@ -23,7 +23,8 @@ typedef void * arena_state;
 #endif
 
 static void arena_mark(void * p);
-static slab_type_t arenas[1] = {SLAB_TYPE(sizeof(arena_t), arena_mark, 0)};
+static void arena_finalize(void * p);
+static slab_type_t arenas[1] = {SLAB_TYPE(sizeof(arena_t), arena_mark, arena_finalize)};
 static arena_t * arena_create(size_t size)
 {
 	arena_t * arena = slab_alloc(arenas);
@@ -46,6 +47,10 @@ static void arena_mark(void * p)
 
 arena_state arena_autostate(arena_t * arena, arena_state state)
 {
+	if (0 == arena) {
+		arena = arena_thread_get();
+	}
+
 	if (state) {
 		arena_setstate(arena, state);
 		return 0;
@@ -56,6 +61,10 @@ arena_state arena_autostate(arena_t * arena, arena_state state)
 
 void * arena_alloc(arena_t * arena, size_t size)
 {
+	if (0 == arena) {
+		arena = arena_thread_get();
+	}
+
 	void * p = arena->state;
 	size += (sizeof(intptr_t)-1);
 	size &= ~(sizeof(intptr_t)-1);
@@ -72,18 +81,25 @@ void * arena_calloc(arena_t * arena, size_t size)
 
 void * arena_palloc(arena_t * arena, int pages)
 {
-#if 0
-	uintptr_t state = (uintptr_t)arena->state;
-	state += ARCH_PAGE_SIZE-1;
-	state &= ~(ARCH_PAGE_SIZE-1);
-	arena->state = (void*)state;
-#endif
+	if (0 == arena) {
+		arena = arena_thread_get();
+	}
 
 	/* Round up to next page boundary */
 	void * p = arena->state = ARCH_PAGE_ALIGN(arena->state+ARCH_PAGE_SIZE-1);
 
 	/* Advance past the pages we want */
 	arena->state += pages * ARCH_PAGE_SIZE;
+
+	return p;
+}
+
+void * arena_pmap(arena_t * arena, vmpage_t * vmpage)
+{
+	void * p = arena_palloc(arena, 1);
+
+	/* Map the given page */
+	vm_page_replace(p, vmpage);
 
 	return p;
 }
@@ -122,6 +138,11 @@ arena_t * arena_get()
 	}
 
 	return arena;
+}
+
+static void arena_finalize(void * p)
+{
+	arena_free((arena_t *)p);
 }
 
 void arena_free(arena_t * arena)
@@ -187,6 +208,13 @@ void * tcalloc(size_t nmemb, size_t size)
 	arena_t * arena = arena_thread_get();
 
 	return arena_calloc(arena, nmemb*size);
+}
+
+char * tstrndup(const char * s, size_t maxlen)
+{
+	char * ret = tmalloc(maxlen+1);
+	ret[maxlen] = 0;
+	return strncpy(ret, s, maxlen);
 }
 
 char * tstrdup(const char * s)

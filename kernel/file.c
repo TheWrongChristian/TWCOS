@@ -2,20 +2,19 @@
 
 
 #if INTERFACE
+#include <sys/errno.h>
 #include <stddef.h>
 
 #include <stddef.h>
 #include <stdint.h>
 
-typedef int mode_t;
-
-typedef int64_t ssize_t;
+#include <unistd.h>
 
 typedef struct file_t file_t;
 struct file_t {
 	int refs;
 
-	off_t fp;
+	off64_t fp;
 	vnode_t * vnode;
 };
 
@@ -26,6 +25,7 @@ typedef long ssize_t;
 #endif
 
 exception_def FileNotFoundException = { "FileNotFoundException", &FileException };
+exception_def FileOverflowException = { "FileOverflowException", &FileException };
 
 static file_t * file_get(int fd)
 {
@@ -140,9 +140,11 @@ ssize_t file_write(int fd, void * buf, size_t count)
 	return retcode;
 }
 
-void file_close(int fd)
+int file_close(int fd)
 {
 	file_set(fd, 0);
+
+	return 0;
 }
 
 char ** path_split(const char * filename)
@@ -178,4 +180,54 @@ vnode_t * file_namev(const char * filename)
 	}
 
 	return v;
+}
+
+int file_getdents(int fd, void * buf, size_t bufsize)
+{
+	/* Do 64-bit getdents, then convert the records in place */
+	file_t * file = file_get(fd);
+	int rv = vfs_getdents(file->vnode, file->fp, buf, bufsize);
+	if (rv>0) {
+		pdirent dirent32 = buf;
+		pdirent64 dirent64 = buf;
+
+		for(int i=0; i<rv;) {
+			if (dirent64->d_ino <= UINT32_MAX && dirent64->d_off <= UINT32_MAX) {
+				dirent32->d_ino = dirent64->d_ino;
+				dirent32->d_off = dirent64->d_off;
+				dirent32->d_reclen = dirent64->d_reclen;
+				strcpy(dirent32->d_name, dirent64->d_name);
+			} else {
+				/* Overflow of a 64-bit type */
+				KTHROW(FileOverflowException, "32-bit overflow");
+			}
+			i += dirent32->d_reclen;
+			dirent32 = (pdirent)(((char*)buf)+i);
+			dirent64 = (pdirent64)(((char*)buf)+i);
+		}
+		file->fp += rv;
+	}
+
+	return rv;
+}
+
+int file_getdents64(int fd, void * buf, size_t bufsize)
+{
+	file_t * file = file_get(fd);
+	int rv = vfs_getdents(file->vnode, file->fp, buf, bufsize);
+	if (rv>0) {
+		file->fp += rv;
+	}
+
+	return rv;
+}
+
+int file_create(const char * filename, mode_t mode)
+{
+	return -ENOSYS;
+}
+
+int file_unlink(const char * filename)
+{
+	return -ENOSYS;
 }

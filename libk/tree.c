@@ -50,8 +50,12 @@ static void node_mark(void * p)
 	slab_gc_mark(node->right);
 }
 
-static slab_type_t nodes[1] = { SLAB_TYPE(sizeof(node_t), node_mark, 0)};
-static slab_type_t trees[1] = { SLAB_TYPE(sizeof(tree_t), tree_mark, 0)};
+void debug_finalize(void * p)
+{
+}
+
+static slab_type_t nodes[1] = { SLAB_TYPE(sizeof(node_t), node_mark, debug_finalize)};
+static slab_type_t trees[1] = { SLAB_TYPE(sizeof(tree_t), tree_mark, debug_finalize)};
 
 /*
  * Rotate left:
@@ -386,6 +390,7 @@ void tree_walk( map_t * map, walk_func func, void * p )
         tree_t * tree = container_of(map, tree_t, map);
 	node_t * start = tree_node_first(tree);
 	node_t * end = tree_node_last(tree);
+
         tree_walk_nodes(start, end, func, p);
 }
 
@@ -393,8 +398,8 @@ static node_t * tree_get_node( tree_t * tree, map_key key, map_eq_test cond );
 void tree_walk_range( map_t * map, walk_func func, void * p, map_key from, map_key to )
 {
         tree_t * tree = container_of(map, tree_t, map);
-	node_t * start = tree_get_node(tree, from, MAP_GE);
-	node_t * end = tree_get_node(tree, to, MAP_LT);
+	node_t * start = (from) ? tree_get_node(tree, from, MAP_GE) : tree_node_first(tree);
+	node_t * end = (to) ? tree_get_node(tree, to, MAP_LT) : tree_node_last(tree);
 
         tree_walk_nodes(start, end, func, p);
 }
@@ -406,15 +411,26 @@ static void node_verify( tree_t * tree, node_t * node )
 			return;
 		}
 
+		if (node->count == 1) {
+			assert(0 == node->left);
+			assert(0 == node->right);
+		}
+
+		int count = 1;
+
 		/* Check child linkage */
 		if (node->left) {
+			count += node->left->count;
 			assert(node == node->left->parent);
 			node_verify(tree, node->left);
 		}
 		if (node->right) {
+			count += node->right->count;
 			assert(node == node->right->parent);
 			node_verify(tree, node->right);
 		}
+
+		assert(count == node->count);
 	}
 }
 
@@ -513,7 +529,7 @@ static map_data tree_put( map_t * map, map_key key, map_data data )
                 }
         }
 
-        tree_verify(tree, NULL);
+        tree_verify(tree, node);
 
 	return 0;
 }

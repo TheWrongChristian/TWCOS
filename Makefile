@@ -3,6 +3,7 @@ all::
 .PHONY: userlibs
 .PHONY: clean
 .PHONY: all
+.PHONY: includes
 
 TOP=$(CURDIR)
 
@@ -11,6 +12,12 @@ ARCH=i386
 OBJS=$(SRCS_S:.S=.o) $(SRCS_C:.c=.o)
 SRCS_C :=
 SRCS_S :=
+SYS_H := \
+ include/sys/times.h \
+ include/sys/stat.h \
+ include/sys/time.h \
+ include/sys/types.h \
+ include/sys/errno.h
 
 subdir := build
 include $(subdir)/subdir.mk
@@ -37,10 +44,11 @@ obj:
 	mkdir -p obj
 
 KERNEL=arch/$(ARCH)/kernel
-boot.iso: grub.cfg $(KERNEL) $(INITRD_TAR)
+boot.iso: grub.cfg $(KERNEL) $(INITRD_TAR) $(TEST_FAT)
 	mkdir -p isodir/boot/grub
 	cp $(KERNEL) isodir/boot/kernel
 	cp $(INITRD_TAR) isodir/boot/initrd
+	cp $(TEST_FAT) isodir/boot/test.fat
 	cp -f grub.cfg isodir/boot/grub/grub.cfg
 	grub-mkrescue -o boot.iso isodir
 
@@ -52,8 +60,8 @@ clean::
 	echo symbol-file $(KERNEL) | tee -a .gdbinit
 	echo break kernel_main | tee -a .gdbinit
 
-QEMU_OPTS=-d cpu_reset,guest_errors -serial stdio
-QEMU_MEM=8m
+QEMU_OPTS=-d cpu_reset,guest_errors -serial stdio -hda $(TEST_FAT) -usb -device usb-mouse
+QEMU_MEM=12m
 qemu: all .gdbinit
 	$(QEMU) $(QEMU_OPTS) -m $(QEMU_MEM) -s -S -kernel $(KERNEL) -initrd $(INITRD_TAR)
 
@@ -61,10 +69,17 @@ run: all
 	$(QEMU) $(QEMU_OPTS) -m $(QEMU_MEM) -s -kernel $(KERNEL) -initrd $(INITRD_TAR)
 
 system: all
-	$(QEMU) $(QEMU_OPTS) -m $(QEMU_MEM) -s -cdrom boot.iso
+	$(QEMU) $(QEMU_OPTS) -m $(QEMU_MEM) -s -cdrom boot.iso -boot d
 
 system-qemu: all
-	$(QEMU) $(QEMU_OPTS) -m $(QEMU_MEM) -s -S -cdrom boot.iso
+	$(QEMU) $(QEMU_OPTS) -m $(QEMU_MEM) -s -S -cdrom boot.iso -boot d
+
+system-kvm: all
+	$(QEMU) $(QEMU_OPTS) -m $(QEMU_MEM) -s -cdrom boot.iso -boot d
+
+run-kvmoverhead: all
+	$(QEMU) $(QEMU_OPTS) -m $(QEMU_MEM) -kernel $(KERNEL) -initrd $(INITRD_TAR) &
+	$(QEMU) -enable-kvm $(QEMU_OPTS) -m $(QEMU_MEM) -kernel $(KERNEL) -initrd $(INITRD_TAR)
 
 run-gcoverhead: all
 	$(QEMU) -enable-kvm $(QEMU_OPTS) -m $(QEMU_MEM) -kernel $(KERNEL) -initrd $(INITRD_TAR) &
@@ -76,21 +91,27 @@ qemu-kvm: all .gdbinit
 run-kvm: all
 	$(QEMU) -enable-kvm $(QEMU_OPTS) -m $(QEMU_MEM) -s -kernel $(KERNEL) -initrd $(INITRD_TAR)
 
-includes::
+include/unistd.h: $(SYS_H) $(ARCH_USYSCALL_C)
+	$(MAKEHEADERS) -h $^ > $@
+
+includes:: $(SYS_H) $(SRCS_C) $(ARCH_SYSCALL_C) $(ARCH_USYSCALL_C) include/unistd.h $(PDCLIB_TWCOS_SRCS_C)
 	mkdir -p lib
-	$(MAKEHEADERS) $(SRCS_C) $(ARCH_USYSCALL_C) $(PDCLIB_TWCOS_SRCS_C)
+	$(MAKEHEADERS) $(SRCS_C) $(ARCH_SYSCALL_C) $(ARCH_USYSCALL_C)
 
 cflow:
-	cflow -d 4 -m kernel_main $(SRCS_C) $(LIBC_SRCS_C) $(INIT_SRCS_C)
+	cflow -m kernel_main $(SRCS_C)
 
 cflowr:
-	cflow -d 4 -r $(SRCS_C) $(LIBC_SRCS_C) $(INIT_SRCS_C)
+	cflow -d 9 -r $(SRCS_C) 
+
+cloc:
+	cloc $(SRCS_C)
 
 cxref:
 	cxref -html-src $(SRCS_C) $(SRCS_C:.c=.h)
 
 ctags:
-	ctags $(SRCS_C) $(LIBC_SRCS_C) $(INIT_SRCS_C)
+	ctags $(SYS_H) $(SRCS_C) $(LIBC_SRCS_C) $(INIT_SRCS_C)
 
 cppcheck:
 	cppcheck $(SRCS_C)

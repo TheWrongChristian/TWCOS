@@ -1,3 +1,4 @@
+#include <sys/types.h>
 #include "timer.h"
 
 #if INTERFACE
@@ -31,10 +32,33 @@ struct timer_event_t {
 #endif
 
 static int timers_lock[1]={0};
-static GCROOT timer_t timers_static;
-static timer_t * timers = &timers_static;
+static GCROOT timer_t * timers = 0;
 static timerspec_t uptime = 0;
-static timer_event_t * uptime_timer = 0;
+static GCROOT timer_event_t * uptime_timer = 0;
+
+static void timer_event_mark(void * p)
+{
+	void * next;
+	SPIN_AUTOLOCK(timers_lock) {
+		timer_event_t * timer = p;
+		p = timer->p;
+		next = timer->next;
+	}
+	slab_gc_mark(p);
+	slab_gc_mark(next);
+}
+
+#if 0
+static void timer_event_finalize(void * p)
+{
+	timer_event_t * timer = p;
+	timer->next = 0;
+}
+#else
+#define timer_event_finalize (0)
+#endif
+
+static slab_type_t timer_events[1] = { SLAB_TYPE(sizeof(timer_event_t), timer_event_mark, timer_event_finalize)};
 
 static void timer_uptime_cb(void * ignored)
 {
@@ -46,6 +70,7 @@ void timer_init(timer_ops_t * ops)
 {
 	INIT_ONCE();
 
+	timers = calloc(1, sizeof(*timers));
 	timers->ops = ops;
 
 	/* Uptime tracking timer - update uptime at least every 1 second */
@@ -97,7 +122,7 @@ static void timer_expire()
 
 timer_event_t * timer_add(timerspec_t usec, void (*cb)(void * p), void * p)
 {
-	timer_event_t * timer = calloc(1, sizeof(*timer));
+	timer_event_t * timer = slab_alloc(timer_events);
 	timer->usec = usec;
 	timer->reset = usec;
 	timer->cb = cb;
@@ -187,21 +212,16 @@ timerspec_t timer_uptime()
 
 struct sleepvar {
 	volatile int done;
-	thread_t * waiting;
-	int lock[1];
+	interrupt_monitor_t lock[1];
 };
 
 static void timer_sleep_cb(void * p)
 {
 	struct sleepvar * sleep = p;
 
-	assert(sleep->waiting);
-
-	SPIN_AUTOLOCK(sleep->lock) {
+	INTERRUPT_MONITOR_AUTOLOCK(sleep->lock) {
 		sleep->done = 1;
-		thread_t * resume = sleep->waiting;
-		LIST_DELETE(sleep->waiting, resume);
-		thread_resume(resume);
+		interrupt_monitor_broadcast(sleep->lock);
 	}
 }
 
@@ -209,15 +229,20 @@ void timer_sleep(timerspec_t usec)
 {
 	struct sleepvar sleep[1] = {{0}};
 
-	SPIN_AUTOLOCK(sleep->lock) {
+	INTERRUPT_MONITOR_AUTOLOCK(sleep->lock) {
 		timer_add(usec, timer_sleep_cb, sleep);
-		sleep->waiting = thread_queue(sleep->waiting, NULL, THREAD_SLEEPING);
 		while(!sleep->done) {
-			spin_unlock(sleep->lock);
-			thread_schedule();
-			spin_lock(sleep->lock);
+			interrupt_monitor_wait(sleep->lock);
 		}
 	}
+}
+
+int timer_nanosleep(struct timespec * req, struct timespec * rem)
+{
+	/* TODO: Do this properly, filling in rem if required */
+	timer_sleep(req->tv_sec*1000000 + req->tv_nsec/1000);
+
+	return 0;
 }
 
 static timer_event_t * test_timer;

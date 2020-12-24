@@ -4,6 +4,8 @@ INIT_OBJS_C := $(INIT_SRCS_C:.c=.o)
 INIT := $(subdir)/init
 INITRD_SBIN += $(INIT)
 
+user:: $(INIT)
+
 includes::
 	$(MAKEHEADERS) $(INIT_SRCS_C)
 

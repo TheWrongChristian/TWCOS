@@ -21,8 +21,11 @@
 static void idle() {
 	thread_set_priority(0, THREAD_IDLE);
 	while(1) {
-		thread_gc();
-		thread_preempt();
+		if (thread_preempt()) {
+#if 0
+			thread_gc();
+#endif
+		}
 		arch_idle();
 	}
 }
@@ -41,7 +44,9 @@ void kernel_main() {
 	/* Initialize console interface */
 	arch_init();
 
+#if 0
 	char * str = sym_lookup(kernel_main);
+#endif
 
 	KTRY {
 		/* Initialize subsystems */
@@ -50,7 +55,11 @@ void kernel_main() {
 		page_cache_init();
 		process_init();
 		timer_init(arch_timer_ops());
+		pci_scan(pci_probe_devfs);
+		ide_pciscan();
+		uhci_pciscan();
 		cache_test();
+		utf8_test();
 #if 0
 		vnode_t * root = tarfs_test();
 		vfs_test(root);
@@ -85,14 +94,24 @@ void kernel_main() {
 		bitarray_test();
 		vnode_t * devfsroot = devfs_open();
 		vnode_t * input = vnode_get_vnode(devfsroot, "input");
+		if (modules[1]) {
+			fatfs_test(dev_static(modules[1], modulesizes[1]));
+		}
 #endif
 		if (initrd) {
 			process_t * p = process_get();
 			p->root = p->cwd = tarfs_open(dev_static(initrd, initrdsize));
+			char * buf = arena_alloc(NULL, 1024);
+			int read = vfs_getdents(p->root, 0, buf, 1024);
 			vnode_t * devfs = file_namev("/devfs");
 			if (devfs) {
 				vfs_mount(devfs, devfs_open());
 			}
+		}
+
+		vnode_t * hda = file_namev("/devfs/disk/ide/1f0/master");
+		if (hda) {
+			fatfs_test(hda);
 		}
 
 		/* Create process 1 - init */
