@@ -11,6 +11,9 @@
 12	int	chdir	ustring
 13	time_t	time	time_t*
 20	pid_t	getpid
+22	int	pipe	int*
+41	int	dup	int
+63	int	dup2	int	int
 45	void*	internal_brk	void*
 141	int	getdents	int	pdirent	size_t
 162	int	nanosleep	ptimespec	ptimespec

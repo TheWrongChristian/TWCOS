@@ -17,7 +17,8 @@ SYS_H := \
  include/sys/stat.h \
  include/sys/time.h \
  include/sys/types.h \
- include/sys/errno.h
+ include/sys/errno.h \
+ include/sys/unistd.h
 
 subdir := build
 include $(subdir)/subdir.mk

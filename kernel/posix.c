@@ -18,5 +18,8 @@
 #define sys_getdents file_getdents
 #define sys_getdents64 file_getdents64
 #define sys_nanosleep timer_nanosleep
+#define sys_pipe file_pipe
+#define sys_dup file_dup
+#define sys_dup2 file_dup2
 
 #endif

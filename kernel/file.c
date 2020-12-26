@@ -114,6 +114,24 @@ int file_open(const char * name, int flags, mode_t mode)
 }
 
 
+
+int file_pipe(int * fds)
+{
+	vnode_t * ends[2];
+	pipe_ends(ends, 64);
+	fds[0] = file_vopen(ends[0], 0, 0);
+	if (fds[0]<0) {
+		return fds[0];
+	}
+	fds[1] = file_vopen(ends[1], 0, 0);
+	if (fds[1]<0) {
+		file_close(fds[0]);
+		return fds[1];
+	}
+
+	return 0;
+}
+
 ssize_t file_read(int fd, void * buf, size_t count)
 {
 	ssize_t retcode = 0;
