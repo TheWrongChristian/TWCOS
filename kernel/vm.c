@@ -138,7 +138,12 @@ static void vm_invalid_pointer(void * p, int write, int user, int present)
 #if 0
 	dump_alloc_audit(p);
 #endif
-	kernel_panic("Invalid pointer: %p\n", p);
+	if (!user) {
+		KTHROWF(InvalidPointerException, "Invalid pointer: %p", p);
+	} else {
+		process_exit(2);
+	}
+	/* kernel_panic("Invalid pointer: %p\n", p); */
 }
 
 segment_t * vm_get_segment(map_t * as, void * p)

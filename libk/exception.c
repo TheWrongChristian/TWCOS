@@ -74,6 +74,7 @@ exception_def Throwable = { "Throwable", 0 };
 exception_def Exception = { "Exception", &Throwable };
 exception_def Error = { "Error", &Throwable };
 exception_def RuntimeException = { "RuntimeException", &Exception };
+exception_def NotImplementedException = { "NotImplementedException", &RuntimeException };
 
 static tls_key exception_key;
 static slab_type_t causes[1] = {SLAB_TYPE(sizeof(struct exception_cause), 0, 0)};
@@ -88,6 +89,7 @@ exception_frame * exception_push(exception_frame * frame)
 
 	/* Link the frame into the chain */
 	frame->next = tls_get(exception_key);
+	assert(frame != frame->next);
 	tls_set(exception_key, frame);
 
 	frame->cause = 0;
@@ -96,6 +98,12 @@ exception_frame * exception_push(exception_frame * frame)
 	frame->dtor_frame = dtor_poll_frame();
 
 	return frame;
+}
+
+void exception_clearall()
+{
+	assert(exception_key);
+	tls_set(exception_key, 0);
 }
 
 void exception_throw_cause(struct exception_cause * cause)

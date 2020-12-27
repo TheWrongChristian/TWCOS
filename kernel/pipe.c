@@ -125,7 +125,7 @@ static void pipe_end_close(vnode_t * vnode)
 void pipe_ends(vnode_t * ends[2], size_t size)
 {
 	static vnode_ops_t read_ops = { .read = pipe_end_read, .close = pipe_end_close};
-	static vnode_ops_t write_ops = { .read = pipe_end_write, .close = pipe_end_close};
+	static vnode_ops_t write_ops = { .write = pipe_end_write, .close = pipe_end_close};
 	static fs_t pipefs_read_ops = { .vnodeops = &read_ops };
 	static fs_t pipefs_write_ops = { .vnodeops = &write_ops };
 	pipe_t * pipe = pipe_create(size);
@@ -137,6 +137,9 @@ void pipe_ends(vnode_t * ends[2], size_t size)
 
 	ends[0] = &end[0].vnode;
 	ends[1] = &end[1].vnode;
+
+	vnode_fill_defaults(ends[0]);
+	vnode_fill_defaults(ends[1]);
 }
 
 

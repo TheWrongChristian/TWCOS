@@ -27,19 +27,16 @@ int main(int argc, char * argv[], char * envp[])
 #endif
 		execve(argv[0], argv, envp);
 	}
+	return 0;
 #else
-	
-#endif
-
-	while(fork()) {
+	while(1 == getpid() && fork()) {
 		int status;
-		while(1 == getpid()) {
-			waitpid(0, &status, 0);
-		}
+		waitpid(0, &status, 0);
 	}
 	static char * shell[] = {
 		"/sbin/sh2", NULL
 	};
 	execve(shell[0], shell, envp);
-	return 0;
+	return 2;
+#endif
 }

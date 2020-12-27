@@ -101,6 +101,50 @@ void page_cache_init()
 	page_cache = tree_new(page_cache_key_comp, TREE_TREAP);
 }
 
+static void vnode_default_put_page(vnode_t * vnode, off64_t offset, vmpage_t * vmpage)
+{
+	KTHROW(NotImplementedException, "Not implemented");
+}
+
+static vmpage_t * vnode_default_get_page(vnode_t * vnode, off64_t offset)
+{
+	KTHROW(NotImplementedException, "Not implemented");
+}
+
+static void vnode_default_close(vnode_t * vnode)
+{
+}
+
+off64_t vnode_default_get_size(vnode_t * vnode)
+{
+	return 0;
+}
+
+void vnode_default_set_size(vnode_t * vnode, off64_t size)
+{
+}
+
+
+
+void vnode_fill_defaults(vnode_t * vnode)
+{
+	if (!vnode->fs->vnodeops->put_page) {
+		vnode->fs->vnodeops->put_page = vnode_default_put_page;
+	}
+	if (!vnode->fs->vnodeops->get_page) {
+		vnode->fs->vnodeops->get_page = vnode_default_get_page;
+	}
+	if (!vnode->fs->vnodeops->close) {
+		vnode->fs->vnodeops->close = vnode_default_close;
+	}
+	if (!vnode->fs->vnodeops->get_size) {
+		vnode->fs->vnodeops->get_size = vnode_default_get_size;
+	}
+	if (!vnode->fs->vnodeops->set_size) {
+		vnode->fs->vnodeops->set_size = vnode_default_set_size;
+	}
+}
+
 
 vmpage_t * vnode_poll_page( vnode_t * vnode, off64_t offset )
 {
