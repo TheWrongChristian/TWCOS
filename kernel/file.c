@@ -188,6 +188,9 @@ vnode_t * file_namev(const char * filename)
 
 	for(int i=0; names[i]; i++) {
 		if (*names[i]) {
+			if (0==strcmp(".", names[i])) {
+				continue;
+			}
 			vnode_t * next = vnode_get_vnode(v, names[i]);
 			if (next) {
 				v = vfs_reparse(next);

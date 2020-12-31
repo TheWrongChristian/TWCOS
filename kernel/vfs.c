@@ -414,7 +414,7 @@ static int vfstree_dirent_cmp(void * p1, void * p2)
 	vfstree_dirent_t * d1 = p1;
 	vfstree_dirent_t * d2 = p2;
 
-	int dir_diff = d1->dir-d2->dir;
+	ptrdiff_t dir_diff = d1->dir-d2->dir;
 	if (0 == dir_diff) {
 		if (0 == d1->name && d2->name) {
 			return -1;
@@ -425,7 +425,7 @@ static int vfstree_dirent_cmp(void * p1, void * p2)
 		}
 	}
 
-	return dir_diff;
+	return (dir_diff<0) ? -1 : (dir_diff>0) ? 1 : 0;
 }
 
 typedef uint8_t byte;

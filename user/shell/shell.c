@@ -169,19 +169,36 @@ void openHelp()
 	return; 
 } 
 
+void dols()
+{
+	char buf[256];
+	int dir = open(".", 0, 0);
+	int nread;
+	while((nread=getdents(dir, buf, sizeof(buf)))>0) {
+		char * p = buf;
+		for(int i=0; i<nread;) {
+			struct dirent * d = (struct dirent *)(p+i);
+			printf("%s\n", d->d_name);
+			i += d->d_reclen;
+		}
+	}
+	close(dir);
+}
+
 // Function to execute builtin commands 
 int ownCmdHandler(char** parsed) 
 { 
 	int NoOfOwnCmds = 4, i, switchOwnArg = 0; 
-	char* ListOfOwnCmds[NoOfOwnCmds]; 
+	static char* ListOfOwnCmds[] = {
+		"exit",
+		"cd",
+		"help",
+		"hello",
+		"ls"
+	}; 
 	char* username; 
 
-	ListOfOwnCmds[0] = "exit"; 
-	ListOfOwnCmds[1] = "cd"; 
-	ListOfOwnCmds[2] = "help"; 
-	ListOfOwnCmds[3] = "hello"; 
-
-	for (i = 0; i < NoOfOwnCmds; i++) { 
+	for (i = 0; i < sizeof(ListOfOwnCmds)/sizeof(ListOfOwnCmds[0]); i++) { 
 		if (strcmp(parsed[0], ListOfOwnCmds[i]) == 0) { 
 			switchOwnArg = i + 1; 
 			break; 
@@ -205,6 +222,9 @@ int ownCmdHandler(char** parsed)
 			"\nUse help to know more..\n", 
 			username); 
 		return 1; 
+	case 5:
+		dols();
+		return 1;
 	default: 
 		break; 
 	} 
