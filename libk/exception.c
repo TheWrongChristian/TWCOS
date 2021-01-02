@@ -21,6 +21,7 @@ struct exception_cause {
 	/* Exception location */
 	char * file;
 	int line;
+	void * backtrace[12];
 
 	/* Exception message */
 	char message[256];
@@ -106,6 +107,21 @@ void exception_clearall()
 	tls_set(exception_key, 0);
 }
 
+static void exception_backtrace(struct exception_cause * cause)
+{
+	void ** from = (void**)&from;
+	void ** to = PTR_ALIGN_NEXT(from, ARCH_PAGE_SIZE);
+
+	memset(cause->backtrace, 0, sizeof(cause->backtrace));
+	for(int i=0; from<to && i<countof(cause->backtrace); from++) {
+		extern char code_start[], code_end[];
+		void * p = *from;
+		if (p>=code_start && p<code_end) {
+			cause->backtrace[i++] = p;
+		}
+	}
+}
+
 void exception_throw_cause(struct exception_cause * cause)
 {
 	struct exception_frame * frame = tls_get(exception_key);
@@ -121,6 +137,7 @@ exception_cause * exception_vcreate(exception_def * type, char * file, int line,
 	cause->type = type;
 	cause->file = file;
 	cause->line = line;
+	exception_backtrace(cause);
 	vsnprintf(cause->message, sizeof(cause->message), message, ap);
 
 	return cause;
