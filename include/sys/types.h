@@ -36,8 +36,8 @@ typedef struct timespec * ptimespec;
 struct dirent {
 	ino_t d_ino;
 	off_t d_off;
-	size_t d_reclen;
-	char d_name[0];
+	unsigned short d_reclen;
+	char d_name[1];
 };
 typedef struct dirent * pdirent;
 
@@ -45,8 +45,9 @@ typedef struct dirent * pdirent;
 struct dirent64 {
 	ino64_t d_ino;
 	off64_t d_off;
-	size_t d_reclen;
-	char d_name[0];
+	unsigned short d_reclen;
+	char d_type;
+	char d_name[1];
 };
 typedef struct dirent64 * pdirent64;
 
