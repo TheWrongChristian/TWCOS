@@ -445,7 +445,7 @@ static int vfstree_getdents_walk(void * p, void * key, void * data)
 	vfstree_dirent_t * vfstreedirent = (vfstree_dirent_t*)key;
 	ino64_t inode = (uintptr_t)data;
 	struct dirent64 * dirent = vfs_dirent64(inode, info->offset, vfstreedirent->name, 0);
-	if (dirent->d_off < info->startoffset) {
+	if (info->offset < info->startoffset) {
 		/* Already read this entry */
 		info->offset += dirent->d_reclen;
 		return 0;
@@ -554,8 +554,9 @@ void * vfs_dirent64(ino64_t ino, ino64_t offset, const char * name, char type)
 
 	dirent = tmalloc(reclen);
 	dirent->d_ino = ino;
-	dirent->d_off = offset;
+	dirent->d_off = offset + reclen;
 	dirent->d_reclen = reclen;
+	dirent->d_type = type;
 	strcpy(dirent->d_name, name);
 
 	return dirent;

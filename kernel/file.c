@@ -214,10 +214,13 @@ int file_getdents(int fd, void * buf, size_t bufsize)
 
 		for(int i=0; i<rv;) {
 			if (dirent64->d_ino <= UINT32_MAX && dirent64->d_off <= UINT32_MAX) {
+				char type = dirent64->d_type;
 				dirent32->d_ino = dirent64->d_ino;
 				dirent32->d_off = dirent64->d_off;
 				dirent32->d_reclen = dirent64->d_reclen;
 				strcpy(dirent32->d_name, dirent64->d_name);
+				char * ptype = buf + i + dirent32->d_reclen - 1;
+				*ptype = type;
 			} else {
 				/* Overflow of a 64-bit type */
 				KTHROW(FileOverflowException, "32-bit overflow");
