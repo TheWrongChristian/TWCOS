@@ -1,11 +1,11 @@
 #include "check.h"
 
 exception_def CheckException = { "CheckException", &Exception };
-exception_def NullPointerException = { "NullPointerException", &CheckException };
 exception_def IntBoundsException = { "IntBoundsException", &CheckException };
 exception_def PtrBoundsException = { "PtrBoundsException", &CheckException };
 exception_def IntValueException = { "IntValueException", &CheckException };
 exception_def InvalidPointerException = { "InvalidPointerException", &CheckException };
+exception_def NullPointerException = { "NullPointerException", &InvalidPointerException };
 
 void check_not_null(void * p, const char * error)
 {

@@ -60,6 +60,7 @@ void kernel_main() {
 		uhci_pciscan();
 		cache_test();
 		utf8_test();
+		pipe_test();
 #if 0
 		vnode_t * root = tarfs_test();
 		vfs_test(root);
@@ -124,16 +125,16 @@ void kernel_main() {
 			file_dup(0);
 
 			char * argv[]={"/sbin/init", NULL};
-			char * envp[]={"HOME=/", NULL};
+			char * envp[]={"HOME=/", "USER=root", NULL};
 			process_execve(argv[0], argv, envp);	
 			kernel_panic("Unable to exec %s", argv[0]);
 			/* testshell_run(); */
 		}
-
-		idle();
 	} KCATCH(Throwable) {
 		kernel_panic("Error in initialization: %s\n", exception_message());
 	}
+
+	idle();
 }
 
 void kernel_break()

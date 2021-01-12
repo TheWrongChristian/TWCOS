@@ -410,7 +410,21 @@ void console_clamp_screen()
 	}
 }
 
-void console_escape_interp(char * sequence)
+static console_clear_line(int line, int from, int to)
+{
+	if (from<0) {
+		from=0;
+	}
+	if (to>console->width) {
+		to=console->width;
+	}
+	for(int i=min(from, 0); i<to; i++)
+	{
+		console_putentryat(' ', console->color, i, line);
+	}
+}
+
+static void console_escape_interp(char * sequence)
 {
 #define IS(c,m) (c == m)
 #define CHECK(c,m) do { if (c != m) { return; } } while(0)
@@ -469,6 +483,46 @@ void console_escape_interp(char * sequence)
 	case 'f':
 		console->column = ARGd(0, 1)-1;
 		console->row = ARGd(1, 1)-1;
+		break;
+	case 'J':
+		switch(ARGd(0, 1))
+		{
+		case 0:
+			console_clear_line(console->row, console->column, console->width);
+			for(int y=console->row+1; y<console->height; y++)
+			{
+				console_clear_line(y, 0, console->width);
+			}
+			break;
+		case 1:
+			console_clear_line(console->row, 0, console->column);
+			for(int y=console->column+1; y<console->height; y++)
+			{
+				console_clear_line(y, 0, console->width);
+			}
+			break;
+		case 2:
+		case 3:
+			for(int y=0; y<console->height; y++)
+			{
+				console_clear_line(y, 0, console->width);
+			}
+			break;
+		}
+		break;
+	case 'K':
+		switch(ARGd(0, 1))
+		{
+		case 0:
+			console_clear_line(console->row, console->column, console->width);
+			break;
+		case 1:
+			console_clear_line(console->row, 0, console->column);
+			break;
+		case 2:
+			console_clear_line(console->row, 0, console->width);
+			break;
+		}
 		break;
 	case 'S':
 		console_scrollup(ARGd(0, 1));

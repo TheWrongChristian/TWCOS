@@ -1,4 +1,9 @@
 #include "window.h"
+#include <string.h>
+#include <stddef.h>
+#include <stdlib.h>
+
+#define container_of(p, type, member) ((type*)((char *)(p) - offsetof(type,member)))
 
 #if INTERFACE
 
@@ -48,7 +53,6 @@ struct root_t {
 	widget_t * root;
 	char buf[128];
 }
-
 
 enum packing_direction_t { packleft,  packtop };
 enum packing_expand_t { expandnone,  expandx, expandy, expandxy };

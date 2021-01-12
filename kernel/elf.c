@@ -210,13 +210,15 @@ int elf_execve(vnode_t * f, process_t * p, char * argv[], char * envp[])
 	}
 
 
+	struct Elf32_Ehdr ehdr[1];
+	/* Default user stack will be at 16MB */
+	void * stacktop = (void*)0x1000000;
 	KTRY {
 		/* Create and switch to new address space */
 		p->as = tree_new(0, TREE_TREAP);
 		vmap_set_asid(p->as);
 
 		/* Read in the header */
-		struct Elf32_Ehdr ehdr[1];
 		size_t read = vnode_read(f, 0, ehdr, sizeof(ehdr[0]));
 		if (read != sizeof(ehdr[0])) {
 			KTHROW(Exception, "Unsupported executable format");
@@ -237,8 +239,6 @@ int elf_execve(vnode_t * f, process_t * p, char * argv[], char * envp[])
 			KTHROW(Exception, "Unsupported executable format");
 		}
 
-		/* Default user stack will be at 16MB */
-		void * stacktop = (void*)0x1000000;
 		void * stackbot = ARCH_PAGE_SIZE;
 		void * brk = 0;
 		for(int i=0; i<ehdr->e_phnum; i++) {
@@ -306,8 +306,6 @@ int elf_execve(vnode_t * f, process_t * p, char * argv[], char * envp[])
 		stacktop = arch_user_stack_mempcy(stacktop, &argc, sizeof(argc));
 
 		arena_setstate(0, state);
-
-		arch_startuser((void*)ehdr->e_entry, stacktop);
 	} KCATCH(Exception) {
 		/* Restore old as */
 		p->as = oldas;
@@ -317,6 +315,9 @@ int elf_execve(vnode_t * f, process_t * p, char * argv[], char * envp[])
 
 		KRETHROW();
 	}
+
+	exception_clearall();
+	arch_startuser((void*)ehdr->e_entry, stacktop);
 
 	return 0;
 }

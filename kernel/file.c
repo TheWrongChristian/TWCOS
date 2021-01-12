@@ -114,6 +114,24 @@ int file_open(const char * name, int flags, mode_t mode)
 }
 
 
+
+int file_pipe(int * fds)
+{
+	vnode_t * ends[2];
+	pipe_ends(ends, 64);
+	fds[0] = file_vopen(ends[0], 0, 0);
+	if (fds[0]<0) {
+		return fds[0];
+	}
+	fds[1] = file_vopen(ends[1], 0, 0);
+	if (fds[1]<0) {
+		file_close(fds[0]);
+		return fds[1];
+	}
+
+	return 0;
+}
+
 ssize_t file_read(int fd, void * buf, size_t count)
 {
 	ssize_t retcode = 0;
@@ -170,6 +188,9 @@ vnode_t * file_namev(const char * filename)
 
 	for(int i=0; names[i]; i++) {
 		if (*names[i]) {
+			if (0==strcmp(".", names[i])) {
+				continue;
+			}
 			vnode_t * next = vnode_get_vnode(v, names[i]);
 			if (next) {
 				v = vfs_reparse(next);
@@ -193,10 +214,13 @@ int file_getdents(int fd, void * buf, size_t bufsize)
 
 		for(int i=0; i<rv;) {
 			if (dirent64->d_ino <= UINT32_MAX && dirent64->d_off <= UINT32_MAX) {
+				char type = dirent64->d_type;
 				dirent32->d_ino = dirent64->d_ino;
 				dirent32->d_off = dirent64->d_off;
 				dirent32->d_reclen = dirent64->d_reclen;
 				strcpy(dirent32->d_name, dirent64->d_name);
+				char * ptype = buf + i + dirent32->d_reclen - 1;
+				*ptype = type;
 			} else {
 				/* Overflow of a 64-bit type */
 				KTHROW(FileOverflowException, "32-bit overflow");

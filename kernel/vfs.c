@@ -101,6 +101,50 @@ void page_cache_init()
 	page_cache = tree_new(page_cache_key_comp, TREE_TREAP);
 }
 
+static void vnode_default_put_page(vnode_t * vnode, off64_t offset, vmpage_t * vmpage)
+{
+	KTHROW(NotImplementedException, "Not implemented");
+}
+
+static vmpage_t * vnode_default_get_page(vnode_t * vnode, off64_t offset)
+{
+	KTHROW(NotImplementedException, "Not implemented");
+}
+
+static void vnode_default_close(vnode_t * vnode)
+{
+}
+
+off64_t vnode_default_get_size(vnode_t * vnode)
+{
+	return 0;
+}
+
+void vnode_default_set_size(vnode_t * vnode, off64_t size)
+{
+}
+
+
+
+void vnode_fill_defaults(vnode_t * vnode)
+{
+	if (!vnode->fs->vnodeops->put_page) {
+		vnode->fs->vnodeops->put_page = vnode_default_put_page;
+	}
+	if (!vnode->fs->vnodeops->get_page) {
+		vnode->fs->vnodeops->get_page = vnode_default_get_page;
+	}
+	if (!vnode->fs->vnodeops->close) {
+		vnode->fs->vnodeops->close = vnode_default_close;
+	}
+	if (!vnode->fs->vnodeops->get_size) {
+		vnode->fs->vnodeops->get_size = vnode_default_get_size;
+	}
+	if (!vnode->fs->vnodeops->set_size) {
+		vnode->fs->vnodeops->set_size = vnode_default_set_size;
+	}
+}
+
 
 vmpage_t * vnode_poll_page( vnode_t * vnode, off64_t offset )
 {
@@ -370,7 +414,7 @@ static int vfstree_dirent_cmp(void * p1, void * p2)
 	vfstree_dirent_t * d1 = p1;
 	vfstree_dirent_t * d2 = p2;
 
-	int dir_diff = d1->dir-d2->dir;
+	ptrdiff_t dir_diff = d1->dir-d2->dir;
 	if (0 == dir_diff) {
 		if (0 == d1->name && d2->name) {
 			return -1;
@@ -381,7 +425,7 @@ static int vfstree_dirent_cmp(void * p1, void * p2)
 		}
 	}
 
-	return dir_diff;
+	return (dir_diff<0) ? -1 : (dir_diff>0) ? 1 : 0;
 }
 
 typedef uint8_t byte;
@@ -401,7 +445,7 @@ static int vfstree_getdents_walk(void * p, void * key, void * data)
 	vfstree_dirent_t * vfstreedirent = (vfstree_dirent_t*)key;
 	ino64_t inode = (uintptr_t)data;
 	struct dirent64 * dirent = vfs_dirent64(inode, info->offset, vfstreedirent->name, 0);
-	if (dirent->d_off < info->startoffset) {
+	if (info->offset < info->startoffset) {
 		/* Already read this entry */
 		info->offset += dirent->d_reclen;
 		return 0;
@@ -510,8 +554,9 @@ void * vfs_dirent64(ino64_t ino, ino64_t offset, const char * name, char type)
 
 	dirent = tmalloc(reclen);
 	dirent->d_ino = ino;
-	dirent->d_off = offset;
+	dirent->d_off = offset + reclen;
 	dirent->d_reclen = reclen;
+	dirent->d_type = type;
 	strcpy(dirent->d_name, name);
 
 	return dirent;

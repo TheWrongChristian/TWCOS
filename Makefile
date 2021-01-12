@@ -17,7 +17,8 @@ SYS_H := \
  include/sys/stat.h \
  include/sys/time.h \
  include/sys/types.h \
- include/sys/errno.h
+ include/sys/errno.h \
+ include/sys/unistd.h
 
 subdir := build
 include $(subdir)/subdir.mk
@@ -28,8 +29,6 @@ include $(subdir)/subdir.mk
 subdir := fs
 include $(subdir)/subdir.mk
 subdir := drivers
-include $(subdir)/subdir.mk
-subdir := shell
 include $(subdir)/subdir.mk
 subdir := build
 include $(subdir)/tools.mk
