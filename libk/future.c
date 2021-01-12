@@ -6,7 +6,7 @@ struct future_t {
 	interrupt_monitor_t lock[1];
 	volatile int pending;
 	exception_cause * cause;
-	int status;
+	intptr_t status;
 	void (*cleanup)(void * p);
 	void * p;
 };
@@ -17,7 +17,7 @@ struct future_t {
 exception_def FutureException = { "FutureException", &Exception };
 exception_def CancelledFutureException = { "CancelledFutureException", &FutureException };
 
-int future_get(future_t * future)
+intptr_t future_get(future_t * future)
 {
 	INTERRUPT_MONITOR_AUTOLOCK(future->lock) {
 		while(future->pending) {
@@ -37,7 +37,7 @@ int future_get(future_t * future)
 	return future->status;
 }
 
-void future_set(future_t * future, int status)
+void future_set(future_t * future, intptr_t status)
 {
 	INTERRUPT_MONITOR_AUTOLOCK(future->lock) {
 		future->status = status;
@@ -52,8 +52,6 @@ void future_init(future_t * future, void (*cleanup)(void * p), void * p)
 	future->pending = 1;
 	future->cleanup = cleanup;
 	future->p = p;
-
-	return future;
 }
 
 future_t * future_create(void (*cleanup)(void * p), void * p)
