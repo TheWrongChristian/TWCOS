@@ -54,6 +54,7 @@ void kernel_main() {
 		slab_init();
 		page_cache_init();
 		process_init();
+		ns16550_init();
 		timer_init(arch_timer_ops());
 		pci_scan(pci_probe_devfs);
 		ide_pciscan();
