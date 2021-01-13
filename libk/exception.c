@@ -122,9 +122,13 @@ static void exception_backtrace(struct exception_cause * cause)
 	}
 }
 
-void exception_throw_cause(struct exception_cause * cause)
+noreturn void exception_throw_cause(struct exception_cause * cause)
 {
 	struct exception_frame * frame = tls_get(exception_key);
+
+	if (0 == frame) {
+		kernel_panic("Unhandled exception (%s:%d): %s", cause->file, cause->line, cause->message);
+	}
 
 	frame->cause = cause;
 
