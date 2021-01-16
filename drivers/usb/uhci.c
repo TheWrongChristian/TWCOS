@@ -649,7 +649,9 @@ void uhci_probe(uint8_t bus, uint8_t slot, uint8_t function)
 	int irq = pci_irq(bus, slot, function);
 	static GCROOT hcd_t * hcd;
 	hcd = uhci_reset(bar4, irq);
-	usb_test(hcd);
+	if (hcd) {
+		usb_test(hcd);
+	}
 }
 
 void uhci_pciscan()
