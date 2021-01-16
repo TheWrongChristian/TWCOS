@@ -163,11 +163,11 @@ void arch_init()
 	pci_scan(pci_probe_print);
 
 	kernel_printk("Bootstrap end - %p\n", nextalloc);
+	sti();
 
 	/* Initialize the console */
 	console_initialize(info);
 
-	sti(1);
 	kernel_startlogging(1);
 }
 

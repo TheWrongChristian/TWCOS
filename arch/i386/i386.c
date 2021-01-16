@@ -126,7 +126,7 @@ void cli()
 }
 
 void hlt()
-{
+{	
 	asm volatile("hlt");
 }
 
@@ -446,7 +446,7 @@ void arch_thread_init(thread_t * thread)
 void arch_panic(const char * fmt, va_list ap)
 {
 	cli();
-	kernel_vprintk(fmt, ap);
+	stream_vprintf(console_stream(), fmt, ap);
 	while(1) {
 		hlt();
 	}
@@ -620,7 +620,7 @@ void arch_spin_unlock(spin_t * p)
 {
 	int ints = (*p>1);
 	*p = 0;
-	sti(ints);
+	sti();
 }
 
 #if 0
