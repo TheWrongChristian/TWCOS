@@ -681,6 +681,9 @@ vnode_t * fatfs_open(vnode_t * dev)
 void fatfs_test(vnode_t * dev)
 {
 	vnode_t * dir = fatfs_open(dev);
+	if (!dir) {
+		return;
+	}
 	vnode_t * file = vnode_get_vnode(dir, "FAT.C");
 	vnode_t * lfn = vnode_get_vnode(dir, "Long name FAT entry.c");
 	off64_t size = vnode_get_size(file);
