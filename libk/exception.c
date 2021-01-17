@@ -21,7 +21,7 @@ struct exception_cause {
 	/* Exception location */
 	char * file;
 	int line;
-	void * backtrace[12];
+	void * backtrace[32];
 
 	/* Exception message */
 	char message[256];
@@ -249,6 +249,38 @@ char * exception_message()
 	}
 
 	return "No exception";
+}
+
+exception_cause * exception_get_cause()
+{
+	exception_frame * frame = tls_get(exception_key);
+
+	if (frame->cause) {
+		return frame->cause;
+	}
+
+	return 0;
+}
+
+noreturn void exception_panic(const char * fmt, ...)
+{
+	va_list ap;
+	va_start(ap,fmt);
+	exception_vpanic(fmt, ap);
+	va_end(ap);
+}
+
+noreturn void exception_vpanic(const char * fmt, va_list ap)
+{
+	exception_cause * cause = exception_get_cause();
+
+	if (cause) {
+		for(int i=0; i<countof(cause->backtrace) && cause->backtrace[i]; i++) {
+			stream_printf(console_stream(), "%d: %p\n", i, cause->backtrace[i]);
+		}
+		stream_printf(console_stream(), "%s:%d\n", cause->file, cause->line);
+	}
+	kernel_vpanic(fmt, ap);
 }
 
 int exception_finally()
