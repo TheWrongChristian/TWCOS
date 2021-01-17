@@ -152,9 +152,7 @@ struct idecontroller_t {
 static void ide_intr(void * p)
 {
 	idechannel_t * channel = p;
-	INTERRUPT_MONITOR_AUTOLOCK(channel->lock) {
-		interrupt_monitor_broadcast(channel->lock);
-	}
+	interrupt_monitor_broadcast(channel->lock);
 }
 
 static void ide_reset(idechannel_t * channel)

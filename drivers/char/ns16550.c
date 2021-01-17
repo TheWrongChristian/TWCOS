@@ -42,33 +42,31 @@ static void ns16550_int(void * p)
 {
 	ns16550_device_t * dev = p;
 
-	INTERRUPT_MONITOR_AUTOLOCK(dev->lock) {
-		int iir=isa_inb(dev->baseport+2);
-		if (0 == (iir & 1)) {
-			switch(iir >> 1) {
-			case 0:
-				isa_inb(dev->baseport+6);
-				break;
-			case 1:
-				if (!fifo_empty(dev->outq)) {
-					ns16550_outq(dev);
-				}
-				break;
-			case 2:
-				if (!fifo_full(dev->inq)) {
-					fifo_put(dev->inq, isa_inb(dev->baseport));
-				} else {
-					/* Discard */
-					isa_inb(dev->baseport);
-				}
-				break;
-			case 3:
-				isa_inb(dev->baseport+6);
-				break;
-			case 6:
-				isa_inb(dev->baseport);
-				break;
+	int iir=isa_inb(dev->baseport+2);
+	if (0 == (iir & 1)) {
+		switch(iir >> 1) {
+		case 0:
+			isa_inb(dev->baseport+6);
+			break;
+		case 1:
+			if (!fifo_empty(dev->outq)) {
+				ns16550_outq(dev);
 			}
+			break;
+		case 2:
+			if (!fifo_full(dev->inq)) {
+				fifo_put(dev->inq, isa_inb(dev->baseport));
+			} else {
+				/* Discard */
+				isa_inb(dev->baseport);
+			}
+			break;
+		case 3:
+			isa_inb(dev->baseport+6);
+			break;
+		case 6:
+			isa_inb(dev->baseport);
+			break;
 		}
 	}
 }
@@ -121,11 +119,11 @@ vnode_t * ns16550_open(int baseport, int irq)
 	//isa_outb(dev->baseport+2, 0xC7);
 	isa_outb(dev->baseport+2, 0);
 	ns16550_control(dev);
+	intr_add(irq, ns16550_int, dev);
 
 	INTERRUPT_MONITOR_AUTOLOCK(dev->lock) {
 		// Enable interrupts
 		vnode_init(dev->vnode, VNODE_DEV, &fs);
-		intr_add(irq, ns16550_int, dev);
 		isa_outb(dev->baseport+1, 0xf);
 	}
 
