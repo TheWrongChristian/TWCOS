@@ -16,7 +16,7 @@ struct irq_handler_data {
 };
 
 struct irq_state {
-	spin_t lock[1];
+	interrupt_monitor_t lock[1];
 	int count;
 	irq_handler_data * handlers;
 };
@@ -25,17 +25,30 @@ static GCROOT irq_state interrupts[IRQMAX];
 
 static void intr_runall(int irq)
 {
-	SPIN_AUTOLOCK(interrupts[irq].lock) {
+	INTERRUPT_MONITOR_AUTOLOCK(interrupts[irq].lock) {
 		for(int i=0; i<interrupts[irq].count; i++) {
 			interrupts[irq].handlers[i].handler(interrupts[irq].handlers[i].p);
 		}
 	}
 }
 
+interrupt_monitor_t * intr_irq_lock(int irq)
+{
+	check_int_bounds(irq, 0, countof(interrupts)-1, "Invalid irq value");
+	return interrupts[irq].lock;
+}
+
+interrupt_monitor_t * interrupt_monitor_irq(int irq)
+{
+	return intr_irq_lock(irq);
+}
+
 void intr_add(int irq, irq_handler handler, void * p)
 {
-	SPIN_AUTOLOCK(interrupts[irq].lock) {
+	INTERRUPT_MONITOR_AUTOLOCK(interrupts[irq].lock) {
 		if (0 == interrupts[irq].count) {
+			irq_func old = add_irq(irq, intr_runall);
+			assert(!old || old == intr_runall);
 			add_irq(irq, intr_runall);
 		}
 		irq_handler_data * h = interrupts[irq].handlers;

@@ -24,6 +24,7 @@ struct thread_t {
 	/* Run state */
 	tstate state;
 	tpriority priority;
+	int interrupted;
 
 	/* Thread information */
 	char * name;
@@ -126,6 +127,32 @@ int thread_yield()
 	queue[priority] = thread_queue(queue[priority], this, THREAD_RUNNABLE);
 	scheduler_unlock();
 	return thread_schedule();
+}
+
+void thread_interrupt(thread_t * thread)
+{
+	thread->interrupted = 1;
+}
+
+int thread_isinterrupted(thread_t * thread)
+{
+	if (0 == thread) {
+		thread = arch_get_thread();
+	}
+
+	return thread->interrupted;
+}
+
+int thread_interrupted()
+{
+	thread_t * thread = arch_get_thread();
+
+	if (thread_isinterrupted(thread)) {
+		thread->interrupted = 0;
+		return 1;
+	}
+
+	return 0;
 }
 
 void thread_resume(thread_t * thread)

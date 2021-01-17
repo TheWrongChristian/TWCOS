@@ -235,8 +235,6 @@ void * slab_alloc_p(slab_type_t * stype)
 	mutex_unlock(stype->lock);
 
 	KTHROW(OutOfMemoryException, "Out of memory");
-	/* Shouldn't get here */
-	return 0;
 }
 
 void * slab_calloc_p(slab_type_t * stype)

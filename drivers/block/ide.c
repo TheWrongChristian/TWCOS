@@ -152,9 +152,7 @@ struct idecontroller_t {
 static void ide_intr(void * p)
 {
 	idechannel_t * channel = p;
-	INTERRUPT_MONITOR_AUTOLOCK(channel->lock) {
-		interrupt_monitor_broadcast(channel->lock);
-	}
+	interrupt_monitor_broadcast(channel->lock);
 }
 
 static void ide_reset(idechannel_t * channel)
@@ -296,11 +294,17 @@ static idecontroller_t * ide_initialize(uintptr_t bar0, uintptr_t bar1, uintptr_
 	intr_add(14, ide_intr, ide->channels);
 	intr_add(15, ide_intr, ide->channels);
 
-	ide_reset(ide->channels);
-	ide_probe_channel(ide->channels);
+	KTRY {
+		ide_reset(ide->channels);
+		ide_probe_channel(ide->channels);
+	} KCATCH(TimeoutException) {
+	}
 
-	ide_reset(ide->channels+1);
-	ide_probe_channel(ide->channels+1);
+	KTRY {
+		ide_reset(ide->channels+1);
+		ide_probe_channel(ide->channels+1);
+	} KCATCH(TimeoutException) {
+	}
 
 	return ide;
 }
@@ -432,7 +436,7 @@ static uint8_t ide_wait(idechannel_t * channel, int polling)
 			if (polling) {
 				thread_yield();
 			} else {
-				interrupt_monitor_wait(channel->lock);
+				interrupt_monitor_wait_timeout(channel->lock, 1000000);
 			}
 		}
 	} while(status & 0x80);
