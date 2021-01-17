@@ -172,8 +172,8 @@ arch_startuser:
 	mov 12(%ebp),%ecx
 	push %ecx
 
-	# eflags
-	pushl $0
+	# eflags - enable interrupts
+	pushl $0x200
 
 	# user cs
 	pushl $0x1b
