@@ -4,8 +4,11 @@
 #include "exception.h"
 
 #if INTERFACE
+
+#include <stdnoreturn.h>
 #include <setjmp.h>
 #include <stdarg.h>
+#include <sys/types.h>
 
 typedef struct exception_def {
         const char * name;
@@ -18,6 +21,7 @@ struct exception_cause {
 	/* Exception location */
 	char * file;
 	int line;
+	void * backtrace[12];
 
 	/* Exception message */
 	char message[256];
@@ -33,6 +37,7 @@ struct exception_frame {
 
 	/* State */
 	jmp_buf env;
+	dtor_t * dtor_frame;
 
 	/* Exception chain */
 	struct exception_frame * next;
@@ -59,6 +64,8 @@ struct exception_frame {
 
 #define KTHROW(type,message) exception_throw(&type, __FILE__, __LINE__, message)
 #define KTHROWF(type,message, ...) exception_throw(&type, __FILE__, __LINE__, message, __VA_ARGS__ )
+#define KTHROWC(cause) exception_throw_cause(cause)
+#define KRETHROW() exception_rethrow()
 
 #define EXCEPTION_DEF(type,parent) static exception_def type = { #type, &parent }
 EXCEPTION_DEF(TestException, Exception);
@@ -68,6 +75,7 @@ exception_def Throwable = { "Throwable", 0 };
 exception_def Exception = { "Exception", &Throwable };
 exception_def Error = { "Error", &Throwable };
 exception_def RuntimeException = { "RuntimeException", &Exception };
+exception_def NotImplementedException = { "NotImplementedException", &RuntimeException };
 
 static tls_key exception_key;
 static slab_type_t causes[1] = {SLAB_TYPE(sizeof(struct exception_cause), 0, 0)};
@@ -82,37 +90,87 @@ exception_frame * exception_push(exception_frame * frame)
 
 	/* Link the frame into the chain */
 	frame->next = tls_get(exception_key);
+	assert(frame != frame->next);
 	tls_set(exception_key, frame);
 
 	frame->cause = 0;
 	frame->state = EXCEPTION_NEW;
 	frame->caught = 0;
+	frame->dtor_frame = dtor_poll_frame();
 
 	return frame;
 }
 
-static void exception_throw_cause(struct exception_cause * cause)
+void exception_clearall()
+{
+	assert(exception_key);
+	tls_set(exception_key, 0);
+}
+
+static void exception_backtrace(struct exception_cause * cause)
+{
+	void ** from = (void**)&from;
+	void ** to = PTR_ALIGN_NEXT(from, ARCH_PAGE_SIZE);
+
+	memset(cause->backtrace, 0, sizeof(cause->backtrace));
+	for(int i=0; from<to && i<countof(cause->backtrace); from++) {
+		extern char code_start[], code_end[];
+		void * p = *from;
+		if (p>=code_start && p<code_end) {
+			cause->backtrace[i++] = p;
+		}
+	}
+}
+
+noreturn void exception_throw_cause(struct exception_cause * cause)
 {
 	struct exception_frame * frame = tls_get(exception_key);
+
+	if (0 == frame) {
+		kernel_panic("Unhandled exception (%s:%d): %s", cause->file, cause->line, cause->message);
+	}
 
 	frame->cause = cause;
 
 	longjmp(frame->env, 1);
 }
 
-void exception_throw(exception_def * type, char * file, int line, char * message, ...)
+exception_cause * exception_vcreate(exception_def * type, char * file, int line, char * message, va_list ap)
 {
-	va_list ap;
-	va_start(ap,message);
-
-	struct exception_cause * cause = slab_alloc(causes);
+	exception_cause * cause = slab_calloc(causes);
 	cause->type = type;
 	cause->file = file;
 	cause->line = line;
+	exception_backtrace(cause);
 	vsnprintf(cause->message, sizeof(cause->message), message, ap);
+
+	return cause;
+}
+
+exception_cause * exception_create(exception_def * type, char * file, int line, char * message, ...)
+{
+	va_list ap;
+	va_start(ap,message);
+	exception_cause * cause = exception_vcreate(type, file, line, message, ap);
+	va_end(ap);
+	return cause;
+}
+
+noreturn void exception_throw(exception_def * type, char * file, int line, char * message, ...)
+{
+	va_list ap;
+	va_start(ap,message);
+	exception_cause * cause = exception_vcreate(type, file, line, message, ap);
 	va_end(ap);
 
 	exception_throw_cause(cause);
+}
+
+void exception_rethrow()
+{
+	/* Propagate the exception */
+	exception_frame * frame = tls_get(exception_key);
+	frame->caught = 0;
 }
 
 int exception_finished(char * file, int line)
@@ -141,6 +199,7 @@ int exception_finished(char * file, int line)
 		frame->state = EXCEPTION_FINISHING;
 		return 0;
 	case EXCEPTION_FINISHING:
+		dtor_pop(frame->dtor_frame);
 		tls_set(exception_key, frame->next);
 		if (frame->cause && 0 == frame->caught) {
 			exception_throw_cause(frame->cause);

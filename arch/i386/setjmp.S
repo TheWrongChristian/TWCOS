@@ -15,9 +15,9 @@ setjmp:
 	xor %eax, %eax
 	ret
 
-.global longjmp
-.type longjmp, @function
-longjmp:
+.global klongjmp
+.type klongjmp, @function
+klongjmp:
 	// jmp_buf ptr
 	movl 4(%esp), %ecx
 	// Return value

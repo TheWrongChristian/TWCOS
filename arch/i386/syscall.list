@@ -1,0 +1,20 @@
+1	int	doexit	int
+2	pid_t	fork
+3	ssize_t	read	int	void*	size_t
+4	ssize_t	write	int	void*	size_t
+5	int	open	ustring	int	mode_t
+6	int	close	int
+7	pid_t	waitpid	pid_t	int*	int
+8	int	creat	ustring	mode_t
+10	int	unlink	ustring
+11	int	execve	ustring	char**	char**
+12	int	chdir	ustring
+13	time_t	time	time_t*
+20	pid_t	getpid
+41	int	dup	int
+42	int	pipe	int*
+63	int	dup2	int	int
+45	void*	internal_brk	void*
+141	int	getdents	int	pdirent	size_t
+162	int	nanosleep	ptimespec	ptimespec
+220	int	getdents64	int	pdirent64	size_t

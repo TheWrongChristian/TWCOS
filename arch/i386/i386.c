@@ -1,7 +1,36 @@
+#include "i386.h"
+
+#if INTERFACE
 #include <stdint.h>
 #include <stdarg.h>
+#include <stddef.h>
 
-#include "i386.h"
+struct arch_trap_frame_t
+{
+	reg_t edi;
+	reg_t esi;
+	reg_t fp;
+	reg_t esp_old;
+	reg_t ebx;
+	reg_t edx;
+	reg_t ecx;
+	reg_t eax;
+	reg_t gs;
+	reg_t fs;
+	reg_t es;
+	reg_t ds;
+	reg_t errorcode;
+	reg_t ebp;
+	reg_t eip;
+	reg_t cs;
+	reg_t eflags;
+	reg_t uesp;
+	reg_t ss;
+};
+
+#define LITTLE_ENDIAN 1
+
+#endif
 
 /* Basic port I/O */
 void outb(uint16_t port, uint8_t v)
@@ -80,18 +109,24 @@ void set_page_dir(page_t pgdir)
 	asm volatile("movl %0, %%cr3" : : "a"(pgdir << ARCH_PAGE_SIZE_LOG2));
 }
 
+static int cli_level = 0;
 void sti()
 {
-	asm volatile("sti");
+	if (0 == --cli_level && 0 == inirq) {
+		asm volatile("sti");
+	}
 }
 
 void cli()
 {
-	asm volatile("cli");
+	extern uint32_t i386_eflags();
+	if (0==cli_level++) {
+		asm volatile("cli");
+	}
 }
 
 void hlt()
-{
+{	
 	asm volatile("hlt");
 }
 
@@ -121,8 +156,7 @@ void * isr_labels[] = {
 #include "isr_labels.h"
 };
 
-enum regs { ISR_REG_EDI, ISR_REG_ESI, ISR_REG_EBP, ISR_REG_ESP, ISR_REG_EBX, ISR_REG_EDX, ISR_REG_ECX, ISR_REG_EAX, ISR_REG_DS, ISR_ERRORCODE };
-typedef void (*isr_t)(uint32_t i, uint32_t * state);
+typedef void (*isr_t)(uint32_t i, arch_trap_frame_t * state);
 
 
 void i386_set_idt( int i, void * p, uint16_t flags )
@@ -175,110 +209,110 @@ static void encodeGdtEntry( uint8_t * entry, void * pbase, uint32_t size, uint8_
 	entry[5] = type;
 }
 
-static void i386_unhandled(uint32_t num, uint32_t * state)
+static void i386_unhandled(uint32_t num, arch_trap_frame_t * state)
 {
 	kernel_panic("Unhandled exception: %d\n", num);
 }
 
-static void i386_de(uint32_t num, uint32_t * state)
+static void i386_de(uint32_t num, arch_trap_frame_t * state)
 {
 	i386_unhandled(num, state);
 }
 
-static void i386_db(uint32_t num, uint32_t * state)
+static void i386_db(uint32_t num, arch_trap_frame_t * state)
 {
 	i386_unhandled(num, state);
 }
 
-static void i386_nmi(uint32_t num, uint32_t * state)
+static void i386_nmi(uint32_t num, arch_trap_frame_t * state)
 {
 	i386_unhandled(num, state);
 }
 
-static void i386_bp(uint32_t num, uint32_t * state)
+static void i386_bp(uint32_t num, arch_trap_frame_t * state)
 {
 	i386_unhandled(num, state);
 }
 
-static void i386_of(uint32_t num, uint32_t * state)
+static void i386_of(uint32_t num, arch_trap_frame_t * state)
 {
 	i386_unhandled(num, state);
 }
 
-static void i386_br(uint32_t num, uint32_t * state)
+static void i386_br(uint32_t num, arch_trap_frame_t * state)
 {
 	i386_unhandled(num, state);
 }
 
-static void i386_ud(uint32_t num, uint32_t * state)
+static void i386_ud(uint32_t num, arch_trap_frame_t * state)
 {
 	i386_unhandled(num, state);
 }
 
-static void i386_nm(uint32_t num, uint32_t * state)
+static void i386_nm(uint32_t num, arch_trap_frame_t * state)
 {
 	i386_unhandled(num, state);
 }
 
-static void i386_df(uint32_t num, uint32_t * state)
+static void i386_df(uint32_t num, arch_trap_frame_t * state)
 {
 	i386_unhandled(num, state);
 }
 
-static void i386_ts(uint32_t num, uint32_t * state)
+static void i386_ts(uint32_t num, arch_trap_frame_t * state)
 {
 	i386_unhandled(num, state);
 }
 
-static void i386_np(uint32_t num, uint32_t * state)
+static void i386_np(uint32_t num, arch_trap_frame_t * state)
 {
 	i386_unhandled(num, state);
 }
 
-static void i386_ss(uint32_t num, uint32_t * state)
+static void i386_ss(uint32_t num, arch_trap_frame_t * state)
 {
 	i386_unhandled(num, state);
 }
 
-static void i386_gp(uint32_t num, uint32_t * state)
+static void i386_gp(uint32_t num, arch_trap_frame_t * state)
 {
 	i386_unhandled(num, state);
 }
 
-static void i386_pf(uint32_t num, uint32_t * state)
+static void i386_pf(uint32_t num, arch_trap_frame_t * state)
 {
 	void * cr2;
 
 	asm volatile("movl %%cr2, %0" : "=r"(cr2));
-	vm_page_fault(cr2, state[ISR_ERRORCODE] & 0x2, state[ISR_ERRORCODE] & 0x4, state[ISR_ERRORCODE] & 0x1);
+	vm_page_fault(cr2, state->errorcode & 0x2, state->errorcode & 0x4, state->errorcode & 0x1);
 }
 
-static void i386_mf(uint32_t num, uint32_t * state)
+static void i386_mf(uint32_t num, arch_trap_frame_t * state)
 {
 	i386_unhandled(num, state);
 }
 
-static void i386_ac(uint32_t num, uint32_t * state)
+static void i386_ac(uint32_t num, arch_trap_frame_t * state)
 {
 	i386_unhandled(num, state);
 }
 
-static void i386_mc(uint32_t num, uint32_t * state)
+static void i386_mc(uint32_t num, arch_trap_frame_t * state)
 {
 	i386_unhandled(num, state);
 }
 
-static void i386_xm(uint32_t num, uint32_t * state)
+static void i386_xm(uint32_t num, arch_trap_frame_t * state)
 {
 	i386_unhandled(num, state);
 }
 
-static void i386_ve(uint32_t num, uint32_t * state)
+static void i386_ve(uint32_t num, arch_trap_frame_t * state)
 {
 	i386_unhandled(num, state);
 }
 
-static void i386_sx(uint32_t num, uint32_t * state)
+static void i386_sx(uint32_t num, arch_trap_frame_t * state)
 {
 	i386_unhandled(num, state);
 }
@@ -287,15 +321,26 @@ static void i386_sx(uint32_t num, uint32_t * state)
 #include <stdarg.h>
 #include <stdint.h>
 #include <setjmp.h>
-typedef void (*irq_func)();
-#define ARCH_PAGE_ALIGN(p) ((void*)((uint32_t)p & (0xffffffff << ARCH_PAGE_SIZE_LOG2)))
+#define ARCH_PAGE_ALIGN(p) ((void*)((uint32_t)(p) & (0xffffffff << ARCH_PAGE_SIZE_LOG2)))
 
-typedef struct {
+struct arch_context_t {
 	void * stack;
 	jmp_buf state;
-} arch_context_t;
+};
 
 #endif
+
+static thread_t initial;
+static thread_t * current;
+
+void arch_check_stack()
+{
+	char var;
+
+	if ((&var - (char*)current->context.stack) < 128) {
+		kernel_panic("Stack overflow");
+	}
+}
 
 void arch_thread_mark(thread_t * thread)
 {
@@ -338,10 +383,9 @@ static isr_t itable[256] = {
 	i386_irq, i386_irq, i386_irq, i386_irq,
 
 	i386_irq, i386_irq, i386_irq, i386_irq,
-	i386_irq, i386_irq, i386_irq, i386_irq
+	i386_irq, i386_irq, i386_irq, i386_irq,
+	[0x80]=i386_syscall
 };
-
-static thread_t initial;
 
 #define PIC_IRQ_BASE    0x20
 void i386_init()
@@ -366,6 +410,9 @@ void i386_init()
 		i386_set_idt(i, isr_labels[i], 0x8f00);
 	}
 
+	/* int 0x80 - System call interface for user code */
+	i386_set_idt(0x80, isr_labels[0x80], 0xef00);
+
 	/* Configure interrupt gates for irqs */
 	for(i=PIC_IRQ_BASE;i<PIC_IRQ_BASE+16; i++) {
 		i386_set_idt(i, isr_labels[i], 0x8e00);
@@ -376,14 +423,12 @@ void i386_init()
 	lidt(idt,sizeof(idt));
 
 	/* Craft the initial thread and stack */
-	*stackbase = &initial;
+	current = *stackbase = &initial;
 	initial.context.stack = stackbase;
 	initial.priority = THREAD_NORMAL;
 	initial.state = THREAD_RUNNING;
 
-	PIC_remap(PIC_IRQ_BASE, PIC_IRQ_BASE+16);
-
-	sti();
+	PIC_remap(PIC_IRQ_BASE, PIC_IRQ_BASE+8);
 }
 
 void arch_thread_init(thread_t * thread)
@@ -393,24 +438,26 @@ void arch_thread_init(thread_t * thread)
 	if (arch_thread_fork(thread)) {
 		arch_thread_switch(thread);
 	}
+#if 0
 	arch_get_thread()->as = tree_new(0, TREE_TREAP);
+#endif
 }
 
 void arch_panic(const char * fmt, va_list ap)
 {
 	cli();
-	kernel_vprintk(fmt, ap);
+	stream_vprintf(console_stream(), fmt, ap);
 	while(1) {
 		hlt();
 	}
 }
 
-static void unhandled_isr(uint32_t num, uint32_t * state)
+static void unhandled_isr(uint32_t num, arch_trap_frame_t * state)
 {
 	kernel_printk("UNHANDLED ISR %d\n", num);
 }
 
-void i386_isr(uint32_t num, uint32_t * state)
+void i386_isr(uint32_t num, arch_trap_frame_t * state)
 {
 	isr_t isr = itable[num] ? itable[num] : unhandled_isr;
 
@@ -419,9 +466,12 @@ void i386_isr(uint32_t num, uint32_t * state)
 
 thread_t * arch_get_thread()
 {
+#if 0
 	thread_t ** stackbase = ARCH_GET_VPAGE(&stackbase);
 
 	return *stackbase;
+#endif
+	return current;
 }
 
 int arch_thread_fork(thread_t * dest)
@@ -482,11 +532,21 @@ void arch_thread_switch(thread_t * thread)
 	if (old->state == THREAD_RUNNING) {
 		old->state = THREAD_RUNNABLE;
 	}
+
+	if (old->process != thread->process) {
+		if (thread->process) {
+			vmap_set_asid(thread->process->as);
+		} else {
+			vmap_set_asid(0);
+		}
+	}
+
 	if (0 == setjmp(old->context.state)) {
 		if (thread->state == THREAD_RUNNABLE) {
 			thread->state = THREAD_RUNNING;
 		}
 		tss[1] = (uint32_t)thread->context.stack + ARCH_PAGE_SIZE;
+		current = thread;
 		longjmp(thread->context.state, 1);
 	}
 }
@@ -500,23 +560,27 @@ static int arch_is_text(void * p)
 	return cp >= code_start && cp < code_end;
 }
 
-void ** arch_thread_backtrace(int levels)
+void ** arch_thread_backtrace(void ** backtrace, int levels)
 {
-	void ** backtrace = malloc(sizeof(*backtrace)*levels+1);
+	if (0 == backtrace) {
+		backtrace = tmalloc(sizeof(*backtrace)*levels+1);
+	}
 	thread_t * thread = arch_get_thread();
 	setjmp(thread->context.state);
 	void * stacktop = (void**)((char*)thread->context.stack + ARCH_PAGE_SIZE);
-	void ** bp = thread->context.state[2];
+	void ** bp = (void**)thread->context.state[2];
 	int i;
 
-	for(i=0; i<levels && bp > thread->context.state[1] && bp<stacktop; ) {
+	for(i=0; i<levels && bp > (void**)thread->context.state[1] && (void*)bp<stacktop; ) {
 		void * ret = bp[1];
 		if(arch_is_text(ret)) {
 			backtrace[i++] = ret;
 		}
 		bp = bp[0];
 	}
-	backtrace[i] = 0;
+	if (i<levels-1) {
+		backtrace[i] = 0;
+	}
 	
 	return backtrace;
 }
@@ -532,7 +596,7 @@ int arch_atomic_postinc(int * p)
 	return i;
 }
 
-int arch_spin_trylock(int * p)
+int arch_spin_trylock(spin_t * p)
 {
 	cli();
 	if (*p) {
@@ -543,7 +607,7 @@ int arch_spin_trylock(int * p)
 	return *p;
 }
 
-void arch_spin_lock(int * p)
+void arch_spin_lock(spin_t * p)
 {
 	while(1) {
 		if (arch_spin_trylock(p)) {
@@ -552,14 +616,43 @@ void arch_spin_lock(int * p)
 	}
 }
 
-void arch_spin_unlock(int * p)
+void arch_spin_unlock(spin_t * p)
 {
+	int ints = (*p>1);
 	*p = 0;
 	sti();
 }
 
+#if 0
+void * arch_user_stack()
+{
+}
+#endif
+
+char * arch_user_stack_pushstr(char * oldsp, char * str)
+{
+	int len = strlen(str);
+#if 0
+	char * newsp = (char*)PTR_ALIGN(oldsp-len, sizeof(int32_t));
+
+	strncpy(newsp, str, len);
+
+	return newsp;
+#endif
+	return arch_user_stack_mempcy(oldsp, str, len+1);
+}
+
+char * arch_user_stack_mempcy(char * oldsp, void * src, size_t len)
+{
+	char * newsp = (char*)PTR_ALIGN(oldsp-len, sizeof(int32_t));
+
+	return memcpy(newsp, src, len);
+}
 
 #if INTERFACE
+
+void arch_startuser(void * start, void * tos);
+void arch_altstack(void (*f)(void), void * s);
 
 /*
  * Sizes

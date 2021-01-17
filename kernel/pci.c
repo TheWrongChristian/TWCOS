@@ -1,6 +1,12 @@
+#include "pci.h"
+
+#if INTERFACE
+
 #include <stdint.h>
 
-#include "pci.h"
+typedef void (*pci_probe_callback)(uint8_t bus, uint8_t slot, uint8_t function);
+
+#endif
 
 static uint8_t pci_config_byte(uint8_t bus, uint8_t slot, uint8_t function, uint8_t offset)
 {
@@ -16,12 +22,12 @@ static uint16_t pci_config_short(uint8_t bus, uint8_t slot, uint8_t function, ui
 	return (reg >> (8*(offset & 0x3))) & 0xFFFF;
 }
 
-uint16_t pci_vendor(uint8_t bus, uint8_t slot, uint8_t function)
+uint16_t pci_vendorid(uint8_t bus, uint8_t slot, uint8_t function)
 {
 	return pci_config_short(bus, slot, function, 0);
 }
 
-uint16_t pci_device(uint8_t bus, uint8_t slot, uint8_t function)
+uint16_t pci_deviceid(uint8_t bus, uint8_t slot, uint8_t function)
 {
 	return pci_config_short(bus, slot, function, 2);
 }
@@ -85,21 +91,43 @@ uint8_t pci_subclass(uint8_t bus, uint8_t slot, uint8_t function)
         return pci_config_byte(bus, slot, function, 0xa);
 }
 
+uint8_t pci_progif(uint8_t bus, uint8_t slot, uint8_t function)
+{
+        return pci_config_byte(bus, slot, function, 0x9);
+}
+
+uint8_t pci_irq(uint8_t bus, uint8_t slot, uint8_t function)
+{
+        return pci_config_byte(bus, slot, function, 0x3c);
+}
+
 uint8_t pci_secondary_bus(uint8_t bus, uint8_t slot, uint8_t function)
 {
 	return pci_config_byte(bus, slot, function, 0x19);
 }
 
-void pci_probe_function(uint8_t bus, uint8_t device, uint8_t function)
+
+void pci_probe_devfs(uint8_t bus, uint8_t device, uint8_t function)
 {
-	uint8_t class = pci_class(bus, device, function);
-	uint8_t subclass = pci_subclass(bus, device, function);
+	static GCROOT vnode_t * devfs = 0;
+
+	if (0==devfs) {
+		devfs = devfs_open();
+	}
+
+	char path[256];
+	snprintf(path, countof(path), "bus/pci/%x/%x/%x", bus, device, function);
+	vnode_newdir_hierarchy(devfs, path);
+}
+
+void pci_probe_print(uint8_t bus, uint8_t device, uint8_t function)
+{
 	uint8_t type = pci_headertype(bus, device, function) & 0x7f;
 
 	kernel_printk("PCI %d, %d, %d - %x:%x\n",
 		bus, device, function,
-		pci_vendor(bus, device, function), 
-		pci_device(bus, device, function));
+		pci_vendorid(bus, device, function), 
+		pci_deviceid(bus, device, function));
 	if (0 == type) {
 		int bar;
 
@@ -111,55 +139,101 @@ void pci_probe_function(uint8_t bus, uint8_t device, uint8_t function)
 			}
 		}
 	}
-
-	if (0x6 == class && 0x4 == subclass) {
-		uint8_t bus2 = pci_secondary_bus(bus, device, function);
-		pci_scanbus(bus2);
-	}
 }
 
-void pci_probe_device(uint8_t bus, uint8_t device)
-{
+typedef struct pci_probe_qualifier_t pci_probe_qualifier_t;
+struct pci_probe_qualifier_t {
+	uint16_t vendorid;
+	uint16_t deviceid;
+	uint8_t class;
+	uint8_t subclass;
+	uint8_t progif;
+};
 
-	if (0xFFFF == pci_vendor(bus, device, 0)) {
+static void pci_scanbus(pci_probe_qualifier_t * qualifier, pci_probe_callback cb, uint8_t bus);
+static void pci_probe_function(pci_probe_qualifier_t * qualifier, pci_probe_callback cb, uint8_t bus, uint8_t device, uint8_t function)
+{
+	uint8_t class = pci_class(bus, device, function);
+	uint8_t subclass = pci_subclass(bus, device, function);
+	uint8_t progif = pci_progif(bus, device, function);
+
+	if (0xff != qualifier->progif && qualifier->progif != progif) {
+		return;
+	}
+	if (0xff != qualifier->class && qualifier->class != class) {
+		return;
+	}
+	if (0xff != qualifier->subclass && qualifier->subclass != subclass) {
+		return;
+	}
+	if (0xffff != qualifier->vendorid && qualifier->vendorid != pci_vendorid(bus, device, function)) {
+		return;
+	}
+	if (0xffff != qualifier->deviceid && qualifier->deviceid != pci_deviceid(bus, device, function)) {
 		return;
 	}
 
-	pci_probe_function(bus, device, 0);
+	cb(bus, device, function);
+
+	if (0x6 == class && 0x4 == subclass) {
+		uint8_t bus2 = pci_secondary_bus(bus, device, function);
+		pci_scanbus(qualifier, cb, bus2);
+	}
+}
+
+static void pci_probe_device(pci_probe_qualifier_t * qualifier, pci_probe_callback cb, uint8_t bus, uint8_t device)
+{
+	if (0xFFFF == pci_vendorid(bus, device, 0)) {
+		return;
+	}
+
+	pci_probe_function(qualifier, cb, bus, device, 0);
 
 	if (pci_headertype(bus, device, 0) & 0x80) {
 		/* Multi-function device */
 		int i;
 
 		for(i=1; i<8; i++) {
-			if (0xFFFF != pci_vendor(bus, device, i)) {
-				pci_probe_function(bus, device, i);
+			if (0xFFFF != pci_vendorid(bus, device, i)) {
+				pci_probe_function(qualifier, cb, bus, device, i);
 			}
 		}
 	}
 }
 
-void pci_scanbus(uint8_t bus)
+static void pci_scanbus(pci_probe_qualifier_t * qualifier, pci_probe_callback cb, uint8_t bus)
 {
 	uint8_t device;
 
 	for(device=0; device<32; device++) {
-		pci_probe_device(bus, device);
+		pci_probe_device(qualifier, cb, bus, device);
 	}
 }
 
-void pci_scan()
+static void pci_scan_qualified(pci_probe_qualifier_t * qualifier, pci_probe_callback cb)
 {
 	if (0x80 & pci_headertype(0, 0, 0)) {
 		int function;
 
 		for(function=0; function<8; function++) {
-			if (0xFFFF != pci_vendor(0, 0, function)) {
+			if (0xFFFF != pci_vendorid(0, 0, function)) {
 				break;
 			}
-			pci_scanbus(function);
+			pci_scanbus(qualifier, cb, function);
 		}
 	} else {
-		pci_scanbus(0);
+		pci_scanbus(qualifier, cb, 0);
 	}
+}
+
+void pci_scan(pci_probe_callback cb)
+{
+	pci_probe_qualifier_t qualifier[1] = {{.class = 0xff, .subclass = 0xff, .progif = 0xff, .vendorid = 0xffff, .deviceid = 0xffff}};
+	pci_scan_qualified(qualifier, cb);
+}
+
+void pci_scan_class(pci_probe_callback cb, uint8_t class, uint8_t subclass, uint8_t progif, uint16_t vendorid, uint16_t deviceid)
+{
+	pci_probe_qualifier_t qualifier[1] = {{.class = class, .subclass = subclass, .progif = progif, .vendorid = vendorid, .deviceid = deviceid}};
+	pci_scan_qualified(qualifier, cb);
 }

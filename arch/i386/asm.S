@@ -1,21 +1,3 @@
-// Declare constants used for creating a multiboot header.
-.set ALIGN,    1<<0             # align loaded modules on page boundaries
-.set MEMINFO,  1<<1             # provide memory map
-.set FLAGS,    ALIGN | MEMINFO  # this is the Multiboot 'flag' field
-.set MAGIC,    0x1BADB002       # 'magic number' lets bootloader find the header
-.set CHECKSUM, -(MAGIC + FLAGS) # checksum of above, to prove we are multiboot
-
-// Declare a header as in the Multiboot Standard. We put this into a special
-// section so we can force the header to be in the start of the final program.
-// You don't need to understand all these details as it is just magic values that
-// is documented in the multiboot standard. The bootloader will search for this
-// magic sequence and recognize us as a multiboot kernel.
-.section .bootstrap_data
-.align 4
-.long MAGIC
-.long FLAGS
-.long CHECKSUM
-
 .section .data
 .global idt
 idt:
@@ -102,12 +84,30 @@ _start:
 	movl $pg_dir, %eax
 	movl %eax, %cr3
 	movl %cr4, %eax
-	orl $0x00000010, %eax
+	orl $0x00000008, %eax
 	movl %eax, %cr4
 	movl %cr0, %eax
 	orl $0x80000000, %eax
 	movl %eax, %cr0
 	jmp .highmem
+
+.global user_start
+.type user_start, @function
+user_start:
+	movl $2, %eax
+	int $128
+	test %eax,%eax
+	je 1f
+
+	# parent
+	movl $1, %eax
+	movl $25, %ebx
+	int $128
+	# child
+1:
+	movl $1, %eax
+	movl $25, %ebx
+	int $128
 
 .section .text
 .highmem:
@@ -151,6 +151,70 @@ isr:
 lcs:
 	ljmp $0x8, $1f
 1:
+	ret
+
+.global arch_startuser
+.type arch_startuser, @function
+arch_startuser:
+	push %ebp
+	mov %esp,%ebp
+
+	# data segment
+	mov $0x23,%ecx
+	mov %ecx, %ds
+	mov %ecx, %es
+	mov %ecx, %fs
+	mov %ecx, %gs
+	# stack segment
+	push %ecx
+
+	# stack pointer
+	mov 12(%ebp),%ecx
+	push %ecx
+
+	# eflags
+	pushl $0
+
+	# user cs
+	pushl $0x1b
+
+	# user pc
+	mov 8(%ebp), %ecx
+	push %ecx
+
+	xor %eax, %eax
+	mov %eax, %ebx
+	mov %eax, %ecx
+	mov %eax, %edx
+	mov %eax, %ebp
+	mov %eax, %esi
+	mov %eax, %edi
+
+	# Jump to user mode
+	iret
+
+.global i386_eflags
+.type i386_eflags, @function
+i386_eflags:
+	pushf
+	pop %eax
+	ret
+
+.global arch_altstack
+.type arch_altstack, @function
+arch_altstack:
+	push %ebp
+	mov %esp,%ebp
+
+	# called pc
+	mov 8(%ebp), %edx
+
+	# stack pointer
+	mov 12(%ebp),%esp
+	push %ebp
+	call *%edx
+	pop %esp
+	pop %ebp
 	ret
 
 #include "isr.inc"

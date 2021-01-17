@@ -2,7 +2,6 @@
    designated as the entry point. */
 ENTRY(_start)
 
-
 kernel_offset = 0xf0000000;
 
 /* Tell where the various sections of the object files will be put in the final
@@ -16,7 +15,7 @@ SECTIONS
 
 	/* First put the multiboot header, as it is required to be put very early
 	   early in the image or the bootloader won't recognize the file format. */
-	.bootstrap ALIGN(4K) :
+	.bootstrap :
 	{
 		*(.bootstrap_data)
 		*(.bootstrap_code)
@@ -46,6 +45,15 @@ SECTIONS
 		*(.rodata)
 	}
 
+
+	.symtab : AT(ADDR(.rodata) - kernel_offset)
+	{
+		sym_start = .;
+		*(.symtab)
+		str_start = .;
+		*(.strtab)
+	}
+
 	/* Read-write data (initialized) */
 	.data ALIGN(4K) : AT(ADDR(.data) - kernel_offset)
 	{
@@ -56,6 +64,7 @@ SECTIONS
 	/* Read-write page aligned data (uninitialized) */
 	.aligned ALIGN(4K) : AT(ADDR(.aligned) - kernel_offset)
 	{
+		zero_start = .;
 		*(.aligned)
 	}
 
@@ -63,7 +72,11 @@ SECTIONS
 	.bss ALIGN(4K) : AT(ADDR(.bss) - kernel_offset)
 	{
 		*(COMMON)
+		gcroot_start = .;
+		*(.gcroot)
+		gcroot_end = .;
 		*(.bss)
+		zero_end = .;
 	}
 
 	/* The compiler may produce other sections, by default it will put them in

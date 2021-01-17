@@ -5,8 +5,10 @@
 #include <stdint.h>
 #include <stddef.h>
 
+typedef int spin_t;
+
 struct mutex_t {
-	int spin;
+	spin_t spin;
 	int count;
 	int getting;
 	int state;
@@ -19,6 +21,18 @@ struct monitor_t {
 	thread_t * waiting;
 };
 
+struct rwlock_t {
+	monitor_t lock[1];
+	int readcount;
+	thread_t * readers;
+	thread_t * writer;
+};
+
+struct interrupt_monitor_t {
+	spin_t spin;
+	thread_t * waiting;
+};
+
 #define INIT_ONCE() \
 	do { \
 		static int inited = 0; \
@@ -28,11 +42,18 @@ struct monitor_t {
 		inited = 1; \
 	} while(0)
 
-#define SPIN_AUTOLOCK(lock) int s##__LINE__ = 0; while((s##__LINE__=spin_autolock(lock, s##__LINE__)))
+#define AUTOLOCK_CONCAT(a, b) a ## b
+#define AUTOLOCK_VAR(line) AUTOLOCK_CONCAT(s,line)
+#define SPIN_AUTOLOCK(lock) spin_t AUTOLOCK_VAR(__LINE__) = 0; while((AUTOLOCK_VAR(__LINE__) =spin_autolock(lock, AUTOLOCK_VAR(__LINE__) )))
+#define MUTEX_AUTOLOCK(lock) int AUTOLOCK_VAR(__LINE__) = 0; while((AUTOLOCK_VAR(__LINE__) =mutex_autolock(lock, AUTOLOCK_VAR(__LINE__) )))
+#define MONITOR_AUTOLOCK(lock) int AUTOLOCK_VAR(__LINE__) = 0; while((AUTOLOCK_VAR(__LINE__) =monitor_autolock(lock, AUTOLOCK_VAR(__LINE__) )))
+#define INTERRUPT_MONITOR_AUTOLOCK(lock) int AUTOLOCK_VAR(__LINE__) = 0; while((AUTOLOCK_VAR(__LINE__) =interrupt_monitor_autolock(lock, AUTOLOCK_VAR(__LINE__) )))
+#define READER_AUTOLOCK(lock) int AUTOLOCK_VAR(__LINE__) = 0; while((AUTOLOCK_VAR(__LINE__) =rwlock_autolock(lock, AUTOLOCK_VAR(__LINE__), 0)))
+#define WRITER_AUTOLOCK(lock) int AUTOLOCK_VAR(__LINE__) = 0; while((AUTOLOCK_VAR(__LINE__) =rwlock_autolock(lock, AUTOLOCK_VAR(__LINE__), 1)))
 
 #endif
 
-static void lock_mark(void * p)
+static void mutex_mark(void * p)
 {
 	mutex_t * lock = p;
 
@@ -40,45 +61,101 @@ static void lock_mark(void * p)
 	slab_gc_mark(lock->waiting);
 }
 
-static slab_type_t locks[1] = {SLAB_TYPE(sizeof(mutex_t), lock_mark, 0)};
+static slab_type_t mutexes[1] = {SLAB_TYPE(sizeof(mutex_t), mutex_mark, 0)};
 
 
 static void monitor_mark(void * p)
 {
 	monitor_t * lock = p;
 
-	lock_mark(lock->lock);
+	mutex_mark(lock->lock);
 	slab_gc_mark(lock->waiting);
 }
 
 static slab_type_t monitors[1] = {SLAB_TYPE(sizeof(monitor_t), monitor_mark, 0)};
-map_t * locktable;
+static GCROOT map_t * locktable;
 static mutex_t locktablelock;
 
 static int contended;
 
-int spin_trylock(int * l)
+int spin_trylock(spin_t * l)
 {
 	return arch_spin_trylock(l);
 }
 
-void spin_unlock(int * l)
+void spin_unlock(spin_t * l)
 {
 	arch_spin_unlock(l);
 }
 
-void spin_lock(int * l)
+void spin_lock(spin_t * l)
 {
 	arch_spin_lock(l);
 }
 
-int spin_autolock(int * lock, int state)
+int mutex_autolock(mutex_t * lock, int state)
+{
+        if (state) {
+                mutex_unlock(lock);
+                state = 0;
+        } else {
+                mutex_lock(lock);
+                state = 1;
+        }
+
+        return state;
+} 
+
+int spin_autolock(spin_t * lock, int state)
 {
         if (state) {
                 spin_unlock(lock);
                 state = 0;
         } else {
                 spin_lock(lock);
+                state = 1;
+        }
+
+        return state;
+} 
+
+int monitor_autolock(monitor_t * lock, int state)
+{
+        if (state) {
+                monitor_leave(lock);
+                state = 0;
+        } else {
+                monitor_enter(lock);
+                state = 1;
+        }
+
+        return state;
+} 
+
+int interrupt_monitor_autolock(interrupt_monitor_t * lock, int state)
+{
+        if (state) {
+                interrupt_monitor_leave(lock);
+                state = 0;
+        } else {
+                interrupt_monitor_enter(lock);
+                state = 1;
+        }
+
+        return state;
+} 
+
+int rwlock_autolock(rwlock_t * lock, int state, int write)
+{
+        if (state) {
+		rwlock_unlock(lock);
+                state = 0;
+        } else {
+		if (write) {
+			rwlock_write(lock);
+		} else {
+			rwlock_read(lock);
+		}
                 state = 1;
         }
 
@@ -98,10 +175,15 @@ static void thread_lock_signal(mutex_t * lock)
 static void thread_lock_wait(mutex_t * lock)
 {
 	lock->waiting = thread_queue(lock->waiting, 0, THREAD_SLEEPING);
-	thread_lock_signal(lock);
+	/* thread_lock_signal(lock); */
 	spin_unlock(&lock->spin);
 	thread_schedule();
 	spin_lock(&lock->spin);
+}
+
+mutex_t * mutex_create()
+{
+	return slab_calloc(mutexes);
 }
 
 void mutex_lock(mutex_t * lock)
@@ -132,12 +214,18 @@ void mutex_unlock(mutex_t * lock)
 		lock->count--;
 		if (0 == lock->count) {
 			lock->owner = 0;
+			thread_lock_signal(lock);
 		}
 	} else {
 		/* FIXME: panic? */
 	}
 
 	spin_unlock(&lock->spin);
+}
+
+monitor_t * monitor_create()
+{
+	return slab_calloc(monitors);
 }
 
 void monitor_enter(monitor_t * monitor)
@@ -152,8 +240,10 @@ void monitor_leave(monitor_t * monitor)
 
 void monitor_wait(monitor_t * monitor)
 {
-	monitor->waiting = thread_queue(monitor->waiting, 0, THREAD_SLEEPING);
 	int count = monitor->lock->count;
+	assert(1==count);
+
+	monitor->waiting = thread_queue(monitor->waiting, 0, THREAD_SLEEPING);
 	mutex_unlock(monitor->lock);
 	thread_schedule();
 	mutex_lock(monitor->lock);
@@ -164,8 +254,10 @@ void monitor_signal(monitor_t * monitor)
 {
 	thread_t * resume = monitor->waiting;
 
-	LIST_DELETE(monitor->waiting, resume);
-	thread_resume(resume);
+	if (resume) {
+		LIST_DELETE(monitor->waiting, resume);
+		thread_resume(resume);
+	}
 }
 
 void monitor_broadcast(monitor_t * monitor)
@@ -175,6 +267,56 @@ void monitor_broadcast(monitor_t * monitor)
 	}
 }
 
+void interrupt_monitor_enter(interrupt_monitor_t * monitor)
+{
+	spin_lock(&monitor->spin);
+}
+
+void interrupt_monitor_leave(interrupt_monitor_t * monitor)
+{
+	spin_unlock(&monitor->spin);
+}
+
+void interrupt_monitor_wait(interrupt_monitor_t * monitor)
+{
+	monitor->waiting = thread_queue(monitor->waiting, 0, THREAD_SLEEPING);
+	spin_unlock(&monitor->spin);
+	thread_schedule();
+	spin_lock(&monitor->spin);
+}
+
+void interrupt_monitor_signal(interrupt_monitor_t * monitor)
+{
+	thread_t * resume = monitor->waiting;
+
+	if (resume) {
+		LIST_DELETE(monitor->waiting, resume);
+		thread_resume(resume);
+	}
+}
+
+void interrupt_monitor_broadcast(interrupt_monitor_t * monitor)
+{
+	while(monitor->waiting) {
+		interrupt_monitor_signal(monitor);
+	}
+}
+
+static interrupt_monitor_t locks[32] = {0};
+static void interrupt_monitor_irq_trigger(int irq)
+{
+	INTERRUPT_MONITOR_AUTOLOCK(locks+irq) {
+                interrupt_monitor_broadcast(locks+irq);
+        }
+}
+
+interrupt_monitor_t * interrupt_monitor_irq(int irq)
+{
+	add_irq(irq, interrupt_monitor_irq_trigger);
+	return locks+irq;
+}
+
+#if 0
 static monitor_t * thread_monitor_get(void * p)
 {
 	mutex_lock(&locktablelock);
@@ -192,6 +334,7 @@ static monitor_t * thread_monitor_get(void * p)
 
 	return lock;
 }
+#endif
 
 static int thread_trylock_internal(mutex_t * lock)
 {
@@ -211,6 +354,59 @@ static int thread_trylock_internal(mutex_t * lock)
 	return 0;
 }
 
+void rwlock_read(rwlock_t * lock)
+{
+	MONITOR_AUTOLOCK(lock->lock) {
+		if (arch_get_thread() == lock->writer) {
+			/* We already have a write lock, give it up */
+			lock->writer = 0;
+		} else {
+			while(lock->writer) {
+				monitor_wait(lock->lock);
+			}
+		}
+		lock->readcount++;
+	}
+}
+
+void rwlock_write(rwlock_t * lock)
+{
+	thread_t * thread = arch_get_thread();
+	MONITOR_AUTOLOCK(lock->lock) {
+		/* Not already a reader, wait until no writer or readers */
+		while(lock->readcount || lock->writer) {
+			monitor_wait(lock->lock);
+		}
+		lock->writer = thread;
+	}
+}
+
+void rwlock_escalate(rwlock_t * lock)
+{
+	thread_t * thread = arch_get_thread();
+	MONITOR_AUTOLOCK(lock->lock) {
+		while(lock->readcount > 1 || lock->writer) {
+			monitor_wait(lock->lock);
+		}
+
+		lock->readcount = 0;
+		lock->writer = thread;
+	}
+}
+
+void rwlock_unlock(rwlock_t * lock)
+{
+	thread_t * thread = arch_get_thread();
+	MONITOR_AUTOLOCK(lock->lock) {
+		if (thread == lock->writer) {
+			lock->writer = 0;
+		} else {
+			lock->readcount--;
+		}
+		monitor_broadcast(lock->lock);
+	}
+}
+
 #if 0
 int thread_tryplock(void * p)
 {
@@ -218,7 +414,6 @@ int thread_tryplock(void * p)
 
 	return thread_trylock_internal(lock);
 }
-#endif
 
 void thread_lock(void * p)
 {
@@ -254,29 +449,10 @@ void thread_wait(void *p)
 
 	monitor_wait(lock);
 }
-
-#if 0
-static void thread_cleanlocks_copy(void * p, void * key, void * data)
-{
-	map_t * newlocktable = (map_t*)p;
-	monitor_t * lock = (monitor_t *)data;
-
-	SPIN_AUTOLOCK(&lock->spin) {
-		if (lock->owner || lock->waiting || lock->condwaiting || lock->getting) {
-			/* lock in use, copy */
-			map_putpp(newlocktable, key, data);
-		}
-	}
-}
 #endif
 
-void thread_cleanlocks()
+void sync_init()
 {
-#if 0
-	SPIN_AUTOLOCK(&locktablelock) {
-		map_t * newlocktable = tree_new(0, TREE_SPLAY);
-		map_walkpp(locktable, thread_cleanlocks_copy, newlocktable);
-		locktable = newlocktable;
-	}
-#endif
+	INIT_ONCE();
+	locktable = tree_new(0, TREE_SPLAY);
 }

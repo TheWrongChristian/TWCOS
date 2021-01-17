@@ -5,7 +5,7 @@
 #include <stdint.h>
 
 typedef struct vector_s {
-	struct map_ops * ops;
+	map_t map;
 	struct vector_table_s * table;
 } vector_t;
 
@@ -41,6 +41,11 @@ static intptr_t * vector_entry_get(vector_table_t * table, map_key i, int create
 {
 	if (table->level) {
 		int shift = VECTOR_TABLE_ENTRIES_LOG2*table->level;
+#if 0
+		if (shift>sizeof(uint32_t)*4) {
+			kernel_panic("Vector overflow!");
+		}
+#endif
 		int index = i>>shift;
 		if (VECTOR_TABLE_ENTRIES <= index) {
 			/* Beyond the bounds of the vector */
@@ -54,15 +59,19 @@ static intptr_t * vector_entry_get(vector_table_t * table, map_key i, int create
 		}
 
 		return vector_entry_get((vector_table_t *)table->d[index], i&((1<<shift)-1), create);
-	} else {
+	} else if (i<VECTOR_TABLE_ENTRIES) {
 		return table->d+i;
+	} else if (!create) {
+		return 0;
+	} else {
+		kernel_panic("Vector leaf overflow");
 	}
 }
 
 static void vector_checksize(vector_t * v, map_key i)
 {
 	/* Extend the table as necessary */
-	while(1<<(VECTOR_TABLE_ENTRIES_LOG2*(v->table->level+1))<i) {
+	while(1<<(VECTOR_TABLE_ENTRIES_LOG2*(v->table->level+1))<=i) {
 		vector_table_t * table = vector_table_new(v->table->level+1);
 		table->d[0] = (intptr_t)v->table;
 		v->table = table;
@@ -71,7 +80,7 @@ static void vector_checksize(vector_t * v, map_key i)
 
 static map_data vector_put(map_t * m, map_key i, map_data d)
 {
-	vector_t * v = (vector_t*)m;
+	vector_t * v = container_of(m, vector_t, map);
 	vector_checksize(v, i);
 	intptr_t * entry = vector_entry_get(v->table, i, 1);
 	intptr_t old = *entry;
@@ -81,7 +90,7 @@ static map_data vector_put(map_t * m, map_key i, map_data d)
 
 static map_data vector_get(map_t * m, map_key i, map_eq_test cond)
 {
-	vector_t * v = (vector_t*)m;
+	vector_t * v = container_of(m, vector_t, map);
 	intptr_t * entry = vector_entry_get(v->table, i, 0);
 
 	if (entry) {
@@ -106,7 +115,7 @@ static void vector_walk_table(vector_t * v, vector_table_t * t, void * arg, int 
 
 static void vector_walk(map_t * m, walk_func f, void * arg )
 {
-	vector_t * v = (vector_t*)m;
+	vector_t * v = container_of(m, vector_t, map);
 	if (v->table) {
 		vector_walk_table(v, v->table, arg, 0, f);
 	}
@@ -130,10 +139,10 @@ map_t * vector_new()
                 iterator: 0 /* vector_iterator */
         };
 
-	v->ops = &vector_ops;
+	v->map.ops = &vector_ops;
 	v->table = vector_table_new(0);
 
-	return (map_t*)v;
+	return &v->map;
 }
 
 void vector_test()
@@ -143,6 +152,12 @@ void vector_test()
 	int i = 3;
 	map_t * v = vector_new();
 	void * p = vector_test;
+
+	kernel_printk("v[%d] = %p\n", i, map_getip(v, i));
+	map_putip(v, i, p);
+	kernel_printk("v[%d] = %p\n", i, map_getip(v, i));
+
+	i+=61;
 
 	kernel_printk("v[%d] = %p\n", i, map_getip(v, i));
 	map_putip(v, i, p);

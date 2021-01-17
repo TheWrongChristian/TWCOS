@@ -4,6 +4,9 @@ isr_body()
 {
 	cat <<EOF
 	pushl %ds
+	pushl %es
+	pushl %fs
+	pushl %gs
 	pushal
 	pushl %esp
 	pushl \$$1
@@ -13,6 +16,9 @@ isr_body()
 	call i386_isr
 	addl \$8, %esp
 	popal
+	popl %gs
+	popl %fs
+	popl %es
 	popl %ds
 	mov %ebp, %esp
 	popl %ebp
@@ -42,6 +48,7 @@ noerrorcode_isr ()
 isr_$1:
 	pushl %ebp
 	movl %esp, %ebp
+	pushl \$0
 EOF
 	isr_body $1
 }
