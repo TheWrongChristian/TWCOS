@@ -48,6 +48,9 @@ typedef monitor_t mutex_t;
 #define WRITER_AUTOLOCK(lock) int AUTOLOCK_VAR(__LINE__) = 0; while((AUTOLOCK_VAR(__LINE__) =rwlock_autolock(lock, AUTOLOCK_VAR(__LINE__), 1)))
 
 #endif
+
+exception_def TimeoutException = { "TimeoutException", &Exception };
+
 #if 0
 static void mutex_mark(void * p)
 {
@@ -275,11 +278,52 @@ void interrupt_monitor_leave(interrupt_monitor_t * monitor)
 	spin_unlock(&monitor->spin);
 }
 
+typedef struct interrupt_monitor_wait_timeout_t {
+	interrupt_monitor_t * monitor;
+	thread_t * thread;
+} interrupt_monitor_wait_timeout_t;
+
+
+static void interrupt_monitor_wait_timeout_thread(void * p)
+{
+	interrupt_monitor_wait_timeout_t * timeout = p;
+
+	INTERRUPT_MONITOR_AUTOLOCK(timeout->monitor) {
+		thread_t * thread = timeout->monitor->waiting;
+
+		while(thread) {
+			if (thread == timeout->thread) {
+				LIST_DELETE(timeout->monitor->waiting, thread);
+				thread_interrupt(thread);
+				thread_resume(thread);
+				thread = 0;
+			} else {
+				LIST_NEXT(timeout->monitor->waiting, thread);
+			}
+		}
+	}
+}
+
 void interrupt_monitor_wait_timeout(interrupt_monitor_t * monitor, timerspec_t timeout)
 {
+	interrupt_monitor_wait_timeout_t timeout_thread = { monitor, arch_get_thread() };
+	timer_event_t * timer;
+	if (timeout) {
+		timer = timer_add(timeout, interrupt_monitor_wait_timeout_thread, &timeout_thread);
+	} else {
+		timer = 0;
+	}
 	monitor->waiting = thread_queue(monitor->waiting, 0, THREAD_SLEEPING);
 	spin_unlock(&monitor->spin);
 	thread_schedule();
+
+	/* Check for timeout */
+	if (timer) {
+		timer_delete(timer);
+		if (thread_interrupted()) {
+			KTHROW(TimeoutException, "Timeout");
+		}
+	}
 	spin_lock(&monitor->spin);
 }
 
