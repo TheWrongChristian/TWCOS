@@ -51,14 +51,23 @@ void kernel_main() {
 	KTRY {
 		/* Initialize subsystems */
 		thread_init();
+		kernel_debug("Initialising memory allocation\n");
 		slab_init();
+		kernel_debug("Initialising page cache\n");
 		page_cache_init();
+		kernel_debug("Initialising processes\n");
 		process_init();
-		ns16550_init();
+		kernel_debug("Initialising timer\n");
 		timer_init(arch_timer_ops());
+		kernel_debug("Initialising uart\n");
+		ns16550_init();
+		kernel_debug("Initialising devfs\n");
 		pci_scan(pci_probe_devfs);
+		kernel_debug("Initialising ide\n");
 		ide_pciscan();
+		kernel_debug("Initialising uhci\n");
 		uhci_pciscan();
+		kernel_debug("Initialising done\n");
 		cache_test();
 		utf8_test();
 		pipe_test();

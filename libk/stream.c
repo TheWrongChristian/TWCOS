@@ -52,7 +52,7 @@ static void stream_putint(stream_t * stream, int base, int i)
 	}
 }
 
-static void stream_putstr(stream_t * stream, const char * s)
+void stream_putstr(stream_t * stream, const char * s)
 {
 	char c;
 	while((c = *s++)) {

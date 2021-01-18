@@ -4,11 +4,13 @@
 
 #include <stdarg.h>
 
-typedef void (*kernel_logger)(void * p, const char * msg);
-
-struct kernel_logger_listener_t {
-	int level;
-	kernel_logger cb;
+enum logger_level {
+	logger_error = 0,
+	logger_warning,
+	logger_warn = logger_warning,
+	logger_information,
+	logger_info = logger_information,
+	logger_debug
 };
 
 #endif
@@ -17,61 +19,136 @@ static char msg_ring[32][128];
 static int msg_next=0;
 static int enabled=0;
 static char * msgs[countof(msg_ring)];
+static interrupt_monitor_t loggerlock[1];
+static GCROOT thread_t * logger=0;
 
 stream_t * logging_stream = 0;
+
+static void kernel_logger()
+{
+	INTERRUPT_MONITOR_AUTOLOCK(loggerlock) {
+		int lastlog = 0;
+		while(1) {
+			if (msg_next>=lastlog+countof(msg_ring)) {
+				lastlog = msg_next-countof(msg_ring)+1;
+			}
+			for(int i=lastlog; i<msg_next; i++) {
+				int msg = i % countof(msg_ring);
+				stream_putstr(logging_stream, msg_ring[msg]);
+			}
+			interrupt_monitor_wait(loggerlock);
+		}
+	}
+}
 
 void kernel_startlogging(int enable)
 {
 	enabled = enable;
 	if (0 == logging_stream) {
 		logging_stream = console_stream();
+		thread_t * thread = thread_fork();
+		if (thread) {
+			logger = thread;
+		} else {
+			kernel_logger();
+		}
 	}
 }
 
-int kernel_printk(const char * fmt, ...)
+void kernel_printk(const char * fmt, ...)
 {
-        int len = 0;
         va_list ap;
         va_start(ap, fmt);
 
-        len = kernel_vprintk(fmt, ap);
+        kernel_vprintk(fmt, ap);
 
         va_end(ap);
-
-        return len;
 }
 
-int kernel_vprintk(const char * fmt, va_list ap)
+void kernel_vprintk(const char * fmt, va_list ap)
 {
-        int len = 0;
-
 	if (!enabled) {
-		return 0;
+		return;
 	}
 
-	len = vsnprintf(msg_ring[msg_next], countof(msg_ring[msg_next]), fmt, ap);
-	for(int i=0; i<countof(msgs); i++) {
-		msgs[i]=msg_ring[(1+i+msg_next)%countof(msg_ring)];
-	}
-	if (++msg_next == countof(msg_ring)) {
-		msg_next=0;
-	}
-
-        return len;
+	kernel_info(fmt, ap);
 }
 
-static kernel_logger_listener_t listener[1];
-
-void kernel_vlog(int level, const char * fmt, va_list ap)
+void kernel_vlogger(logger_level level, const char * fmt, va_list ap)
 {
-	if (listener->cb && level<listener->level) {
+	static char levels [] = { 'E', 'W', 'I', 'D' };
+	check_int_bounds(level, 0, countof(levels)-1, "Log level out of range");
+	static thread_t * owner = 0;
+
+	if (owner && owner == arch_get_thread())
+	{
+		// Recursing
+		return;
+	}
+	INTERRUPT_MONITOR_AUTOLOCK(loggerlock) {
+		int msg = msg_next++ % countof(msg_ring);
+		owner = arch_get_thread();
+		msg_ring[msg][0] = levels[level];
+		msg_ring[msg][1] = ':';
+		vsnprintf(msg_ring[msg]+2, countof(msg_ring[msg])-2, fmt, ap);
+		owner = 0;
 	}
 }
 
-void kernel_log(int level, const char * fmt, ...)
+void kernel_error(const char * fmt, ...)
 {
         va_list ap;
         va_start(ap, fmt);
-	kernel_vlog(level, fmt, ap);
+	kernel_vlogger(logger_error, fmt, ap);
 	va_end(ap);
 }
+
+void kernel_warn(const char * fmt, ...)
+{
+        va_list ap;
+        va_start(ap, fmt);
+	kernel_vlogger(logger_warning, fmt, ap);
+	va_end(ap);
+}
+
+void kernel_warning(const char * fmt, ...)
+{
+        va_list ap;
+        va_start(ap, fmt);
+	kernel_vlogger(logger_warning, fmt, ap);
+	va_end(ap);
+}
+
+void kernel_info(const char * fmt, ...)
+{
+        va_list ap;
+        va_start(ap, fmt);
+	kernel_vlogger(logger_debug, fmt, ap);
+	va_end(ap);
+}
+
+void kernel_information(const char * fmt, ...)
+{
+        va_list ap;
+        va_start(ap, fmt);
+	kernel_vlogger(logger_debug, fmt, ap);
+	va_end(ap);
+}
+
+void kernel_debug(const char * fmt, ...)
+{
+        va_list ap;
+        va_start(ap, fmt);
+	kernel_vlogger(logger_debug, fmt, ap);
+	va_end(ap);
+}
+
+#if 0
+void kernel_logger(logger_level level, const char * fmt, ...)
+{
+        va_list ap;
+        va_start(ap, fmt);
+	kernel_vlogger(level, fmt, ap);
+	va_end(ap);
+}
+#endif

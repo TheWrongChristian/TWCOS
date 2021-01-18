@@ -199,8 +199,9 @@ void vmap_map(asid vid, void * vaddress, page_t page, int rw, int user)
 		pte |= 0x4;
 	}
 	vmap_set_pte(vid, vaddress, pte);
-
+#if 0
 	kernel_printk("[%x,%p] -> %d %s%s\n", (int)vid, vaddress, (int)page, user ? "u" : "", rw ? "rw" : "ro");
+#endif
 }
 
 void vmap_mapn(asid vid, int n, void * vaddress, page_t page, int rw, int user)
