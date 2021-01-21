@@ -224,10 +224,12 @@ static void pit_set()
 		outb(0x43, 0x30);
 		outb(0x40, 0xff);
 		outb(0x40, 0xff);
+		ticks -= 65535;
 	} else {
 		outb(0x43, 0x30);
 		outb(0x40, ticks & 0xff);
 		outb(0x40, ticks >> 8);
+		ticks = 0;
 	}
 }
 
@@ -242,61 +244,44 @@ static int pit_get()
 	return count;
 }
 
-static void pit_timer_int(int irq)
+static void pit_timer_int(void * ignored)
 {
-	SPIN_AUTOLOCK(pit_lock) {
-		if (ticks>65535) {
-			ticks -= 65535;
-			pit_set();
-		} else {
-			ticks = 0;
-			if (pit_expire) {
-				spin_unlock(pit_lock);
-				pit_expire();
-				spin_lock(pit_lock);
-			}
-		}
-	}
-}
-
-static void pit_timer_set(void (*expire)(), timerspec_t usec)
-{
-	SPIN_AUTOLOCK(pit_lock) {
-		pit_expire = expire;
-		ticks = PIT_HZ * usec / 1000000;
-
+	if (ticks) {
 		pit_set();
+	} else if (pit_expire) {
+		pit_expire();
 	}
 }
 
-static timerspec_t pit_timer_clear()
+interrupt_monitor_t * arch_timer_init()
 {
-	tickspec_t remaining;
+	intr_add(0, pit_timer_int, 0);
+	return interrupt_monitor_irq(0);
+}
 
-	SPIN_AUTOLOCK(pit_lock) {
-		if (ticks>65535) {
-			remaining = ticks - 65535 + pit_get();
-		} else {
-			remaining = pit_get();
-		}
+timerspec_t arch_timer_clear()
+{
+	const tickspec_t remaining = arch_timer_remaining();
 
-		ticks = 0;
-		pit_expire = 0;
-	}
+	ticks = 0;
+	pit_expire = 0;
+
+	return remaining;
+}
+
+void arch_timer_set(void (*expire)(), timerspec_t usec)
+{
+	pit_expire = expire;
+	ticks = PIT_HZ * usec / 1000000;
+
+	pit_set();
+}
+
+timerspec_t arch_timer_remaining()
+{
+	const tickspec_t remaining = ticks + pit_get();
 
 	return remaining * 1000000 / PIT_HZ;
-}
-
-timer_ops_t * arch_timer_ops()
-{
-	static timer_ops_t ops = {
-		timer_set: pit_timer_set,
-		timer_clear: pit_timer_clear
-	};
-
-	add_irq(0, pit_timer_int);
-
-	return &ops;
 }
 
 void arch_idle()

@@ -2,26 +2,36 @@
 
 #if INTERFACE
 
+#define LIST_SPLICE(list1, list2) \
+	do { \
+		typeof(list1->prev) tail1 = list1->prev; \
+		typeof(list2->prev) tail2 = list2->prev; \
+		tail1->next = list2; \
+		tail2->next = list1; \
+		list1->prev = tail2; \
+		list2->prev = tail1; \
+	} while(0)
+
 #define LIST_APPEND(list,p) \
 	do { \
+		p->next = p->prev = p; \
 		if (list) { \
-			p->next = list; \
-			p->prev = list->prev; \
-			p->next->prev = p; \
-			p->prev->next = p; \
+			LIST_SPLICE(list, p); \
 		} else { \
-			p->next = p->prev = p; \
 			list = p; \
 		} \
 		assert(p == p->prev->next); \
 		assert(p == p->next->prev); \
 		assert(p->prev == p->prev->prev->next); \
 		assert(p->next == p->next->next->prev); \
-	}while(0)
+	} while(0)
 
 #define LIST_PREPEND(list,p) \
 	do { \
-		LIST_APPEND(list,p); \
+		p->next = p->prev = p; \
+		if (list) { \
+			LIST_SPLICE(p, list); \
+		} \
 		list = p; \
 	} while(0)
 
@@ -44,20 +54,29 @@
 
 #define LIST_INSERT_BEFORE(list, before, p) \
 	do { \
+		p->next = p->prev = p; \
 		if (before) { \
-			LIST_PREPEND(before, p); \
+			LIST_SPLICE(p, before); \
 		} else { \
-			LIST_PREPEND(list, p); \
+			LIST_APPEND(list, p); \
+		} \
+		if (list == before) { \
+			list = p; \
 		} \
 	} while(0)
 
 #define LIST_INSERT_AFTER(list, after, p) \
 	do { \
+		p->next = p->prev = p; \
 		if (after) { \
-			LIST_APPEND(after, p); \
+			LIST_SPLICE(after, p); \
 		} else { \
 			LIST_PREPEND(list, p); \
 		} \
 	} while(0)
 
 #endif
+
+void list_debug()
+{
+}

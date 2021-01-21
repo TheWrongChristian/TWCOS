@@ -58,7 +58,7 @@ void kernel_main() {
 		kernel_debug("Initialising processes\n");
 		process_init();
 		kernel_debug("Initialising timer\n");
-		timer_init(arch_timer_ops());
+		timer_init();
 		kernel_debug("Initialising uart\n");
 		ns16550_init();
 		kernel_debug("Initialising devfs\n");
@@ -124,7 +124,10 @@ void kernel_main() {
 		if (hda) {
 			fatfs_test(hda);
 		}
-
+	} KCATCH(Throwable) {
+		kernel_panic("Error in initialization: %s\n", exception_message());
+	}
+	KTRY {
 		/* Create process 1 - init */
 		if (0 == process_fork()) {
 			/* Open stdin/stdout/stderr */
@@ -141,7 +144,7 @@ void kernel_main() {
 			/* testshell_run(); */
 		}
 	} KCATCH(Throwable) {
-		kernel_panic("Error in initialization: %s\n", exception_message());
+		kernel_panic("Error starting init: %s\n", exception_message());
 	}
 
 	idle();

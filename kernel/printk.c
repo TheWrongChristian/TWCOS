@@ -13,6 +13,12 @@ enum logger_level {
 	logger_debug
 };
 
+#ifdef DEBUG
+#define TRACE() kernel_debug("... %s:%d\n", __FILE__, __LINE__)
+#else
+#define TRACE() do {} while(0)
+#endif
+
 #endif
 
 static char msg_ring[32][128];
@@ -32,8 +38,8 @@ static void kernel_logger()
 			if (msg_next>=lastlog+countof(msg_ring)) {
 				lastlog = msg_next-countof(msg_ring)+1;
 			}
-			for(int i=lastlog; i<msg_next; i++) {
-				int msg = i % countof(msg_ring);
+			for(; lastlog<msg_next; lastlog++) {
+				int msg = lastlog % countof(msg_ring);
 				stream_putstr(logging_stream, msg_ring[msg]);
 			}
 			interrupt_monitor_wait(loggerlock);
@@ -92,6 +98,7 @@ void kernel_vlogger(logger_level level, const char * fmt, va_list ap)
 		msg_ring[msg][1] = ':';
 		vsnprintf(msg_ring[msg]+2, countof(msg_ring[msg])-2, fmt, ap);
 		owner = 0;
+		interrupt_monitor_signal(loggerlock);
 	}
 }
 
