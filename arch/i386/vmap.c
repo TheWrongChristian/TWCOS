@@ -92,11 +92,11 @@ static pte_t * vmap_get_pgtable(asid vid)
 	return pgtbls[ptid];
 }
 
-static mutex_t lock[] = {0};
+static interrupt_monitor_t lock[] = {0};
 
 void vmap_set_asid(asid vid)
 {
-	MUTEX_AUTOLOCK(lock) {
+	INTERRUPT_MONITOR_AUTOLOCK(lock) {
 		int ptid = vmap_get_ptid(vid);
 
 		set_page_dir(VMAP_PAGE(pgdirs[ptid]));
@@ -105,7 +105,7 @@ void vmap_set_asid(asid vid)
 
 void vmap_release_asid(asid vid)
 {
-	MUTEX_AUTOLOCK(lock) {
+	INTERRUPT_MONITOR_AUTOLOCK(lock) {
 		int ptid = vmap_probe_ptid(vid);
 
 		if (ptid>=0) {
@@ -118,7 +118,7 @@ page_t vmap_get_page(asid vid, void * vaddress)
 {
 	uint32_t pte = 0;
 
-	MUTEX_AUTOLOCK(lock) {
+	INTERRUPT_MONITOR_AUTOLOCK(lock) {
 		page_t vpage = (uint32_t)vaddress >> ARCH_PAGE_SIZE_LOG2;
 		pte_t * pgtbl = vmap_get_pgtable(vid);
 		pte = pgtbl[vpage];
@@ -134,7 +134,7 @@ static pte_t vmap_get_pte(asid vid, void * vaddress)
 {
 	pte_t pte = 0;
 
-	MUTEX_AUTOLOCK(lock) {
+	INTERRUPT_MONITOR_AUTOLOCK(lock) {
 		int ptid = vmap_probe_ptid(vid);
 		if (ptid>=0) {
 			page_t vpage = (uint32_t)vaddress >> ARCH_PAGE_SIZE_LOG2;
@@ -154,7 +154,7 @@ static pte_t vmap_get_pte(asid vid, void * vaddress)
 
 static void vmap_set_pte(asid vid, void * vaddress, pte_t pte)
 {
-	MUTEX_AUTOLOCK(lock) {
+	INTERRUPT_MONITOR_AUTOLOCK(lock) {
 		int ptid = vmap_get_ptid(vid);
 		page_t vpage = (uint32_t)vaddress >> ARCH_PAGE_SIZE_LOG2;
 		pte_t * pgtbl = pgtbls[ptid];
