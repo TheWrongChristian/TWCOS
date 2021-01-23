@@ -180,7 +180,6 @@ static void ide_disk_submit( dev_t * dev, buf_op_t * op )
 	idedevice_t * device = container_of(dev, idedevice_t, dev);
 	INTERRUPT_MONITOR_AUTOLOCK(device->channel->lock) {
 		while(device->channel->op) {
-			kernel_debug("Waiting at line %d\n", __LINE__);
 			interrupt_monitor_wait_timeout(device->channel->lock, 1000000);
 		}
 
@@ -207,7 +206,6 @@ static void ide_thread(idechannel_t * channel)
 	while(1) {
 		INTERRUPT_MONITOR_AUTOLOCK(channel->lock) {
 			while(0 == channel->op) {
-				kernel_debug("Waiting at line %d\n", __LINE__);
 				interrupt_monitor_wait(channel->lock);
 			}
 			dev_t * dev = channel->op->dev;
@@ -438,7 +436,6 @@ static uint8_t ide_wait(idechannel_t * channel, int polling)
 			if (polling) {
 				thread_yield();
 			} else {
-				kernel_debug("Waiting at line %d\n", __LINE__);
 				interrupt_monitor_wait_timeout(channel->lock, 1000000);
 			}
 		}
