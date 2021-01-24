@@ -292,7 +292,7 @@ static idecontroller_t * ide_initialize(uintptr_t bar0, uintptr_t bar1, uintptr_
 	add_irq(15, ide_intr);
 #endif
 	intr_add(14, ide_intr, ide->channels);
-	intr_add(15, ide_intr, ide->channels);
+	intr_add(15, ide_intr, ide->channels+1);
 
 	KTRY {
 		ide_reset(ide->channels);
