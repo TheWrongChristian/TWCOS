@@ -41,7 +41,7 @@ static map_data cache_put( map_t * map, map_key key, map_data data )
 	node->data = data;
 	LIST_APPEND(cache->cold, node);
 
-	return map_put(cache->backing, key, node);
+	return map_put(cache->backing, key, (map_data)node);
 }
 
 static map_data cache_get( map_t * map, map_key key, map_eq_test cond )
@@ -60,16 +60,30 @@ static map_data cache_get( map_t * map, map_key key, map_eq_test cond )
 	return 0;
 }
 
+typedef struct {
+	walk_func func;
+	void * p;
+} cache_walk_t;
+
+static void cache_walk_wrap( void * p, map_key key, map_data data)
+{
+	cache_walk_t * wrapper = p;
+	cache_node_t * node = (void*)data;
+	wrapper->func(wrapper->p, node->key, node->data);
+}
+
 static void cache_walk( map_t * map, walk_func func, void * p )
 {
+	cache_walk_t wrapper = { .func = func, .p = p };
 	cache_t * cache = container_of(map, cache_t, map);
-	map_walk(cache->backing, func, p);
+	map_walk(cache->backing, cache_walk_wrap, &wrapper);
 }
 
 static void cache_walk_range( map_t * map, walk_func func, void * p, map_key from, map_key to )
 {
+	cache_walk_t wrapper = { .func = func, .p = p };
 	cache_t * cache = container_of(map, cache_t, map);
-	map_walk_range(cache->backing, func, p, from, to);
+	map_walk_range(cache->backing, cache_walk_wrap, &wrapper, from, to);
 }
 
 static void cache_optimize(map_t * map)
