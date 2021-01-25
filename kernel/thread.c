@@ -25,6 +25,7 @@ struct thread_t {
 	tstate state;
 	tpriority priority;
 	int interrupted;
+	interrupt_monitor_t * waitingfor;
 
 	/* Thread information */
 	char * name;
@@ -43,6 +44,7 @@ enum tpriority { THREAD_INTERRUPT = 0, THREAD_NORMAL, THREAD_IDLE, THREAD_PRIORI
 
 #endif
 
+int preempt;
 static tls_key tls_next = 1;
 
 int tls_get_key()
@@ -161,6 +163,10 @@ void thread_resume(thread_t * thread)
 	scheduler_lock();
 	queue[priority] = thread_queue(queue[priority], thread, THREAD_RUNNABLE);
 	scheduler_unlock();
+	/* Check for pre-emption */
+	if (arch_get_thread()->priority > priority) {
+		preempt = 1;
+	}
 }
 
 int thread_schedule()
@@ -176,13 +182,13 @@ int thread_schedule()
 				scheduler_unlock();
 				if (arch_get_thread() != next) {
 					/* Thread is changing, do accounting and switch to next */
-					current->accts[current->acct].tlen = timer_uptime() - current->accts[current->acct].tstart;
+					current->accts[current->acct].tlen = timer_uptime(0) - current->accts[current->acct].tstart;
 					current->acct++;
 					if (sizeof(current->accts)/sizeof(current->accts[0]) == current->acct) {
 						current->acct = 0;
 					}
 					arch_thread_switch(next);
-					current->accts[current->acct].tstart = timer_uptime();
+					current->accts[current->acct].tstart = timer_uptime(0);
 					return 1;
 				} else {
 					/* Restore thread state to running */
@@ -322,14 +328,14 @@ void thread_gc()
 {
 	// thread_cleanlocks();
 #if GCPROFILE
-	timerspec_t start = timer_uptime();
+	timerspec_t start = timer_uptime(1);
 #endif
 	slab_gc_begin();
 	slab_gc();
 	slab_gc_end();
 #if GCPROFILE
 	static timerspec_t gctime = 0;
-	gctime += (timer_uptime() - start);
+	gctime += (timer_uptime(1) - start);
 #endif
 }
 

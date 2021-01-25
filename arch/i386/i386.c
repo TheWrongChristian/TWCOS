@@ -462,6 +462,14 @@ void i386_isr(uint32_t num, arch_trap_frame_t * state)
 	isr_t isr = itable[num] ? itable[num] : unhandled_isr;
 
 	isr(num, state);
+
+	/* Do any post-return processing */
+	intr_beforereturn();
+
+	/* For return to usermode, do any processing such as delivering signals */
+	if (state->cs == 0x1b) {
+		intr_beforereturntouser();
+	}
 }
 
 thread_t * arch_get_thread()

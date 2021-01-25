@@ -80,3 +80,15 @@ void intr_remove(int irq, irq_handler handler)
 	}
 }
 #endif
+
+void intr_beforereturn()
+{
+	if (preempt) {
+		preempt = 0;
+		thread_yield();
+	}
+}
+
+void intr_beforereturntouser()
+{
+}

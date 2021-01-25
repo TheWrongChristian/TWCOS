@@ -140,22 +140,26 @@ static void uhci_walk_pending(void * p, void * key, void * data)
 static void uhci_async_processor(uhci_hcd_t * hcd)
 {
 	while(1) {
-		INTERRUPT_MONITOR_AUTOLOCK(hcd->lock) {
-			while(0 == hcd->status) {
-#if 1
+		KTRY {
+			INTERRUPT_MONITOR_AUTOLOCK(hcd->lock) {
+				while(0 == hcd->status) {
+	#if 0
+					TRACE();
+					interrupt_monitor_wait_timeout(hcd->lock, 10000000);
+	#else
+					interrupt_monitor_wait(hcd->lock);
+	#endif
+				}
+
+				/* Process any pending frames */
 				TRACE();
-				interrupt_monitor_wait_timeout(hcd->lock, 10000000);
-#else
-				interrupt_monitor_wait(hcd->lock);
-#endif
+				map_walkpp(hcd->pending, uhci_walk_pending, hcd);
+				hcd->status = 0;
 			}
-
-			/* FIXME: Handle any errors */
-
-			/* Process any pending frames */
-			TRACE();
-			map_walkpp(hcd->pending, uhci_walk_pending, hcd);
-			hcd->status = 0;
+		} KCATCH(TimeoutException) {
+			INTERRUPT_MONITOR_AUTOLOCK(hcd->lock) {
+				map_walkpp(hcd->pending, uhci_walk_pending, hcd);
+			}
 		}
 	}
 }

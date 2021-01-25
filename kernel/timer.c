@@ -15,15 +15,24 @@ struct timer_ops_t {
 #endif
 
 struct timer_t {
+	interrupt_monitor_t * lock;
 	timer_event_t * queue;
 	timer_event_t * expired;
 	thread_t * thread;
 	int running;
 };
 
+enum timer_state {
+	TIMER_IDLE,
+	TIMER_PENDING,
+	TIMER_EXPIRED,
+	TIMER_DELETED
+};
+
 struct timer_event_t {
 	timerspec_t usec;
 	timerspec_t reset;
+	timer_state state;
 
 	void (*cb)(void * p);
 	void * p;
@@ -34,15 +43,14 @@ struct timer_event_t {
 
 #endif
 
-static interrupt_monitor_t * timers_lock = 0;
 static GCROOT timer_t timers[1] = {0};
 static timerspec_t uptime = 0;
-static GCROOT timer_event_t * uptime_timer = 0;
+static GCROOT timer_event_t uptime_timer[1] = {0};
 
 static void timer_event_mark(void * p)
 {
 	void * next;
-	INTERRUPT_MONITOR_AUTOLOCK(timers_lock) {
+	INTERRUPT_MONITOR_AUTOLOCK(timers->lock) {
 		timer_event_t * timer = p;
 		p = timer->p;
 		next = timer->next;
@@ -70,7 +78,7 @@ static void timer_uptime_cb(void * ignored)
 }
 
 static void timer_expire();
-static void timer_set()
+static void timer_run()
 {
 	if (timers->queue && !timers->running) {
 		timers->running = 1;
@@ -106,7 +114,11 @@ static void timer_expire()
 		uptime += next->usec;
 		do {
 			LIST_DELETE(timers->queue, next);
-			LIST_APPEND(timers->expired, next);
+			if (next->state == TIMER_PENDING)
+			{
+				next->state = TIMER_EXPIRED;
+				LIST_APPEND(timers->expired, next);
+			}
 			next = timers->queue;
 		} while(next && 0 == next->usec);
 
@@ -116,7 +128,7 @@ static void timer_expire()
 		}
 
 		/* Poke other threads */
-		interrupt_monitor_broadcast(timers_lock);
+		interrupt_monitor_broadcast(timers->lock);
 	}
 }
 
@@ -124,47 +136,56 @@ static void timer_expire_thread()
 {
 	while(1) {
 		timer_event_t * expired = 0;
-		INTERRUPT_MONITOR_AUTOLOCK(timers_lock) {
+		INTERRUPT_MONITOR_AUTOLOCK(timers->lock) {
 			while(0 == timers->expired) {
-				interrupt_monitor_wait(timers_lock);
+				interrupt_monitor_wait(timers->lock);
 			}
 			expired = timers->expired;
 			timers->expired = 0;
 		}
+
 		/* Finally, process expired timers */
 		while(expired) {
 			timer_event_t * timer = expired;
-			LIST_DELETE(expired, timer);
-			timer->cb(timer->p);
+			if (timer->state == TIMER_EXPIRED) {
+				LIST_DELETE(expired, timer);
+				timer->cb(timer->p);
+			}
 		}
 	}
+}
+
+void timer_set(timer_event_t * timer, timerspec_t usec, void (*cb)(void * p), void * p)
+{
+	timer->state = TIMER_IDLE;
+	timer->usec = usec;
+	timer->reset = usec;
+	timer->cb = cb;
+	timer->p = p;
+	timer_start(timer);
 }
 
 timer_event_t * timer_add(timerspec_t usec, void (*cb)(void * p), void * p)
 {
 	timer_event_t * timer = slab_alloc(timer_events);
-	timer->reset = usec;
-	timer->cb = cb;
-	timer->p = p;
 	timer->next = 0;
 	timer->prev = 0;
 
-	timer_start(timer);
+	timer_set(timer, usec, cb, p);
 
 	return timer;
 }
 
 void timer_start(timer_event_t * timer)
 {
-	timer->usec = timer->reset;
+	if (!timer->usec) {
+		timer->usec = timer->reset;
+	}
 
-	INTERRUPT_MONITOR_AUTOLOCK(timers_lock) {
+	INTERRUPT_MONITOR_AUTOLOCK(timers->lock) {
 		timer_event_t * next = timers->queue;
-		if (next) {
-			/* Cancel the current outstanding timer */
-			timer_clear();
-		}
 
+		timer_clear();
 		while(next) {
 			assert(next != timer);
 			if (timer->usec < next->usec) {
@@ -176,40 +197,57 @@ void timer_start(timer_event_t * timer)
 			LIST_NEXT(timers->queue, next);
 		};
 
+		timer->state = TIMER_PENDING;
+
 		/* Put into the queue */
 		LIST_INSERT_BEFORE(timers->queue, next, timer);
-
-		/* Set the timer */
-		timer_set();
+		timer_run();
 	}
 }
 
 void timer_delete(timer_event_t * timer)
 {
-	INTERRUPT_MONITOR_AUTOLOCK(timers_lock) {
+	INTERRUPT_MONITOR_AUTOLOCK(timers->lock) {
+#if 0
 		timer_clear();
 		LIST_DELETE(timers->queue, timer);
 		timer->cb = 0;
 		timer->p = 0;
 
 		/* Set the timer */
-		timer_set();
+		timer_run();
+#endif
+		if (timer->state == TIMER_PENDING) {
+			if (timers->queue == timer) {
+				/* If we're the first timer, update how long we have */
+				timer_clear();
+				timer->next->usec += timer->usec;
+				LIST_DELETE(timers->queue, timer);
+				timer_run();
+			} else {
+				timer->next->usec += timer->usec;
+				LIST_DELETE(timers->queue, timer);
+			}
+		}
+		if (timer->state != TIMER_EXPIRED) {
+			timer->state = TIMER_DELETED;
+		}
 	}
 }
 
-timerspec_t timer_uptime()
+timerspec_t timer_uptime(int update)
 {
-#if 1
-	timerspec_t t = 0;
-	INTERRUPT_MONITOR_AUTOLOCK(timers_lock) {
-		timer_clear();
-		t = uptime;
-		timer_set();
+	if (update) {
+		timerspec_t t = 0;
+		INTERRUPT_MONITOR_AUTOLOCK(timers->lock) {
+			timer_clear();
+			t = uptime;
+			timer_run();
+		}
+		return t;
+	} else {
+		return uptime;
 	}
-#else
-	timerspec_t t = uptime;
-#endif
-	return t;
 }
 
 struct sleepvar {
@@ -230,12 +268,19 @@ static void timer_sleep_cb(void * p)
 void timer_sleep(timerspec_t usec)
 {
 	struct sleepvar sleep[1] = {{0}};
+#if 0
+	timer_event_t timer[1] = {0};
+	timer_set(timer, usec, timer_sleep_cb, sleep);
+#endif
 
-	INTERRUPT_MONITOR_AUTOLOCK(sleep->lock) {
-		timer_add(usec, timer_sleep_cb, sleep);
-		while(!sleep->done) {
-			interrupt_monitor_wait(sleep->lock);
+	KTRY {
+		INTERRUPT_MONITOR_AUTOLOCK(sleep->lock) {
+			while(!sleep->done) {
+				interrupt_monitor_wait_timeout(sleep->lock, usec);
+			}
 		}
+	} KCATCH(TimeoutException) {
+		// Do nothing
 	}
 }
 
@@ -268,10 +313,10 @@ void timer_init()
 	timers->ops = arch_timer_ops();
 
 
-	timers_lock = interrupt_monitor_irq(0);
+	timers->lock = interrupt_monitor_irq(0);
 	intr_add(0, timer_expire(), 0);
 #endif
-	timers_lock = arch_timer_init();
+	timers->lock = arch_timer_init();
 
 	timers->thread = thread_fork();
 	if (0 == timers->thread) {
@@ -279,7 +324,9 @@ void timer_init()
 	}
 
 	/* Uptime tracking timer - update uptime at least every 1 second */
-	uptime_timer = timer_add(1000000, timer_uptime_cb, 0);
+	timer_set(uptime_timer, 1000000, timer_uptime_cb, 0);
+
+	timer_run();
 }
 
 void timer_test()

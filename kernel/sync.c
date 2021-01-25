@@ -21,7 +21,9 @@ struct rwlock_t {
 
 struct interrupt_monitor_t {
 	spin_t spin;
+	thread_t * owner;
 	thread_t * waiting;
+	timer_event_t timer[1];
 };
 
 #define INIT_ONCE() \
@@ -63,6 +65,7 @@ static void mutex_mark(void * p)
 static slab_type_t mutexes[1] = {SLAB_TYPE(sizeof(mutex_t), mutex_mark, 0)};
 #endif
 
+#if 0
 static void monitor_mark(void * p)
 {
 	monitor_t * lock = p;
@@ -70,8 +73,9 @@ static void monitor_mark(void * p)
 	slab_gc_mark(lock->lock->waiting);
 	slab_gc_mark(lock->owner);
 }
+#endif
 
-static slab_type_t monitors[1] = {SLAB_TYPE(sizeof(monitor_t), monitor_mark, 0)};
+static slab_type_t monitors[1] = {SLAB_TYPE(sizeof(monitor_t), 0, 0)};
 static GCROOT map_t * locktable;
 static mutex_t locktablelock;
 
@@ -209,24 +213,20 @@ void monitor_enter(monitor_t * monitor)
 	INTERRUPT_MONITOR_AUTOLOCK(monitor->lock) {
 		thread_t * thread = arch_get_thread();
 
-		if (0 == monitor->owner) {
-			/* Unlocked case */
-			monitor->owner = thread;
-		} else if (thread != monitor->owner) {
+		while(monitor->owner && thread != monitor->owner) {
 			/* Locked by someone else */
-			while (0 != monitor->owner) {
-				interrupt_monitor_wait(monitor->lock);
-			}
+			interrupt_monitor_wait(monitor->lock);
 		}
+		monitor->owner = thread;
 		monitor->count++;
 	}
+	assert(monitor->owner == arch_get_thread());
 }
 
 void monitor_leave(monitor_t * monitor)
 {
+	assert(monitor->owner == arch_get_thread());
 	INTERRUPT_MONITOR_AUTOLOCK(monitor->lock) {
-		thread_t * thread = arch_get_thread();
-
 		monitor->count--;
                 if (0 == monitor->count) {
                         monitor->owner = 0;
@@ -237,8 +237,8 @@ void monitor_leave(monitor_t * monitor)
 
 void monitor_wait_timeout(monitor_t * monitor, timerspec_t timeout)
 {
+	assert(monitor->owner == arch_get_thread());
 	INTERRUPT_MONITOR_AUTOLOCK(monitor->lock) {
-		assert(monitor->owner == arch_get_thread());
 		int count = monitor->count;
 		monitor->count = 0;
 		monitor->owner = 0;
@@ -255,26 +255,76 @@ void monitor_wait(monitor_t * monitor)
 
 void monitor_signal(monitor_t * monitor)
 {
+	assert(monitor->owner == arch_get_thread());
 	INTERRUPT_MONITOR_AUTOLOCK(monitor->lock) {
+		assert(arch_get_thread() == monitor->owner);
 		interrupt_monitor_signal(monitor->lock);
 	}
 }
 
 void monitor_broadcast(monitor_t * monitor)
 {
+	assert(monitor->owner == arch_get_thread());
 	INTERRUPT_MONITOR_AUTOLOCK(monitor->lock) {
-		assert(monitor->owner == arch_get_thread());
 		interrupt_monitor_broadcast(monitor->lock);
 	}
 }
 
+static int interrupt_monitor_deadlock_visit_monitor(map_t * visited, interrupt_monitor_t * monitor);
+static int interrupt_monitor_deadlock_visit_thread(map_t * visited, thread_t * thread)
+{
+	if (thread == map_putpp(visited, thread, thread)) {
+		return 1;
+	}
+
+	return interrupt_monitor_deadlock_visit_monitor(visited, thread->waitingfor);
+}
+
+static int interrupt_monitor_deadlock_visit_monitor(map_t * visited, interrupt_monitor_t * monitor)
+{
+	if (monitor == map_putpp(visited, monitor, monitor)) {
+		return 1;
+	}
+
+	thread_t * thread = monitor->waiting;
+	while(thread) {
+		if (interrupt_monitor_deadlock_visit_thread(visited, monitor)) {
+			return 1;
+		}
+		LIST_NEXT(monitor->waiting, thread);
+	}
+
+	return interrupt_monitor_deadlock_visit_thread(visited, monitor->owner);
+}
+
 void interrupt_monitor_enter(interrupt_monitor_t * monitor)
 {
+	interrupt_monitor_t * waitingfor = arch_get_thread()->waitingfor;
+	arch_get_thread()->waitingfor = monitor;
+#if 0
 	spin_lock(&monitor->spin);
+#else
+	int attempts = 0;
+	while(0 == spin_trylock(&monitor->spin)) {
+		attempts++;
+		if (0 == (attempts & 0xffff)) {
+			/* Try to detect deadlock */
+			map_t * visited = treap_new(NULL);
+			if (interrupt_monitor_deadlock_visit_thread(visited, arch_get_thread())) {
+				thread_yield();
+			}
+		}
+	}
+#endif
+	arch_get_thread()->waitingfor = waitingfor;
+	monitor->owner = arch_get_thread();
+	assert(monitor->owner == arch_get_thread());
 }
 
 void interrupt_monitor_leave(interrupt_monitor_t * monitor)
 {
+	assert(monitor->owner == arch_get_thread());
+	monitor->owner = 0;
 	spin_unlock(&monitor->spin);
 }
 
@@ -306,34 +356,36 @@ static void interrupt_monitor_wait_timeout_thread(void * p)
 
 void interrupt_monitor_wait_timeout(interrupt_monitor_t * monitor, timerspec_t timeout)
 {
+	assert(monitor->owner == arch_get_thread());
 	interrupt_monitor_wait_timeout_t timeout_thread = { monitor, arch_get_thread() };
 	timer_event_t * timer;
 	if (timeout) {
-		timer = timer_add(timeout, interrupt_monitor_wait_timeout_thread, &timeout_thread);
-	} else {
-		timer = 0;
+		timer_set(monitor->timer, timeout, interrupt_monitor_wait_timeout_thread, &timeout_thread);
 	}
 	monitor->waiting = thread_queue(monitor->waiting, 0, THREAD_SLEEPING);
-	spin_unlock(&monitor->spin);
+	interrupt_monitor_leave(monitor);
 	thread_schedule();
 
 	/* Check for timeout */
-	if (timer) {
-		timer_delete(timer);
+	if (timeout) {
+		timer_delete(monitor->timer);
 		if (thread_interrupted()) {
 			KTHROW(TimeoutException, "Timeout");
 		}
 	}
-	spin_lock(&monitor->spin);
+	interrupt_monitor_enter(monitor);
 }
 
 void interrupt_monitor_wait(interrupt_monitor_t * monitor)
 {
+	assert(monitor->owner == arch_get_thread());
 	interrupt_monitor_wait_timeout(monitor, 0);
 }
 
 void interrupt_monitor_signal(interrupt_monitor_t * monitor)
 {
+	assert(monitor->owner == arch_get_thread());
+
 	thread_t * resume = monitor->waiting;
 
 	if (resume) {
@@ -492,8 +544,32 @@ void thread_wait(void *p)
 }
 #endif
 
+static void sync_deadlock_test()
+{
+	static interrupt_monitor_t test[2] = {0};
+
+	thread_t * thread = thread_fork();
+	if (thread) {
+		INTERRUPT_MONITOR_AUTOLOCK(test) {
+			interrupt_monitor_wait(test);
+			INTERRUPT_MONITOR_AUTOLOCK(test+1) {
+			}
+		}
+	} else {
+		INTERRUPT_MONITOR_AUTOLOCK(test+1) {
+			INTERRUPT_MONITOR_AUTOLOCK(test) {
+				interrupt_monitor_signal(test);
+				thread_yield();
+			}
+		}
+		thread_exit(NULL);
+	}
+	thread_join(thread);
+}
+
 void sync_init()
 {
 	INIT_ONCE();
+	sync_deadlock_test();
 	locktable = tree_new(0, TREE_SPLAY);
 }

@@ -77,7 +77,7 @@ void kernel_vprintk(const char * fmt, va_list ap)
 		return;
 	}
 
-	kernel_info(fmt, ap);
+	kernel_vlogger(logger_debug, fmt, ap);
 }
 
 void kernel_vlogger(logger_level level, const char * fmt, va_list ap)
