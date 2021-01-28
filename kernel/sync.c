@@ -8,7 +8,7 @@
 typedef volatile uint32_t spin_t;
 
 struct monitor_t {
-	volatile interrupt_monitor_t lock[1];
+	interrupt_monitor_t lock[1];
 	thread_t * volatile owner;
 	volatile int count;
 };
@@ -257,7 +257,6 @@ void monitor_signal(monitor_t * monitor)
 {
 	assert(monitor->owner == arch_get_thread());
 	INTERRUPT_MONITOR_AUTOLOCK(monitor->lock) {
-		assert(arch_get_thread() == monitor->owner);
 		interrupt_monitor_signal(monitor->lock);
 	}
 }
@@ -288,7 +287,7 @@ static int interrupt_monitor_deadlock_visit_monitor(map_t * visited, interrupt_m
 
 	thread_t * thread = monitor->waiting;
 	while(thread) {
-		if (interrupt_monitor_deadlock_visit_thread(visited, monitor)) {
+		if (interrupt_monitor_deadlock_visit_thread(visited, thread)) {
 			return 1;
 		}
 		LIST_NEXT(monitor->waiting, thread);

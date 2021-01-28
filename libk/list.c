@@ -93,6 +93,31 @@
 
 #endif
 
-void list_debug()
+typedef struct listtest_t listtest_t;
+struct listtest_t {
+	int i;
+	listtest_t * next;
+	listtest_t * prev;
+};
+
+void list_test()
 {
+	listtest_t * list = 0;
+	listtest_t nodes[10];
+
+	for(int i=0; i<countof(nodes); i++) {
+		listtest_t * node = nodes+i;
+		node->i = i;
+		LIST_APPEND(list, node);
+	}
+
+	listtest_t * p = list;
+	while(p) {
+		LIST_NEXT(list, p);
+	}
+
+	while(list) {
+		p = list;
+		LIST_DELETE(list, p);
+	}
 }

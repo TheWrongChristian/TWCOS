@@ -171,7 +171,6 @@ void keyb_thread()
 				scancode = keyq_get();
 				while(!scancode) {
 					interrupt_monitor_wait(keyq_lock);
-					TRACE();
 					scancode = keyq_get();
 				}
 			}

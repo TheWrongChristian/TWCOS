@@ -131,6 +131,7 @@ void kernel_main() {
 		kernel_panic("Error in initialization: %s\n", exception_message());
 	}
 
+	list_test();
 	sync_test();
 	cache_test();
 	utf8_test();
