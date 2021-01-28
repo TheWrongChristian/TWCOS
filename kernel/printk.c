@@ -47,10 +47,13 @@ static void kernel_logger()
 	}
 }
 
-void kernel_startlogging(int enable)
+void kernel_startlogging(stream_t * stream)
 {
-	enabled = enable;
-	if (0 == logging_stream) {
+	enabled = 1;
+	if (0 == stream) {
+		stream = console_stream();
+	}
+	if (0 == logger) {
 		logging_stream = console_stream();
 		thread_t * thread = thread_fork();
 		if (thread) {
@@ -58,6 +61,9 @@ void kernel_startlogging(int enable)
 		} else {
 			kernel_logger();
 		}
+	}
+	INTERRUPT_MONITOR_AUTOLOCK(loggerlock) {
+		logging_stream = stream;
 	}
 }
 

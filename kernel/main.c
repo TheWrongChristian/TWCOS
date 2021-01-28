@@ -68,9 +68,6 @@ void kernel_main() {
 		kernel_debug("Initialising uhci\n");
 		uhci_pciscan();
 		kernel_debug("Initialising done\n");
-		cache_test();
-		utf8_test();
-		pipe_test();
 #if 0
 		vnode_t * root = tarfs_test();
 		vfs_test(root);
@@ -124,9 +121,21 @@ void kernel_main() {
 		if (hda) {
 			fatfs_test(hda);
 		}
+
+		vnode_t * uart = file_namev("/devfs/char/uart/1016");
+		if (uart) {
+			stream_t * stream = vnode_stream(uart);
+			kernel_startlogging(stream);
+		}
 	} KCATCH(Throwable) {
 		kernel_panic("Error in initialization: %s\n", exception_message());
 	}
+
+	sync_test();
+	cache_test();
+	utf8_test();
+	pipe_test();
+
 	KTRY {
 		/* Create process 1 - init */
 		if (0 == process_fork()) {

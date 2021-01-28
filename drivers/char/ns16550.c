@@ -108,7 +108,7 @@ vnode_t * ns16550_open(int baseport, int irq)
 	ns16550_device_t * dev = 0;
 
 	static vnode_ops_t ops = { .read = ns16550_read, .write = ns16550_write };
-	static fs_t fs = { &ops };
+	static fs_t fs = { .vnodeops = &ops };
 	dev = calloc(1, sizeof(*dev));
 	dev->lock = interrupt_monitor_irq(irq);
 	dev->baseport = baseport;
