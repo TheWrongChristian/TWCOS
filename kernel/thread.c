@@ -42,6 +42,10 @@ struct thread_t {
 enum tstate { THREAD_NEW, THREAD_RUNNABLE, THREAD_RUNNING, THREAD_SLEEPING, THREAD_TERMINATED };
 enum tpriority { THREAD_INTERRUPT = 0, THREAD_NORMAL, THREAD_IDLE, THREAD_PRIORITIES };
 
+#ifndef barrier
+#define barrier() asm volatile("": : :"memory")
+#endif
+
 #endif
 
 int preempt;
@@ -381,7 +385,6 @@ void thread_init()
 	INIT_ONCE();
 
 	/* Craft a new bootstrap thread to replace the static defined thread */
-	sync_init();
 	arch_thread_init(slab_calloc(threads));
 	thread_track(arch_get_thread(), 1);
 }

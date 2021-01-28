@@ -113,6 +113,7 @@ static void exception_backtrace(struct exception_cause * cause)
 	void ** to = PTR_ALIGN_NEXT(from, ARCH_PAGE_SIZE);
 
 	memset(cause->backtrace, 0, sizeof(cause->backtrace));
+#if 0
 	for(int i=0; from<to && i<countof(cause->backtrace); from++) {
 		extern char code_start[], code_end[];
 		void * p = *from;
@@ -120,6 +121,8 @@ static void exception_backtrace(struct exception_cause * cause)
 			cause->backtrace[i++] = p;
 		}
 	}
+#endif
+	arch_thread_backtrace(cause->backtrace, countof(cause->backtrace));
 }
 
 noreturn void exception_throw_cause(struct exception_cause * cause)

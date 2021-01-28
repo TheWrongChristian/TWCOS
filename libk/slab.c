@@ -92,13 +92,6 @@ static void cleaner()
 
 void slab_init()
 {
-	INIT_ONCE();
-	kernel_startlogging(1);
-#if 0
-	if (0 == thread_fork()) {
-		cleaner();
-	}
-#endif
 }
 
 static mutex_t slablock[1];

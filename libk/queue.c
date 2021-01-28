@@ -59,7 +59,7 @@ void queue_put(queue_t * queue, uintptr_t d)
 {
 	MONITOR_AUTOLOCK(queue->lock) {
 		while(queue_full_locked(queue)) {
-			monitor_wait(queue->lock);
+			monitor_wait_timeout(queue->lock, 1000000);
 		}
 
 		queue->qbuf[queue->tail] = d;

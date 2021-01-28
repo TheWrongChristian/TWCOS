@@ -2,14 +2,28 @@
 
 #if INTERFACE
 
+#define LIST_CHECK_LINKAGE(p) \
+	do { \
+		if (p) { \
+			assert(p == p->prev->next); \
+			assert(p == p->next->prev); \
+			assert(p->prev == p->prev->prev->next); \
+			assert(p->next == p->next->next->prev); \
+		} \
+	} while(0)
+
 #define LIST_SPLICE(list1, list2) \
 	do { \
+		LIST_CHECK_LINKAGE(list1); \
+		LIST_CHECK_LINKAGE(list2); \
 		typeof(list1->prev) tail1 = list1->prev; \
 		typeof(list2->prev) tail2 = list2->prev; \
 		tail1->next = list2; \
 		tail2->next = list1; \
 		list1->prev = tail2; \
 		list2->prev = tail1; \
+		LIST_CHECK_LINKAGE(list1); \
+		LIST_CHECK_LINKAGE(list2); \
 	} while(0)
 
 #define LIST_APPEND(list,p) \
@@ -20,10 +34,8 @@
 		} else { \
 			list = p; \
 		} \
-		assert(p == p->prev->next); \
-		assert(p == p->next->prev); \
-		assert(p->prev == p->prev->prev->next); \
-		assert(p->next == p->next->next->prev); \
+		LIST_CHECK_LINKAGE(list); \
+		LIST_CHECK_LINKAGE(p); \
 	} while(0)
 
 #define LIST_PREPEND(list,p) \
@@ -33,6 +45,8 @@
 			LIST_SPLICE(p, list); \
 		} \
 		list = p; \
+		LIST_CHECK_LINKAGE(list); \
+		LIST_CHECK_LINKAGE(p); \
 	} while(0)
 
 #define LIST_DELETE(list,p) \
@@ -45,6 +59,8 @@
 		p->prev->next = p->next; \
 		p->next->prev = p->prev; \
 		p->next = p->prev = p; \
+		LIST_CHECK_LINKAGE(list); \
+		LIST_CHECK_LINKAGE(p); \
 	} while(0)
 
 #define LIST_NEXT(list,p) \

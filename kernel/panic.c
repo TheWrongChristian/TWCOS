@@ -17,6 +17,7 @@ void kernel_wait(char * fmt, ...)
 
 noreturn void kernel_vpanic(char * fmt, va_list ap)
 {
+	kernel_vprintk(fmt, ap);
 	arch_panic(fmt, ap);
 }
 

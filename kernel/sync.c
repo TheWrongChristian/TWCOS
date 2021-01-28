@@ -5,24 +5,24 @@
 #include <stdint.h>
 #include <stddef.h>
 
-typedef int spin_t;
+typedef volatile uint32_t spin_t;
 
 struct monitor_t {
-	interrupt_monitor_t lock[1];
-	thread_t * owner;
-	int count;
+	volatile interrupt_monitor_t lock[1];
+	thread_t * volatile owner;
+	volatile int count;
 };
 
 struct rwlock_t {
 	monitor_t lock[1];
 	int readcount;
-	thread_t * writer;
+	thread_t * volatile writer;
 };
 
 struct interrupt_monitor_t {
 	spin_t spin;
-	thread_t * owner;
-	thread_t * waiting;
+	thread_t * volatile owner;
+	thread_t * volatile waiting;
 	timer_event_t timer[1];
 };
 
@@ -567,9 +567,36 @@ static void sync_deadlock_test()
 	thread_join(thread);
 }
 
-void sync_init()
+static void monitor_test()
 {
-	INIT_ONCE();
+	static monitor_t test[1];
+	static int running = 1;
+	int num = 1;
+	thread_t * thread = thread_fork();
+	if (thread) {
+		for(int i=0; i<1000000; i++) {
+			MONITOR_AUTOLOCK(test) {
+				monitor_signal(test);
+			}
+			thread_yield();
+		}
+		MONITOR_AUTOLOCK(test) {
+			running = 0;
+			monitor_signal(test);
+		}
+		thread_yield();
+		thread_join(thread);
+	} else {
+		MONITOR_AUTOLOCK(test) {
+			while(running) {
+				monitor_wait(test);
+			}
+		}
+	}
+}
+
+void sync_test()
+{
 	sync_deadlock_test();
-	locktable = tree_new(0, TREE_SPLAY);
+	monitor_test();
 }

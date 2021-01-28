@@ -147,7 +147,7 @@ static void PIC_clear_mask(int irq) {
 }
 
 static unsigned long spurious = 0;
-int inirq;
+int inirq = 0;
 void i386_irq(uint32_t num, arch_trap_frame_t * state)
 {
 	int irq = num - PIC_IRQ_BASE;
@@ -166,11 +166,11 @@ void i386_irq(uint32_t num, arch_trap_frame_t * state)
 		}
 	}
 
-	inirq = 1;
+	inirq++;
 	if (irq_table[irq]) {
 		irq_table[irq](irq);
 	}
-	inirq = 0;
+	inirq--;
 
 	PIC_eoi(irq);
 }
