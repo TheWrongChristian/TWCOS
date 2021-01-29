@@ -488,7 +488,7 @@ static void console_escape_interp(char * sequence)
 		console->row = ARGd(1, 1)-1;
 		break;
 	case 'J':
-		switch(ARGd(0, 1))
+		switch(ARGd(0, 0))
 		{
 		case 0:
 			console_clear_line(console->row, console->column, console->width);
@@ -499,7 +499,7 @@ static void console_escape_interp(char * sequence)
 			break;
 		case 1:
 			console_clear_line(console->row, 0, console->column);
-			for(int y=console->column+1; y<console->height; y++)
+			for(int y=0; y<console->row; y++)
 			{
 				console_clear_line(y, 0, console->width);
 			}
