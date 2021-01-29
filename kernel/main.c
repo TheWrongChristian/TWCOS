@@ -131,11 +131,17 @@ void kernel_main() {
 		kernel_panic("Error in initialization: %s\n", exception_message());
 	}
 
-	list_test();
-	sync_test();
-	cache_test();
-	utf8_test();
-	pipe_test();
+	KTRY {
+		list_test();
+#if 0
+		sync_test();
+#endif
+		cache_test();
+		utf8_test();
+		pipe_test();
+	} KCATCH(Throwable) {
+		kernel_panic("Error in testing: %s\n", exception_message());
+	}
 
 	KTRY {
 		/* Create process 1 - init */
