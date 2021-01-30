@@ -320,6 +320,15 @@ void interrupt_monitor_enter(interrupt_monitor_t * monitor)
 	assert(monitor->owner == arch_get_thread());
 }
 
+static void interrupt_monitor_leave_and_schedule(interrupt_monitor_t * monitor)
+{
+	assert(monitor->owner == arch_get_thread());
+	monitor->owner = 0;
+	scheduler_lock(&monitor->spin);	
+	monitor->waiting = thread_queue(monitor->waiting, 0, THREAD_SLEEPING);
+	thread_schedule();
+}
+
 void interrupt_monitor_leave(interrupt_monitor_t * monitor)
 {
 	assert(monitor->owner == arch_get_thread());
@@ -361,9 +370,7 @@ void interrupt_monitor_wait_timeout(interrupt_monitor_t * monitor, timerspec_t t
 	if (timeout) {
 		timer_set(monitor->timer, timeout, interrupt_monitor_wait_timeout_thread, &timeout_thread);
 	}
-	monitor->waiting = thread_queue(monitor->waiting, 0, THREAD_SLEEPING);
-	interrupt_monitor_leave(monitor);
-	thread_schedule();
+	interrupt_monitor_leave_and_schedule(monitor);
 
 	/* Check for timeout */
 	if (timeout) {

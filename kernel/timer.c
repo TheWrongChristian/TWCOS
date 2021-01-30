@@ -178,9 +178,7 @@ timer_event_t * timer_add(timerspec_t usec, void (*cb)(void * p), void * p)
 
 void timer_start(timer_event_t * timer)
 {
-	if (!timer->usec) {
-		timer->usec = timer->reset;
-	}
+	timer->usec = timer->reset;
 
 	INTERRUPT_MONITOR_AUTOLOCK(timers->lock) {
 		timer_event_t * next = timers->queue;

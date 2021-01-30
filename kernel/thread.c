@@ -81,6 +81,21 @@ static void thread_mark(void * p);
 static void thread_finalize(void * p);
 static slab_type_t threads[1] = {SLAB_TYPE(sizeof(thread_t), thread_mark, thread_finalize)};
 
+static spin_t queuelock;
+void scheduler_lock(spin_t * inherit)
+{
+	spin_lock(&queuelock);
+	if (inherit) {
+		queuelock = *inherit;
+		*inherit = 0;
+	}
+}
+
+static void scheduler_unlock()
+{
+	spin_unlock(&queuelock);
+}
+
 thread_t * thread_prequeue(thread_t * queue, thread_t * thread, tstate state)
 {
 	if (0 == thread) {
@@ -103,25 +118,13 @@ thread_t * thread_queue(thread_t * queue, thread_t * thread, tstate state)
 
 /* Simple RR scheduler */
 static GCROOT thread_t * queue[THREAD_PRIORITIES];
-static spin_t queuelock;
-
-static void scheduler_lock()
-{
-	spin_lock(&queuelock);
-}
-
-static void scheduler_unlock()
-{
-	spin_unlock(&queuelock);
-}
 
 int thread_preempt()
 {
 	thread_t * this = arch_get_thread();
 	tpriority priority = this->priority;
-	scheduler_lock();
+	scheduler_lock(0);
 	queue[priority] = thread_prequeue(queue[priority], this, THREAD_RUNNABLE);
-	scheduler_unlock();
 	return thread_schedule();
 }
 
@@ -129,9 +132,8 @@ int thread_yield()
 {
 	thread_t * this = arch_get_thread();
 	tpriority priority = this->priority;
-	scheduler_lock();
+	scheduler_lock(0);
 	queue[priority] = thread_queue(queue[priority], this, THREAD_RUNNABLE);
-	scheduler_unlock();
 	return thread_schedule();
 }
 
@@ -164,7 +166,6 @@ int thread_interrupted()
 void thread_resume(thread_t * thread)
 {
 	tpriority priority = thread->priority;
-	scheduler_lock();
 	queue[priority] = thread_queue(queue[priority], thread, THREAD_RUNNABLE);
 	scheduler_unlock();
 	/* Check for pre-emption */
@@ -177,7 +178,6 @@ int thread_schedule()
 {
 	while(1) {
 		int i;
-		scheduler_lock();
 		for(i=0; i<THREAD_PRIORITIES; i++) {
 			if (queue[i]) {
 				thread_t * current = arch_get_thread();
@@ -186,13 +186,13 @@ int thread_schedule()
 				scheduler_unlock();
 				if (arch_get_thread() != next) {
 					/* Thread is changing, do accounting and switch to next */
-					current->accts[current->acct].tlen = timer_uptime(0) - current->accts[current->acct].tstart;
+					current->accts[current->acct].tlen = timer_uptime(1) - current->accts[current->acct].tstart;
 					current->acct++;
 					if (sizeof(current->accts)/sizeof(current->accts[0]) == current->acct) {
 						current->acct = 0;
 					}
 					arch_thread_switch(next);
-					current->accts[current->acct].tstart = timer_uptime(0);
+					current->accts[current->acct].tstart = timer_uptime(1);
 					return 1;
 				} else {
 					/* Restore thread state to running */
@@ -204,6 +204,7 @@ int thread_schedule()
 		// kernel_printk("Empty run queue!\n");
 		scheduler_unlock();
 		arch_idle();
+		scheduler_lock(0);
 	}
 }
 
@@ -231,7 +232,7 @@ void thread_set_name(thread_t * thread, char * name)
 
 static void thread_track(thread_t * thread, int add)
 {
-	static int lock = 0;
+	static spin_t lock = 0;
 	static GCROOT map_t * allthreads = 0;
 
 	SPIN_AUTOLOCK(&lock) {
@@ -297,6 +298,7 @@ void thread_exit(void * retval)
 	thread_track(this, 0);
 
 	/* Schedule the next thread */
+	scheduler_lock(0);
 	thread_schedule();
 }
 
