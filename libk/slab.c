@@ -23,6 +23,13 @@ struct slab_weakref_t {
 	unsigned int seq;
 };
 
+struct gc_stats_t
+{
+	size_t inuse;
+	size_t peak;
+	size_t total;
+};
+
 #define SLAB_TYPE(s, m, f) {.magic=0, .esize=s, .mark=m, .finalize=f}
 
 #ifdef DEBUG
@@ -258,12 +265,7 @@ void slab_nomark(void * p)
 	/* Does nothing */
 }
 
-static struct
-{
-	size_t inuse;
-	size_t peak;
-	size_t total;
-} gc_stats = {0};
+gc_stats_t gc_stats = {0};
 
 static struct gccontext {
 	/* The block to be scanned */

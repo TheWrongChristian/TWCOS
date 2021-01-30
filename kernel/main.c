@@ -24,12 +24,14 @@ static void idle() {
 	timerspec_t uptime = timer_uptime(0);
 	while(1) {
 		if (thread_preempt()) {
-#if 0
+#if 1
 			thread_gc();
 #endif
 		}
 		timerspec_t newuptime = timer_uptime(0);
 		if (newuptime-uptime > 1000000) {
+			kernel_printk("Stats\n");
+			kernel_printk("GC stats: %d, %d, %d\n", (int)gc_stats.inuse, (int)gc_stats.peak, (int)gc_stats.total);
 			uptime = newuptime;
 			thread_update_accts();
 		}
