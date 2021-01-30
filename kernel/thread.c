@@ -20,6 +20,8 @@ struct thread_t {
 		timerspec_t tstart;
 		timerspec_t tlen;
 	} accts[64];
+	timerspec_t period;
+	timerspec_t usage;
 
 	/* Run state */
 	tstate state;
@@ -230,12 +232,11 @@ void thread_set_name(thread_t * thread, char * name)
 	thread->name = name;
 }
 
+static spin_t allthreadslock = 0;
+static GCROOT map_t * allthreads = 0;
 static void thread_track(thread_t * thread, int add)
 {
-	static spin_t lock = 0;
-	static GCROOT map_t * allthreads = 0;
-
-	SPIN_AUTOLOCK(&lock) {
+	SPIN_AUTOLOCK(&allthreadslock) {
 		if (0 == allthreads) {
 			/* All threads */
 			allthreads = tree_new(0, TREE_TREAP);
@@ -415,6 +416,33 @@ static void thread_test2(rwlock_t * rw)
 	rwlock_unlock(rw);
 	rwlock_write(rw);
 	rwlock_unlock(rw);
+}
+
+static void thread_update_acct(void * ignored, void * key, void * data)
+{
+	thread_t * current = key;
+	timerspec_t first = INT64_MAX;
+	timerspec_t sum = 0;
+	for(int i=0; i<countof(current->accts); i++) {
+		sum += current->accts[i].tlen;
+		if (current->accts[i].tstart<first) {
+			first = current->accts[i].tstart;
+		}
+	}
+	current->period = timer_uptime(0) - first;
+	current->usage = sum;
+
+	int percent = 100 * current->usage / current->period;
+	kernel_printk("%s: %d\n", current->name ? current->name : "Unknown", percent);
+}
+
+void thread_update_accts()
+{
+	SPIN_AUTOLOCK(&allthreadslock) {
+		if (allthreads) {
+			map_walkpp(allthreads, thread_update_acct, 0);
+		}
+	}
 }
 
 void thread_test()

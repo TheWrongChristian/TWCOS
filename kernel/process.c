@@ -154,6 +154,9 @@ pid_t process_fork()
 		return 0;
 	} else {
 		thread->process = new;
+		char newname[64];
+		snprintf(newname, countof(newname), "%d", new->pid);
+		thread_set_name(thread, strdup(newname));
 		map_putpp(thread->process->threads, thread, thread);
 	}
 

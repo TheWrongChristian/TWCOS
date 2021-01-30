@@ -134,6 +134,7 @@ static void timer_expire()
 
 static void timer_expire_thread()
 {
+	thread_set_name(0, "Timer");
 	while(1) {
 		timer_event_t * expired = 0;
 		INTERRUPT_MONITOR_AUTOLOCK(timers->lock) {

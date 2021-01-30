@@ -463,6 +463,7 @@ hcd_t * uhci_reset(int iobase, int irq)
 #if 1
 	thread_t * thread = thread_fork();
 	if (0==thread) {
+		thread_set_name(0, "UHCI async processor");
 		uhci_async_processor(hcd);
 	} else {
 		hcd->thread = thread;

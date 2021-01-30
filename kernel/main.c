@@ -20,11 +20,18 @@
 
 static void idle() {
 	thread_set_priority(0, THREAD_IDLE);
+	thread_set_name(0, "Idle");
+	timerspec_t uptime = timer_uptime(0);
 	while(1) {
 		if (thread_preempt()) {
 #if 0
 			thread_gc();
 #endif
+		}
+		timerspec_t newuptime = timer_uptime(0);
+		if (newuptime-uptime > 1000000) {
+			uptime = newuptime;
+			thread_update_accts();
 		}
 		arch_idle();
 	}
@@ -117,9 +124,12 @@ void kernel_main() {
 			}
 		}
 
-		vnode_t * hda = file_namev("/devfs/disk/ide/1f0/master");
-		if (hda) {
-			fatfs_test(hda);
+		vnode_t * fatfs = file_namev("/fatfs");
+		if (fatfs) {
+			vnode_t * hda = file_namev("/devfs/disk/ide/1f0/master");
+			if (hda) {
+				vfs_mount(fatfs, fatfs_open(hda));
+			}
 		}
 
 		vnode_t * uart = file_namev("/devfs/char/uart/1016");

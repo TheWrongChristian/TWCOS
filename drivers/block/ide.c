@@ -263,6 +263,7 @@ static void ide_probe_channel(idechannel_t * channel)
 			if (thread) {
 				channel->thread = thread;
 			} else {
+				thread_set_name(0, "IDE async thread");
 				ide_thread(channel);
 			}
 		}

@@ -32,6 +32,7 @@ stream_t * logging_stream = 0;
 
 static void kernel_logger()
 {
+	thread_set_name(0, "Logger");
 	INTERRUPT_MONITOR_AUTOLOCK(loggerlock) {
 		int lastlog = 0;
 		while(1) {
