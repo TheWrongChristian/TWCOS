@@ -5,25 +5,25 @@
 #define LIST_CHECK_LINKAGE(p) \
 	do { \
 		if (p) { \
-			assert(p == p->prev->next); \
-			assert(p == p->next->prev); \
-			assert(p->prev == p->prev->prev->next); \
-			assert(p->next == p->next->next->prev); \
+			assert(p == (p)->prev->next); \
+			assert(p == (p)->next->prev); \
+			assert((p)->prev == (p)->prev->prev->next); \
+			assert((p)->next == (p)->next->next->prev); \
 		} \
 	} while(0)
 
 #define LIST_SPLICE(list1, list2) \
 	do { \
-		LIST_CHECK_LINKAGE(list1); \
-		LIST_CHECK_LINKAGE(list2); \
-		typeof(list1->prev) tail1 = list1->prev; \
-		typeof(list2->prev) tail2 = list2->prev; \
-		tail1->next = list2; \
-		tail2->next = list1; \
-		list1->prev = tail2; \
-		list2->prev = tail1; \
-		LIST_CHECK_LINKAGE(list1); \
-		LIST_CHECK_LINKAGE(list2); \
+		LIST_CHECK_LINKAGE((list1)); \
+		LIST_CHECK_LINKAGE((list2)); \
+		typeof((list1)->prev) tail1 = (list1)->prev; \
+		typeof((list2)->prev) tail2 = (list2)->prev; \
+		tail1->next = (list2); \
+		tail2->next = (list1); \
+		(list1)->prev = tail2; \
+		(list2)->prev = tail1; \
+		LIST_CHECK_LINKAGE((list1)); \
+		LIST_CHECK_LINKAGE((list2)); \
 	} while(0)
 
 #define LIST_APPEND(list,p) \
