@@ -300,9 +300,6 @@ void interrupt_monitor_enter(interrupt_monitor_t * monitor)
 {
 	interrupt_monitor_t * waitingfor = arch_get_thread()->waitingfor;
 	arch_get_thread()->waitingfor = monitor;
-#if 0
-	spin_lock(&monitor->spin);
-#else
 	int attempts = 0;
 	while(0 == spin_trylock(&monitor->spin)) {
 		attempts++;
@@ -314,7 +311,6 @@ void interrupt_monitor_enter(interrupt_monitor_t * monitor)
 			}
 		}
 	}
-#endif
 	arch_get_thread()->waitingfor = waitingfor;
 	monitor->owner = arch_get_thread();
 	assert(monitor->owner == arch_get_thread());
