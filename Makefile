@@ -26,6 +26,8 @@ subdir := libk
 include $(subdir)/subdir.mk
 subdir := kernel
 include $(subdir)/subdir.mk
+subdir := posix
+include $(subdir)/subdir.mk
 subdir := fs
 include $(subdir)/subdir.mk
 subdir := drivers
