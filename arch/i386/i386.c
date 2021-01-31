@@ -149,7 +149,7 @@ void invlpg(void* m)
 	asm volatile ( "invlpg (%0)" : : "b"(m) : "memory" );
 }
 
-extern uint16_t idt[256][4];
+static uint16_t idt[256][4];
 
 #include "isr_labels_extern.h"
 void * isr_labels[] = {

@@ -1,12 +1,4 @@
 .section .data
-.global idt
-idt:
-	.rept 256
-	.word 0
-	.word 0
-	.word 0
-	.word 0
-	.endr
 
 // Currently the stack pointer register (esp) points at anything and using it may
 // cause massive harm. Instead, we'll provide our own stack. We will allocate
@@ -14,12 +6,12 @@ idt:
 // then allocating 16384 bytes for it, and finally creating a symbol at the top.
 .section .bootstrap_stack, "aw", @nobits
 bootstrap_stack_bottom:
-.skip 1024 # 4 KiB
+.skip 4096 # 4 KiB
 bootstrap_stack_top:
 
 .section .data
 stack_bottom:
-.skip 1024 # 4 KiB
+.skip 4096 # 4 KiB
 stack_top:
 
 

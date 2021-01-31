@@ -17,7 +17,7 @@ MAKEHEADERS=$(TOP)/build/makeheaders
 include $(TOP)/build/param.mk
 
 COPTS=-g -DDEBUG
-KOPTS:=-ffreestanding
+KOPTS:=-ffreestanding -flto
 UOPTS:=-I$(TOP)/user/pdclib/include -I$(TOP)/user/pdclib/platform/twcos/include
 CFLAGS=$(COPTS) $(UOPTS) --sysroot=. -pipe -std=gnu99 -Wall -I$(TOP)/arch/$(ARCH)/include -I$(TOP)/include
 CXXFLAGS=$(COPTS) $(UOPTS) --sysroot=. -pipe -Wall -I$(TOP)/arch/$(ARCH)/include -I$(TOP)/include
