@@ -236,6 +236,19 @@ static fatfsextent_t * fatfs_fat_extent(fatfs_t * fatfs, off64_t offset, cluster
 	return extent;
 }
 
+static int fatfs_size_directory(vnode_t * dir, void * p, off_t offset, byte * buf, fatfslfn_t * lfn)
+{
+	if (buf[0]) {
+		return 0;
+	}
+
+	/* Last entry */
+	vnode_set_size(dir, offset);
+
+	return 1;
+}
+
+static int fatfs_walk_directory(vnode_t * dir, off_t offset, fatfs_dir_walk_t cb, void * p);
 static vnode_t * fatfs_node(fatfs_t * fatfs, vnode_type type, cluster_t start, off64_t size)
 {
 	fatfsnode_t * node = calloc(1, sizeof(*node));
@@ -261,6 +274,7 @@ static vnode_t * fatfs_node(fatfs_t * fatfs, vnode_type type, cluster_t start, o
 	} else {
 		/* Must be the root directory */
 		node->size = FATFS_DIRENT_SIZE*fatfs->rootentries;
+		fatfs_walk_directory(&node->vnode, 0, fatfs_size_directory, 0);
 	}
 
 	return &node->vnode;
@@ -428,10 +442,12 @@ static int fatfs_walk_directory(vnode_t * dir, off_t offset, fatfs_dir_walk_t cb
 {
 	byte buf[FATFS_DIRENT_SIZE];
 	off64_t next = offset;
+	off64_t start = offset;
+	off64_t size = vnode_get_size(dir);
 	fatfslfn_t * lfn = tmalloc(sizeof(*lfn));
 	lfn->lfn[0] = 0;
 
-	while(1) {
+	while(next<size) {
 		arena_state state = arena_getstate(NULL);
 
 		size_t read = vnode_read(dir, next, buf, countof(buf));
@@ -571,6 +587,9 @@ struct fatfs_getdents_walk_t {
 
 static int fatfs_getdents_walk(vnode_t * dir, void * p, off_t offset, byte * buf, fatfslfn_t * lfn)
 {
+	fatfs_getdents_walk_t * info = (fatfs_getdents_walk_t*)p;
+	//info->last = offset + FATFS_DIRENT_SIZE;
+
 	/* Skip any entries that won't be directory entries */
 	switch(buf[0]) {
 	case 5:
@@ -582,7 +601,6 @@ static int fatfs_getdents_walk(vnode_t * dir, void * p, off_t offset, byte * buf
 		return 1;
 	}
 
-	fatfs_getdents_walk_t * info = (fatfs_getdents_walk_t*)p;
 	size_t bufleft = info->bufsize - (info->next - info->buf);
 	char * name = fatfs_get_filename(buf, lfn);
 	struct dirent64 * dirent = vfs_dirent64(0, offset + FATFS_DIRENT_SIZE, name, 0);
