@@ -226,35 +226,39 @@ static void ide_probe_channel(idechannel_t * channel)
 		snprintf(devfsname, sizeof(devfsname), "disk/ide/%x", channel->base);
 		vnode_t * devfs = devfs_open();
 		for(int i=0; i<2; i++) {
-			idedevice_t * device = channel->devices+i;
-		
-			device->channel = channel;	
-			ide_address(channel, i, 0, 0);
-			uint8_t status = ide_wait(channel, channel->polling);
-			if (0==status) {
-				/* No drive */
-				memset(device, 0, sizeof(*device));
-			} else if (status & (ATA_SR_DRDY|ATA_SR_DRQ)) {
-				ide_drive_identify(channel, i, buf, countof(buf));
-				/* Check for ATAPI device */
-				status = ide_wait(channel, channel->polling);
-				if (0x14 == ide_read(channel, ATA_REG_LBA1) && 0xEB == ide_read(channel, ATA_REG_LBA2)) {
-					static dev_ops_t ide_atapi_ops;
-					/* ATAPI device */
-					device->type = IDE_ATAPI;
-					device->dev.ops = &ide_atapi_ops;
+			KTRY {
+				idedevice_t * device = channel->devices+i;
+			
+				device->channel = channel;	
+				ide_address(channel, i, 0, 0);
+				uint8_t status = ide_wait(channel, channel->polling);
+				if (0==status) {
+					/* No drive */
+					memset(device, 0, sizeof(*device));
+				} else if (status & (ATA_SR_DRDY|ATA_SR_DRQ)) {
+					ide_drive_identify(channel, i, buf, countof(buf));
+					/* Check for ATAPI device */
+					status = ide_wait(channel, channel->polling);
+					if (0x14 == ide_read(channel, ATA_REG_LBA1) && 0xEB == ide_read(channel, ATA_REG_LBA2)) {
+						static dev_ops_t ide_atapi_ops;
+						/* ATAPI device */
+						device->type = IDE_ATAPI;
+						device->dev.ops = &ide_atapi_ops;
+					} else {
+						static dev_ops_t ide_disk_ops = { .submit = ide_disk_submit };
+						device->size = ide_field_get(buf, sizeof(buf), ATA_IDENT_MAX_LBA, 4);
+						device->type = IDE_ATA;
+						device->dev.ops = &ide_disk_ops;
+					}
+					vnode_t * vnode = dev_vnode(&device->dev);
+					vnode_t * dir = vnode_newdir_hierarchy(devfs, devfsname);
+					vnode_put_vnode(dir, i ? "slave" : "master", vnode);
+					needthread = 1;
 				} else {
-					static dev_ops_t ide_disk_ops = { .submit = ide_disk_submit };
-					device->size = ide_field_get(buf, sizeof(buf), ATA_IDENT_MAX_LBA, 4);
-					device->type = IDE_ATA;
-					device->dev.ops = &ide_disk_ops;
+					/* Some error */
 				}
-				vnode_t * vnode = dev_vnode(&device->dev);
-				vnode_t * dir = vnode_newdir_hierarchy(devfs, devfsname);
-				vnode_put_vnode(dir, i ? "slave" : "master", vnode);
-				needthread = 1;
-			} else {
-				/* Some error */
+			} KCATCH(Exception) {
+				kernel_printk("%s: Exception probing device %d\n", devfsname, i);
 			}
 		}
 		if (needthread) {
