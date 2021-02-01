@@ -127,7 +127,7 @@ static void uhci_status_check(uhci_q * q, future_t * future)
 	/* FIXME: cleanup pending */
 }
 
-static void uhci_walk_pending(void * p, void * key, void * data)
+static void uhci_walk_pending(const void * const p, void * key, void * data)
 {
 #if 0
 	uhci_hcd_t * hcd = p;

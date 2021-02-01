@@ -254,6 +254,7 @@ struct sleepvar {
 	interrupt_monitor_t lock[1];
 };
 
+#if 0
 static void timer_sleep_cb(void * p)
 {
 	struct sleepvar * sleep = p;
@@ -263,6 +264,7 @@ static void timer_sleep_cb(void * p)
 		interrupt_monitor_broadcast(sleep->lock);
 	}
 }
+#endif
 
 void timer_sleep(timerspec_t usec)
 {

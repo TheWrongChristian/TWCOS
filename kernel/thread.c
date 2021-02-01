@@ -418,7 +418,7 @@ static void thread_test2(rwlock_t * rw)
 	rwlock_unlock(rw);
 }
 
-static void thread_update_acct(void * ignored, void * key, void * data)
+static void thread_update_acct(const void * const ignored, void * key, void * data)
 {
 	thread_t * current = key;
 	timerspec_t first = INT64_MAX;
@@ -454,7 +454,7 @@ void thread_test()
 		thread_join(thread1);
 		thread1 = 0;
 	} else {
-		static rwlock_t rw[1] = {{0}};
+		static rwlock_t rw[1] = {0};
 		thread_t * thread2 = thread_fork();
 		rwlock_read(rw);
 		if (thread2) {

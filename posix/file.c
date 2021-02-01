@@ -33,9 +33,11 @@ static file_t * file_get(int fd)
 	return map_getip(process_files(), fd);
 }
 
+#if 0
 static void file_addref(file_t * file) {
 	++file->refs;
 }
+#endif
 
 static void file_release(file_t * file) {
 	--file->refs;

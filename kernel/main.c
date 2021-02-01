@@ -39,16 +39,6 @@ static void idle() {
 	}
 }
 
-static void run_init() {
-	kernel_printk("In process %d\n", arch_get_thread()->process->pid);
-	while(1) {
-#if 0
-		kernel_printk("init sleeping for 10 seconds\n");
-#endif
-		timer_sleep(10000000);
-	}
-}
- 
 void kernel_main() {
 	/* Initialize console interface */
 	arch_init();
@@ -118,8 +108,9 @@ void kernel_main() {
 		if (initrd) {
 			process_t * p = process_get();
 			p->root = p->cwd = tarfs_open(dev_static(initrd, initrdsize));
-			char * buf = arena_alloc(NULL, 1024);
+			struct dirent64 * buf = arena_alloc(NULL, 1024);
 			int read = vfs_getdents(p->root, 0, buf, 1024);
+			assert(read>=0);
 			vnode_t * devfs = file_namev("/devfs");
 			if (devfs) {
 				vfs_mount(devfs, devfs_open());

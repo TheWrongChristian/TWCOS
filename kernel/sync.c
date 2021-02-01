@@ -76,10 +76,10 @@ static void monitor_mark(void * p)
 #endif
 
 static slab_type_t monitors[1] = {SLAB_TYPE(sizeof(monitor_t), 0, 0)};
+#if 0
 static GCROOT map_t * locktable;
 static mutex_t locktablelock;
-
-static int contended;
+#endif
 
 int spin_trylock(spin_t * l)
 {
@@ -362,7 +362,6 @@ void interrupt_monitor_wait_timeout(interrupt_monitor_t * monitor, timerspec_t t
 {
 	assert(monitor->owner == arch_get_thread());
 	interrupt_monitor_wait_timeout_t timeout_thread = { monitor, arch_get_thread() };
-	timer_event_t * timer;
 	if (timeout) {
 		timer_set(monitor->timer, timeout, interrupt_monitor_wait_timeout_thread, &timeout_thread);
 	}
@@ -403,6 +402,7 @@ void interrupt_monitor_broadcast(interrupt_monitor_t * monitor)
 	}
 }
 
+#if 0
 static interrupt_monitor_t locks[32] = {0};
 static void interrupt_monitor_irq_trigger(int irq)
 {
@@ -411,7 +411,6 @@ static void interrupt_monitor_irq_trigger(int irq)
         }
 }
 
-#if 0
 static monitor_t * thread_monitor_get(void * p)
 {
 	mutex_lock(&locktablelock);
@@ -573,7 +572,6 @@ static void monitor_test()
 {
 	static monitor_t test[1];
 	static int running = 1;
-	int num = 1;
 	thread_t * thread = thread_fork();
 	if (thread) {
 		for(int i=0; i<1000000; i++) {

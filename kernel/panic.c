@@ -7,7 +7,7 @@
 
 #include "panic.h"
 
-void kernel_wait(char * fmt, ...)
+void kernel_wait(const char * fmt, ...)
 {
 	va_list ap;
 	va_start(ap,fmt);
@@ -15,13 +15,13 @@ void kernel_wait(char * fmt, ...)
 	va_end(ap);
 }
 
-noreturn void kernel_vpanic(char * fmt, va_list ap)
+noreturn void kernel_vpanic(const char * fmt, va_list ap)
 {
 	kernel_vprintk(fmt, ap);
 	arch_panic(fmt, ap);
 }
 
-noreturn void kernel_panic(char * fmt, ...)
+noreturn void kernel_panic(const char * fmt, ...)
 {
 	va_list ap;
 	va_start(ap,fmt);

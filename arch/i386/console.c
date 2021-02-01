@@ -198,7 +198,7 @@ void console_initialize(multiboot_info_t * info)
 
 	console->row = 0;
 	console->column = 0;
-	console->color = make_color(COLOR_LIGHT_GREY, COLOR_BLACK);
+	console->color = make_color(COLOR_GREEN, COLOR_BLACK);
 	if (info->framebuffer_type == MULTIBOOT_FRAMEBUFFER_TYPE_RGB) {
 		psf_font_t * font=(psf_font_t*)drivers_char_font_psf;
 		static framebuffer_t fb[1];
@@ -256,9 +256,11 @@ void console_initialize(multiboot_info_t * info)
 	add_irq(1, keyb_isr);
 }
 
+#if 0
 static void console_setcolor(uint8_t color) {
 	console->color = color;
 }
+#endif
 
 static void console_invalidate(size_t x, size_t y)
 {

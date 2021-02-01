@@ -74,6 +74,7 @@ typedef struct slab {
 
 static slab_type_t * types;
 
+#if 0
 static thread_t * cleaner_thread;
 int is_cleaner()
 {
@@ -96,6 +97,7 @@ static void cleaner()
 		}
 	}
 }
+#endif
 
 void slab_init()
 {
@@ -149,7 +151,7 @@ static slab_t * slab_new(slab_type_t * stype)
 		slab->type = stype;
 		slab->available = (uint32_t*)(slab+1);
 		slab->finalize = slab->available + (slab->type->count+32)/32;
-		slab->data = (slab_slot_t*)(slab->finalize + (slab->type->count+32)/32);
+		slab->data = (char*)(slab->finalize + (slab->type->count+32)/32);
 		bitarray_setall(slab->available, stype->count, 1);
 
 		LIST_PREPEND(stype->first, slab);
@@ -433,10 +435,6 @@ static void slab_test_finalize(void * p)
 static void slab_test_mark(void *p)
 {
 	kernel_printk("Marking: %p\n", p);
-}
-
-static void slab_malloc_finalize(void * p)
-{
 }
 
 static void slab_weakref_mark(void * p)

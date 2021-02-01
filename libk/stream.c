@@ -218,7 +218,7 @@ stream_t * vnode_stream(vnode_t * vnode)
 	stream->stream.ops = &stream_vnode_ops;
 	stream->vnode = vnode;
 
-	return stream;
+	return &stream->stream;
 }
 
 #if INTERFACE

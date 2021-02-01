@@ -150,6 +150,7 @@ static cluster_t fatfs_cluster_next_get(fatfs_t * fatfs, cluster_t cluster)
 	return next;
 }
 
+#if 0
 static cluster_t fatfs_cluster_next_set(fatfs_t * fatfs, cluster_t cluster, cluster_t next)
 {
 	switch(fatx(fatfs->clusters)) {
@@ -179,6 +180,7 @@ static cluster_t fatfs_cluster_next_set(fatfs_t * fatfs, cluster_t cluster, clus
 
 	return next;
 }
+#endif
 
 static void fatfs_scan_fat(fatfs_t * fatfs)
 {
@@ -280,6 +282,7 @@ static vnode_t * fatfs_node(fatfs_t * fatfs, vnode_type type, cluster_t start, o
 	return &node->vnode;
 }
 
+#if 0
 static off64_t fatfs_cluster_offset(fatfs_t * fatfs, cluster_t cluster)
 {
 	return fatfs->dataarea+(cluster-2)*fatfs->clustersize;
@@ -289,6 +292,7 @@ static size_t fatfs_cluster_size(fatfs_t * fatfs, size_t count)
 {
 	return count*fatfs->clustersize;
 }
+#endif
 
 static void fatfs_put_page(vnode_t * vnode, off64_t offset, vmpage_t * vmpage)
 {
@@ -442,7 +446,6 @@ static int fatfs_walk_directory(vnode_t * dir, off_t offset, fatfs_dir_walk_t cb
 {
 	byte buf[FATFS_DIRENT_SIZE];
 	off64_t next = offset;
-	off64_t start = offset;
 	off64_t size = vnode_get_size(dir);
 	fatfslfn_t * lfn = tmalloc(sizeof(*lfn));
 	lfn->lfn[0] = 0;
@@ -522,9 +525,9 @@ static char * fatfs_get_filename(byte * buf, fatfslfn_t * lfn)
 
 	if (lfn->checksum == checksum) {
 		/* Use LFN */
-		char * utf8 = tmalloc(256+128);
+		unsigned char * utf8 = tmalloc(256+128);
 		utf8_from_ucs16(utf8, 256+128, lfn->lfn, 256);
-		return utf8;
+		return (char*)utf8;
 	}
 
 	return tstrdup(filename);
@@ -545,7 +548,7 @@ static int fatfs_find_file_walk(vnode_t * dir, void * p, off_t offset, byte * bu
 
 	fatfs_find_file_walk_t * info = (fatfs_find_file_walk_t*)p;
 
-	char * filename = fatfs_get_filename(buf, lfn);
+	char * filename = (char*)fatfs_get_filename(buf, lfn);
 	if (strcmp(filename, info->name)) {
 		/* No match */
 		return 0;
@@ -580,8 +583,8 @@ static vnode_t * fatfs_get_vnode(vnode_t * dir, const char * name)
 typedef struct fatfs_getdents_walk_t fatfs_getdents_walk_t;
 struct fatfs_getdents_walk_t {
 	off_t offset;
-	byte * buf;
-	byte * next;
+	struct dirent64 * buf;
+	struct dirent64 * next;
 	size_t bufsize;
 };
 
@@ -615,7 +618,7 @@ static int fatfs_getdents_walk(vnode_t * dir, void * p, off_t offset, byte * buf
 	return 1;
 }
 
-static int fatfs_getdents(vnode_t * dir, off64_t offset, struct dirent * buf, size_t bufsize)
+static int fatfs_getdents(vnode_t * dir, off64_t offset, struct dirent64 * buf, size_t bufsize)
 {
 	fatfs_getdents_walk_t info = { offset, buf, buf, bufsize };
 	fatfs_walk_directory(dir, offset, fatfs_getdents_walk, &info);
@@ -704,8 +707,9 @@ void fatfs_test(vnode_t * dev)
 	}
 	vnode_t * file = vnode_get_vnode(dir, "FAT.C");
 	vnode_t * lfn = vnode_get_vnode(dir, "Long name FAT entry.c");
+	vnode_close(lfn);
 	off64_t size = vnode_get_size(file);
-	char * buf = arena_alloc(NULL, size);
+	struct dirent * buf = arena_alloc(NULL, size);
 	vnode_read(file, 0, buf, size);
 	static char allwork[]="All work and no play makes jack a dull boy. ";
 	const int allworklen = strlen(allwork);
@@ -714,9 +718,11 @@ void fatfs_test(vnode_t * dev)
 	}
 	vnode_write(file, 0, buf, size);
 	vnode_sync(file);
+#if 0
 	int read = vfs_getdents(dir, 0, buf, size);
 	for(int i=0; i<read; ) {
 		struct dirent64 *dirent = buf+i;
 		i += dirent->d_reclen;
 	}
+#endif
 }

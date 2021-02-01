@@ -3,7 +3,7 @@
 vnode_t * devfs_open(void)
 {
 	static vnode_t * root = 0;
-	static int lock=0;
+	static spin_t lock=0;
 	SPIN_AUTOLOCK(&lock) {
 		if (0 == root) {
 			root = vfstree_new();

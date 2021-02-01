@@ -4,6 +4,7 @@
 #include <stdint.h>
 #include <stdarg.h>
 #include <stddef.h>
+#include <stdnoreturn.h>
 
 struct arch_trap_frame_t
 {
@@ -143,7 +144,7 @@ void reset()
 	hlt();
 }
 
-void invlpg(void* m)
+void invlpg(const void* const m)
 {
 	/* Clobber memory to avoid optimizer re-ordering access before invlpg, which may cause nasty bugs. */
 	asm volatile ( "invlpg (%0)" : : "b"(m) : "memory" );
@@ -443,7 +444,7 @@ void arch_thread_init(thread_t * thread)
 #endif
 }
 
-void arch_panic(const char * fmt, va_list ap)
+noreturn void arch_panic(const char * fmt, va_list ap)
 {
 	cli();
 	stream_vprintf(console_stream(), fmt, ap);

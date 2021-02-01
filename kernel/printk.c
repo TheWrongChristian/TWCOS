@@ -24,7 +24,9 @@ enum logger_level {
 static char msg_ring[32][128];
 static int msg_next=0;
 static int enabled=0;
+#if 0
 static char * msgs[countof(msg_ring)];
+#endif
 static interrupt_monitor_t loggerlock[1];
 static GCROOT thread_t * logger=0;
 

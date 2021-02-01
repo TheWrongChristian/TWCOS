@@ -49,6 +49,14 @@ dev_op_status dev_op_wait( buf_op_t * op )
 		}
 	}
 
+	if (op->status != DEV_BUF_OP_COMPLETE) {
+		if (op->status == DEV_BUF_OP_TIMEDOUT) {
+			KTHROW(DeviceTimeoutException, "device operation timeout");
+		} else {
+			KTHROW(DeviceException, "device operation exception");
+		}
+	}
+
 	return op->status;
 }
 
@@ -86,7 +94,7 @@ size_t dev_read(vnode_t * vnode, off64_t offset, void * buf, size_t len)
 	buf_op_t op = { write: 0, p: buf, offset: offset, size: len };
 
 	dev_op_submit(devnode->dev, &op);
-	dev_op_status status = dev_op_wait(&op);
+	dev_op_wait(&op);
 
 	return op.size;
 }
@@ -97,7 +105,7 @@ size_t dev_write(vnode_t * vnode, off64_t offset, void * buf, size_t len)
 	buf_op_t op = { write: 1, p: buf, offset: offset, size: len };
 
 	dev_op_submit(devnode->dev, &op);
-	dev_op_status status = dev_op_wait(&op);
+	dev_op_wait(&op);
 
 	return op.size;
 }
@@ -105,8 +113,8 @@ size_t dev_write(vnode_t * vnode, off64_t offset, void * buf, size_t len)
 static vmpage_t * dev_get_page(vnode_t * vnode, off64_t offset)
 {
 	arena_state state = arena_getstate(NULL);
-	const void * p = arena_palloc(NULL, 1);
-	size_t read = dev_read(vnode, PTR_ALIGN(offset, ARCH_PAGE_SIZE), p, ARCH_PAGE_SIZE);
+	void * p = arena_palloc(NULL, 1);
+	dev_read(vnode, ROUNDDOWN(offset, ARCH_PAGE_SIZE), p, ARCH_PAGE_SIZE);
 	vmpage_t * vmpage = vm_page_steal(p);
 
 	arena_setstate(NULL, state);
@@ -114,9 +122,11 @@ static vmpage_t * dev_get_page(vnode_t * vnode, off64_t offset)
 	return vmpage;
 }
 
+#if 0
 static void dev_put_page(vnode_t * vnode, off64_t offset, vmpage_t * page)
 {
 }
+#endif
 
 vnode_t * dev_vnode(dev_t * dev)
 {

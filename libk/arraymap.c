@@ -17,7 +17,7 @@ typedef struct arraymap_s {
 } arraymap_t;
 
 
-static void arraymap_destroy(map_t * map)
+static void arraymap_destroy(const map_t * map)
 {
 }
 
@@ -69,7 +69,7 @@ static int arraymap_get_index(arraymap_t * amap, map_key key, map_eq_test cond )
 	return -1;
 }
 
-static void arraymap_walk(map_t * map, walk_func func, void * p )
+static void arraymap_walk(const map_t * map, walk_func func, const void * const p )
 {
 	arraymap_t * amap = container_of(map, arraymap_t, map);
 
@@ -78,7 +78,7 @@ static void arraymap_walk(map_t * map, walk_func func, void * p )
 	}
 }
 
-static void arraymap_walk_range(map_t * map, walk_func func, void * p, map_key from, map_key to )
+static void arraymap_walk_range(const map_t * map, walk_func func, const void * const p, map_key from, map_key to )
 {
 	arraymap_t * amap = container_of(map, arraymap_t, map);
 	int indexfrom = arraymap_get_index(amap, from, MAP_GE);
@@ -89,7 +89,7 @@ static void arraymap_walk_range(map_t * map, walk_func func, void * p, map_key f
 	}
 }
 
-static map_data arraymap_put( map_t * map, map_key key, map_data data )
+static map_data arraymap_put( const map_t * map, map_key key, map_data data )
 {
 	arraymap_t * amap = container_of(map, arraymap_t, map);
 
@@ -150,7 +150,7 @@ static map_data arraymap_put( map_t * map, map_key key, map_data data )
 	return 0;
 }
 
-static map_data arraymap_get( map_t * map, map_key key, map_eq_test cond )
+static map_data arraymap_get( const map_t * map, map_key key, map_eq_test cond )
 {
 	arraymap_t * amap = container_of(map, arraymap_t, map);
 	int i = arraymap_get_index(amap, key, cond);
@@ -163,7 +163,7 @@ static map_data arraymap_get( map_t * map, map_key key, map_eq_test cond )
 	return 0;
 }
 
-static map_data arraymap_remove( map_t * map, map_key key )
+static map_data arraymap_remove( const map_t * map, map_key key )
 {
 	arraymap_t * amap = container_of(map, arraymap_t, map);
 	int i = arraymap_get_index(amap, key, MAP_EQ);

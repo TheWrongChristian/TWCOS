@@ -78,7 +78,7 @@ static void vector_checksize(vector_t * v, map_key i)
 	}
 }
 
-static map_data vector_put(map_t * m, map_key i, map_data d)
+static map_data vector_put(const map_t * m, map_key i, map_data d)
 {
 	vector_t * v = container_of(m, vector_t, map);
 	vector_checksize(v, i);
@@ -88,7 +88,7 @@ static map_data vector_put(map_t * m, map_key i, map_data d)
 	return old;
 }
 
-static map_data vector_get(map_t * m, map_key i, map_eq_test cond)
+static map_data vector_get(const map_t * m, map_key i, map_eq_test cond)
 {
 	vector_t * v = container_of(m, vector_t, map);
 	intptr_t * entry = vector_entry_get(v->table, i, 0);
@@ -100,7 +100,7 @@ static map_data vector_get(map_t * m, map_key i, map_eq_test cond)
 	return 0;
 }
 
-static void vector_walk_table(vector_t * v, vector_table_t * t, void * arg, int base, walk_func f)
+static void vector_walk_table(vector_t * v, vector_table_t * t, const void * arg, int base, walk_func f)
 {
 	for(int i=0; i<VECTOR_TABLE_ENTRIES; i++) {
 		if (t->d[i]) {
@@ -113,7 +113,7 @@ static void vector_walk_table(vector_t * v, vector_table_t * t, void * arg, int 
 	}
 }
 
-static void vector_walk(map_t * m, walk_func f, void * arg )
+static void vector_walk(const map_t * m, const walk_func f, const void * arg )
 {
 	vector_t * v = container_of(m, vector_t, map);
 	if (v->table) {
@@ -121,7 +121,7 @@ static void vector_walk(map_t * m, walk_func f, void * arg )
 	}
 }
 
-static void vector_test_walk(void * ignored, map_key i, void * p)
+static void vector_test_walk(const void * const ignored, map_key i, void * p)
 {
 	kernel_printk("v[%d] = %p\n", i, p);
 }
