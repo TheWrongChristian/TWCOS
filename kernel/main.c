@@ -131,7 +131,7 @@ void kernel_main() {
 			kernel_startlogging(stream);
 		}
 	} KCATCH(Throwable) {
-		kernel_panic("Error in initialization: %s\n", exception_message());
+		exception_panic("Error in initialization\n");
 	}
 
 	KTRY {
@@ -143,7 +143,7 @@ void kernel_main() {
 		utf8_test();
 		pipe_test();
 	} KCATCH(Throwable) {
-		kernel_panic("Error in testing: %s\n", exception_message());
+		exception_panic("Error in testing\n");
 	}
 
 	KTRY {
@@ -163,7 +163,7 @@ void kernel_main() {
 			/* testshell_run(); */
 		}
 	} KCATCH(Throwable) {
-		kernel_panic("Error starting init: %s\n", exception_message());
+		exception_panic("Error starting init\n");
 	}
 
 	idle();
