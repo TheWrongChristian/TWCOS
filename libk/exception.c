@@ -110,7 +110,6 @@ void exception_clearall()
 static void exception_backtrace(struct exception_cause * cause)
 {
 	void ** from = (void**)&from;
-	void ** to = PTR_ALIGN_NEXT(from, ARCH_PAGE_SIZE);
 
 	memset(cause->backtrace, 0, sizeof(cause->backtrace));
 #if 0

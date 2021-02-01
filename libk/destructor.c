@@ -31,7 +31,7 @@ dtor_t * dtor_poll_frame()
 }
 
 /* dtor_t frame cache */
-static int frames_lock;
+static spin_t frames_lock;
 static GCROOT dtor_t ** frames = 0;
 
 void dtor_pop(dtor_t * until)

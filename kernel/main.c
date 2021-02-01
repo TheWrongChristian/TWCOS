@@ -39,16 +39,6 @@ static void idle() {
 	}
 }
 
-static void run_init() {
-	kernel_printk("In process %d\n", arch_get_thread()->process->pid);
-	while(1) {
-#if 0
-		kernel_printk("init sleeping for 10 seconds\n");
-#endif
-		timer_sleep(10000000);
-	}
-}
- 
 void kernel_main() {
 	/* Initialize console interface */
 	arch_init();
@@ -118,8 +108,9 @@ void kernel_main() {
 		if (initrd) {
 			process_t * p = process_get();
 			p->root = p->cwd = tarfs_open(dev_static(initrd, initrdsize));
-			char * buf = arena_alloc(NULL, 1024);
+			struct dirent64 * buf = arena_alloc(NULL, 1024);
 			int read = vfs_getdents(p->root, 0, buf, 1024);
+			assert(read>=0);
 			vnode_t * devfs = file_namev("/devfs");
 			if (devfs) {
 				vfs_mount(devfs, devfs_open());
@@ -140,7 +131,7 @@ void kernel_main() {
 			kernel_startlogging(stream);
 		}
 	} KCATCH(Throwable) {
-		kernel_panic("Error in initialization: %s\n", exception_message());
+		exception_panic("Error in initialization\n");
 	}
 
 	KTRY {
@@ -152,7 +143,7 @@ void kernel_main() {
 		utf8_test();
 		pipe_test();
 	} KCATCH(Throwable) {
-		kernel_panic("Error in testing: %s\n", exception_message());
+		exception_panic("Error in testing\n");
 	}
 
 	KTRY {
@@ -172,7 +163,7 @@ void kernel_main() {
 			/* testshell_run(); */
 		}
 	} KCATCH(Throwable) {
-		kernel_panic("Error starting init: %s\n", exception_message());
+		exception_panic("Error starting init\n");
 	}
 
 	idle();

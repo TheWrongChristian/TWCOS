@@ -30,7 +30,7 @@ struct kernel_mmap {
 	uint32_t * finalize;
 };
 
-static int mmap_lock[] = {0};
+static spin_t mmap_lock[] = {0};
 static int mmap_count = 0;
 static struct kernel_mmap mmap[32];
 
@@ -223,7 +223,7 @@ void page_clean(page_t page)
 }
 
 segment_t * heap;
-static int heap_cache_lock = {0};
+static spin_t heap_cache_lock = {0};
 static void ** heap_cache;
 void * page_heap_alloc()
 {

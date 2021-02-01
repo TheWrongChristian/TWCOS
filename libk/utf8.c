@@ -70,7 +70,7 @@ void utf8_test()
 {
 	ucs16_t in[] = { 0x24, 0xa2, 0x939, 0x20ac, 0xd55c, 0};
 	ucs16_t out[countof(in)];
-	char utf8[16] = {0};
+	unsigned char utf8[16] = {0};
 	utf8_from_ucs16(utf8, countof(utf8), in, countof(in));
 	utf8_to_ucs16(utf8, countof(utf8), out, countof(out));
 }

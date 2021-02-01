@@ -29,7 +29,7 @@ void container_init()
 	map_putip(containers, 0, container);
 }
 
-static int lock[] = {0};
+static spin_t lock[] = {0};
 
 void container_nextpid( process_t * process )
 {

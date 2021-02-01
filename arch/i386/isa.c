@@ -118,6 +118,7 @@ uint16_t PIC_get_isr(void)
     return PIC_get_irq_reg(ICW3_READ_ISR);
 }
 
+#if 0
 static void PIC_set_mask(int irq) {
 	uint16_t port;
 	uint8_t value;
@@ -145,6 +146,7 @@ static void PIC_clear_mask(int irq) {
 	value = inb(port) & ~(1 << irq);
 	outb(port, value);        
 }
+#endif
 
 static unsigned long spurious = 0;
 int inirq = 0;
@@ -216,7 +218,6 @@ irq_func add_irq(int irq, irq_func handler)
 typedef timerspec_t tickspec_t;
 static void (*pit_expire)();
 static tickspec_t ticks;
-static int pit_lock[] = {0};
 
 static void pit_set()
 {
