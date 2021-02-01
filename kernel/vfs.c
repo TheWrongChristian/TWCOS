@@ -436,8 +436,8 @@ typedef struct vfstree_getdents_walk_t vfstree_getdents_walk_t;
 struct vfstree_getdents_walk_t {
 	off64_t startoffset;
 	off64_t offset;
-	struct dirent64 * buf;
-	struct dirent64 * next;
+	char * buf;
+	char * next;
 	size_t bufsize;
 };
 
@@ -446,12 +446,13 @@ static void vfstree_getdents_walk(const void * const p, void * key, map_data dat
 	vfstree_getdents_walk_t * info = (vfstree_getdents_walk_t*)p;
 
 	vfstree_dirent_t * vfstreedirent = (vfstree_dirent_t*)key;
-	ino64_t inode = data;
+	ino64_t inode = (unsigned)data;
 	struct dirent64 * dirent = vfs_dirent64(inode, info->offset, vfstreedirent->name, 0);
 	dirent->d_off += dirent->d_reclen;
 	if (info->offset < info->startoffset) {
 		/* Already read this entry */
 		info->offset += dirent->d_reclen;
+		return;
 	}
 
 	size_t bufleft = info->bufsize - (info->next - info->buf);
@@ -485,7 +486,7 @@ static int vfstree_getdents(vnode_t * dir, off64_t offset, struct dirent64 * buf
 {
 	vfstree_t * fs = container_of(dir->fs, vfstree_t, fs);
 	vfstree_dirent_t prefix = { dir };
-	vfstree_getdents_walk_t info = { offset, 0, buf, buf, bufsize };
+	vfstree_getdents_walk_t info = { offset, 0, (char*)buf, (char*)buf, bufsize };
 
 	map_walkpi_prefix(fs->tree, vfstree_getdents_walk, &info, vfstree_getdents_prefix, &prefix);
 

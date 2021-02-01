@@ -583,8 +583,8 @@ static vnode_t * fatfs_get_vnode(vnode_t * dir, const char * name)
 typedef struct fatfs_getdents_walk_t fatfs_getdents_walk_t;
 struct fatfs_getdents_walk_t {
 	off_t offset;
-	struct dirent64 * buf;
-	struct dirent64 * next;
+	char * buf;
+	char * next;
 	size_t bufsize;
 };
 
@@ -620,7 +620,7 @@ static int fatfs_getdents_walk(vnode_t * dir, void * p, off_t offset, byte * buf
 
 static int fatfs_getdents(vnode_t * dir, off64_t offset, struct dirent64 * buf, size_t bufsize)
 {
-	fatfs_getdents_walk_t info = { offset, buf, buf, bufsize };
+	fatfs_getdents_walk_t info = { offset, (char*)buf, (char*)buf, bufsize };
 	fatfs_walk_directory(dir, offset, fatfs_getdents_walk, &info);
 
 	return info.next - info.buf;
