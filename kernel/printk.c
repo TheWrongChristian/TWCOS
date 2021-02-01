@@ -30,7 +30,7 @@ static char * msgs[countof(msg_ring)];
 static interrupt_monitor_t loggerlock[1];
 static GCROOT thread_t * logger=0;
 
-stream_t * logging_stream = 0;
+GCROOT stream_t * logging_stream = 0;
 
 static void kernel_logger()
 {
