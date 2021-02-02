@@ -66,7 +66,8 @@ int execvp(char * cmd, char ** args)
 {
 	static char * env[]={
 		"HOME=/",
-		"USER=root"
+		"USER=root",
+		NULL,
 	};
 	return execve(cmd, args, env);
 }

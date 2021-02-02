@@ -208,6 +208,7 @@ int elf_execve(vnode_t * f, process_t * p, char * argv[], char * envp[])
 	for(int i=0; i<envc; i++) {
 		tenvp[i] = tstrdup(envp[i]);
 	}
+	tenvp[envc] = 0;
 
 
 	struct Elf32_Ehdr ehdr[1];
