@@ -108,7 +108,7 @@ cflowr:
 	cflow -d 9 -r $(SRCS_C) 
 
 cloc:
-	cloc $(SRCS_C)
+	cloc $(SRCS_C) $(SRCS_S) $(SYS_H)
 
 cxref:
 	cxref -html-src $(SRCS_C) $(SRCS_C:.c=.h)
