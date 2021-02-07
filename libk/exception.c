@@ -37,7 +37,8 @@ struct exception_frame {
 
 	/* State */
 	jmp_buf env;
-	dtor_t * dtor_frame;
+	int ndtor;
+	dtor_t dtors[16];
 
 	/* Exception chain */
 	struct exception_frame * next;
@@ -96,9 +97,37 @@ exception_frame * exception_push(exception_frame * frame)
 	frame->cause = 0;
 	frame->state = EXCEPTION_NEW;
 	frame->caught = 0;
-	frame->dtor_frame = dtor_poll_frame();
+	frame->ndtor = 0;
+	//frame->dtor_frame = dtor_poll_frame();
 
 	return frame;
+}
+
+int exception_onerror(dtor_f dtor, void * p)
+{
+	if (exception_key) {
+		exception_frame * frame = tls_get(exception_key);
+		if (!frame) {
+			return 0;
+		}
+		check_int_bounds(frame->ndtor, 0, countof(frame->dtors)-1, "exception_onerror");
+		frame->dtors[frame->ndtor].dtor = dtor;
+		frame->dtors[frame->ndtor].p = p;
+		return frame->ndtor++;
+	}
+
+	return 0;
+}
+
+void exception_onerror_pop(int pop)
+{
+	if (exception_key) {
+		exception_frame * frame = tls_get(exception_key);
+		if (frame) {
+			check_int_bounds(pop, 0, frame->ndtor, "exception_onerror");
+			frame->ndtor = pop;
+		}
+	}
 }
 
 void exception_clearall()
@@ -133,6 +162,10 @@ noreturn void exception_throw_cause(struct exception_cause * cause)
 	}
 
 	frame->cause = cause;
+
+	for(int i=frame->ndtor; i; i--) {
+		frame->dtors[i-1].dtor(frame->dtors[i-1].p);
+	}
 
 	longjmp(frame->env, 1);
 }
@@ -201,7 +234,7 @@ int exception_finished(char * file, int line)
 		frame->state = EXCEPTION_FINISHING;
 		return 0;
 	case EXCEPTION_FINISHING:
-		dtor_pop(frame->dtor_frame);
+		//dtor_pop(frame->dtor_frame);
 		tls_set(exception_key, frame->next);
 		if (frame->cause && 0 == frame->caught) {
 			exception_throw_cause(frame->cause);

@@ -21,6 +21,7 @@ struct rwlock_t {
 
 struct interrupt_monitor_t {
 	spin_t spin;
+	int onerror;
 	thread_t * volatile owner;
 	thread_t * volatile waiting;
 	timer_event_t timer[1];
@@ -321,6 +322,7 @@ void interrupt_monitor_enter(interrupt_monitor_t * monitor)
 	}
 	arch_get_thread()->waitingfor = waitingfor;
 	monitor->owner = arch_get_thread();
+	monitor->onerror = exception_onerror(interrupt_monitor_leave, monitor);
 	interrupt_monitor_owned(monitor);
 }
 
@@ -336,6 +338,7 @@ void interrupt_monitor_leave(interrupt_monitor_t * monitor)
 {
 	interrupt_monitor_owned(monitor);
 	monitor->owner = 0;
+	exception_onerror_pop(monitor->onerror);
 	spin_unlock(&monitor->spin);
 }
 
@@ -372,16 +375,19 @@ void interrupt_monitor_wait_timeout(interrupt_monitor_t * monitor, timerspec_t t
 	if (timeout) {
 		timer_set(monitor->timer, timeout, interrupt_monitor_wait_timeout_thread, &timeout_thread);
 	}
-	interrupt_monitor_leave_and_schedule(monitor);
+	KTRY {
+		interrupt_monitor_leave_and_schedule(monitor);
 
-	/* Check for timeout */
-	if (timeout) {
-		timer_delete(monitor->timer);
-		if (thread_interrupted()) {
-			KTHROW(TimeoutException, "Timeout");
+		/* Check for timeout */
+		if (timeout) {
+			timer_delete(monitor->timer);
+			if (thread_interrupted()) {
+				KTHROW(TimeoutException, "Timeout");
+			}
 		}
+	} KFINALLY {
+		interrupt_monitor_enter(monitor);
 	}
-	interrupt_monitor_enter(monitor);
 }
 
 void interrupt_monitor_wait(interrupt_monitor_t * monitor)
