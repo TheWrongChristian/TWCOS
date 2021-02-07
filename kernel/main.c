@@ -105,6 +105,11 @@ void kernel_main() {
 			fatfs_test(dev_static(modules[1], modulesizes[1]));
 		}
 #endif
+	} KCATCH(Throwable) {
+		exception_panic("Error in initialization\n");
+	}
+
+	KTRY {
 		if (initrd) {
 			process_t * p = process_get();
 			p->root = p->cwd = tarfs_open(dev_static(initrd, initrdsize));
@@ -116,7 +121,11 @@ void kernel_main() {
 				vfs_mount(devfs, devfs_open());
 			}
 		}
+	} KCATCH(Throwable) {
+		kernel_printk("Error mounting initrd\n");
+	}
 
+	KTRY {
 		vnode_t * fatfs = file_namev("/fatfs");
 		if (fatfs) {
 			vnode_t * hda = file_namev("/devfs/disk/ide/1f0/master");
@@ -124,14 +133,18 @@ void kernel_main() {
 				vfs_mount(fatfs, fatfs_open(hda));
 			}
 		}
+	} KCATCH(Throwable) {
+		kernel_printk("Error mounting FATFS\n");
+	}
 
+	KTRY {
 		vnode_t * uart = file_namev("/devfs/char/uart/1016");
 		if (uart) {
 			stream_t * stream = vnode_stream(uart);
 			kernel_startlogging(stream);
 		}
 	} KCATCH(Throwable) {
-		exception_panic("Error in initialization\n");
+		kernel_printk("Error opening serial port\n");
 	}
 
 	KTRY {

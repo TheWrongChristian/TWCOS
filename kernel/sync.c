@@ -296,6 +296,14 @@ static int interrupt_monitor_deadlock_visit_monitor(map_t * visited, interrupt_m
 	return interrupt_monitor_deadlock_visit_thread(visited, monitor->owner);
 }
 
+static void interrupt_monitor_owned(interrupt_monitor_t * monitor)
+{
+	if(monitor->owner != arch_get_thread()) {
+		kernel_printk("owner = %p, current = %p\n", monitor->owner, arch_get_thread());
+		kernel_backtrace(logger_debug);
+	}
+}
+
 void interrupt_monitor_enter(interrupt_monitor_t * monitor)
 {
 	interrupt_monitor_t * waitingfor = arch_get_thread()->waitingfor;
@@ -313,21 +321,20 @@ void interrupt_monitor_enter(interrupt_monitor_t * monitor)
 	}
 	arch_get_thread()->waitingfor = waitingfor;
 	monitor->owner = arch_get_thread();
-	assert(monitor->owner == arch_get_thread());
+	interrupt_monitor_owned(monitor);
 }
 
 static void interrupt_monitor_leave_and_schedule(interrupt_monitor_t * monitor)
 {
-	assert(monitor->owner == arch_get_thread());
-	monitor->owner = 0;
-	scheduler_lock(&monitor->spin);	
+	scheduler_lock();	
 	monitor->waiting = thread_queue(monitor->waiting, 0, THREAD_SLEEPING);
+	interrupt_monitor_leave(monitor);
 	thread_schedule();
 }
 
 void interrupt_monitor_leave(interrupt_monitor_t * monitor)
 {
-	assert(monitor->owner == arch_get_thread());
+	interrupt_monitor_owned(monitor);
 	monitor->owner = 0;
 	spin_unlock(&monitor->spin);
 }
@@ -360,7 +367,7 @@ static void interrupt_monitor_wait_timeout_thread(void * p)
 
 void interrupt_monitor_wait_timeout(interrupt_monitor_t * monitor, timerspec_t timeout)
 {
-	assert(monitor->owner == arch_get_thread());
+	interrupt_monitor_owned(monitor);
 	interrupt_monitor_wait_timeout_t timeout_thread = { monitor, arch_get_thread() };
 	if (timeout) {
 		timer_set(monitor->timer, timeout, interrupt_monitor_wait_timeout_thread, &timeout_thread);
@@ -379,13 +386,13 @@ void interrupt_monitor_wait_timeout(interrupt_monitor_t * monitor, timerspec_t t
 
 void interrupt_monitor_wait(interrupt_monitor_t * monitor)
 {
-	assert(monitor->owner == arch_get_thread());
+	interrupt_monitor_owned(monitor);
 	interrupt_monitor_wait_timeout(monitor, 0);
 }
 
 void interrupt_monitor_signal(interrupt_monitor_t * monitor)
 {
-	assert(monitor->owner == arch_get_thread());
+	interrupt_monitor_owned(monitor);
 
 	thread_t * resume = monitor->waiting;
 

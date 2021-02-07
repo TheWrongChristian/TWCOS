@@ -110,20 +110,22 @@ void set_page_dir(page_t pgdir)
 	asm volatile("movl %0, %%cr3" : : "a"(pgdir << ARCH_PAGE_SIZE_LOG2));
 }
 
-void sti(uint32_t prev)
+static int cli_level = 0;
+void sti()
 {
-	if (prev & 0x200) {
+	if(!cli_level) {
+		kernel_printk("cli_level is zero!\n");
+		kernel_backtrace(logger_error);
+	}
+	if (0 == --cli_level) {
 		asm volatile("sti");
 	}
 }
 
-uint32_t cli()
+void cli()
 {
-	extern uint32_t i386_eflags();
-	uint32_t prev = i386_eflags();
 	asm volatile("cli");
-
-	return prev & 0x200;
+	cli_level++;
 }
 
 void hlt()
@@ -485,6 +487,7 @@ thread_t * arch_get_thread()
 
 int arch_thread_fork(thread_t * dest)
 {
+	assert(!cli_level);
 	/* Allocate the stack */
 	thread_t * source = arch_get_thread();
 	/* Top level copy */
@@ -597,22 +600,22 @@ void ** arch_thread_backtrace(void ** backtrace, int levels)
 int arch_atomic_postinc(int * p)
 {
 	int i;
-	uint32_t prev = cli();
+	cli();
 	i = *p;
 	*p = i+1;
-	sti(prev);
+	sti();
 
 	return i;
 }
 
 int arch_spin_trylock(spin_t * p)
 {
-	int prev = cli();
+	cli();
 	if (*p) {
-		sti(prev);
+		sti();
 		return 0;
 	}
-	*p=prev | 1;
+	*p=1;
 	barrier();
 	return *p;
 }
@@ -628,10 +631,9 @@ void arch_spin_lock(spin_t * p)
 
 void arch_spin_unlock(spin_t * p)
 {
-	uint32_t prev = *p;
 	*p = 0;
 	barrier();
-	sti(prev);
+	sti();
 }
 
 #if 0

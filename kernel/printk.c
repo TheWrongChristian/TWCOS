@@ -139,7 +139,7 @@ void kernel_info(const char * fmt, ...)
 {
         va_list ap;
         va_start(ap, fmt);
-	kernel_vlogger(logger_debug, fmt, ap);
+	kernel_vlogger(logger_info, fmt, ap);
 	va_end(ap);
 }
 
@@ -147,7 +147,7 @@ void kernel_information(const char * fmt, ...)
 {
         va_list ap;
         va_start(ap, fmt);
-	kernel_vlogger(logger_debug, fmt, ap);
+	kernel_vlogger(logger_info, fmt, ap);
 	va_end(ap);
 }
 
@@ -159,12 +159,11 @@ void kernel_debug(const char * fmt, ...)
 	va_end(ap);
 }
 
-#if 0
-void kernel_logger(logger_level level, const char * fmt, ...)
+void kernel_backtrace(logger_level level)
 {
-        va_list ap;
-        va_start(ap, fmt);
-	kernel_vlogger(level, fmt, ap);
-	va_end(ap);
+	void * backtrace[32];
+	arch_thread_backtrace(backtrace, countof(backtrace));
+	for(int i=0; i<countof(backtrace) && backtrace[i]; i++) {
+		kernel_printk("%d: %p\n", i, backtrace[i]);
+	}
 }
-#endif

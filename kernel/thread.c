@@ -84,13 +84,9 @@ static void thread_finalize(void * p);
 static slab_type_t threads[1] = {SLAB_TYPE(sizeof(thread_t), thread_mark, thread_finalize)};
 
 static spin_t queuelock;
-void scheduler_lock(spin_t * inherit)
+void scheduler_lock()
 {
 	spin_lock(&queuelock);
-	if (inherit) {
-		queuelock = *inherit;
-		*inherit = 0;
-	}
 }
 
 static void scheduler_unlock()
@@ -168,6 +164,7 @@ int thread_interrupted()
 void thread_resume(thread_t * thread)
 {
 	tpriority priority = thread->priority;
+	scheduler_lock();
 	queue[priority] = thread_queue(queue[priority], thread, THREAD_RUNNABLE);
 	scheduler_unlock();
 	/* Check for pre-emption */

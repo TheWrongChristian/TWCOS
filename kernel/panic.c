@@ -17,7 +17,9 @@ void kernel_wait(const char * fmt, ...)
 
 noreturn void kernel_vpanic(const char * fmt, va_list ap)
 {
+	void * backtrace[32];
 	kernel_vprintk(fmt, ap);
+	kernel_backtrace(logger_error);
 	arch_panic(fmt, ap);
 }
 

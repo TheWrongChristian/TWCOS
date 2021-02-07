@@ -219,14 +219,14 @@ static void ide_thread(idechannel_t * channel)
 
 static void ide_probe_channel(idechannel_t * channel)
 {
-	INTERRUPT_MONITOR_AUTOLOCK(channel->lock) {
-		static uint8_t buf[IDE_SECTORSIZE];
-		char devfsname[64];
-		int needthread = 0;
-		snprintf(devfsname, sizeof(devfsname), "disk/ide/%x", channel->base);
-		vnode_t * devfs = devfs_open();
-		for(int i=0; i<2; i++) {
-			KTRY {
+	int needthread = 0;
+	static uint8_t buf[IDE_SECTORSIZE];
+	char devfsname[64];
+	snprintf(devfsname, sizeof(devfsname), "disk/ide/%x", channel->base);
+	vnode_t * devfs = devfs_open();
+	for(int i=0; i<2; i++) {
+		KTRY {
+			INTERRUPT_MONITOR_AUTOLOCK(channel->lock) {
 				idedevice_t * device = channel->devices+i;
 			
 				device->channel = channel;	
@@ -257,19 +257,19 @@ static void ide_probe_channel(idechannel_t * channel)
 				} else {
 					/* Some error */
 				}
-			} KCATCH(Exception) {
-				kernel_printk("%s: Exception probing device %d\n", devfsname, i);
 			}
+		} KCATCH(Exception) {
+			kernel_printk("%s: Exception probing device %d\n", devfsname, i);
 		}
-		if (needthread) {
-			/* Processing thread */
-			thread_t * thread = thread_fork();
-			if (thread) {
-				channel->thread = thread;
-			} else {
-				thread_set_name(0, "IDE async thread");
-				ide_thread(channel);
-			}
+	}
+	if (needthread) {
+		/* Processing thread */
+		thread_t * thread = thread_fork();
+		if (thread) {
+			channel->thread = thread;
+		} else {
+			thread_set_name(0, "IDE async thread");
+			ide_thread(channel);
 		}
 	}
 }
@@ -300,12 +300,14 @@ static idecontroller_t * ide_initialize(uintptr_t bar0, uintptr_t bar1, uintptr_
 	intr_add(15, ide_intr, ide->channels+1);
 
 	KTRY {
+		kernel_printk("Probe channel 0\n");
 		ide_reset(ide->channels);
 		ide_probe_channel(ide->channels);
 	} KCATCH(TimeoutException) {
 	}
 
 	KTRY {
+		kernel_printk("Probe channel 1\n");
 		ide_reset(ide->channels+1);
 		ide_probe_channel(ide->channels+1);
 	} KCATCH(TimeoutException) {
@@ -442,33 +444,13 @@ static void ide_check_status(idechannel_t * channel, uint8_t status)
 static uint8_t ide_wait(idechannel_t * channel, int polling)
 {
 	uint8_t status = 0;
-#if 1
 	do {
 		status = ide_read(channel, ATA_REG_ALTSTATUS);
 		if (status & 0x80) {
-			if (polling) {
-				thread_yield();
-			} else {
-				interrupt_monitor_wait_timeout(channel->lock, 1000000);
-			}
+			interrupt_monitor_wait_timeout(channel->lock, 1000000);
 		}
 	} while(status & 0x80);
 	status = ide_read(channel, ATA_REG_STATUS);
-#else
-	if ( 1 || channel->polling) {
-		do {
-			int sleeptime=100;
-			status = ide_read(channel, ATA_REG_STATUS);
-			if (status & 0x80) {
-				timer_sleep(sleeptime);
-				if (sleeptime<1000) {
-					sleeptime += (sleeptime/2);
-				}
-			}
-		} while(status & 0x80);
-	} else {
-	}
-#endif
 	ide_check_status(channel, status);
 
 	return status;
