@@ -8,10 +8,18 @@
 typedef int tls_key;
 
 #define TLS_MAX 32
+
+/**
+ * \brief Representation of a kernel thread.
+ */
 struct thread_t {
 	/* Runtime data */
+
+	/** Thread local storage pointers */
 	void * tls[TLS_MAX];
+	/** Architecture dependent context */
 	arch_context_t context;
+	/** Process associated with this thread */
 	process_t * process;
 
 	/* Thread CPU usage */
@@ -23,26 +31,55 @@ struct thread_t {
 	timerspec_t period;
 	timerspec_t usage;
 
-	/* Run state */
+	/** Current thread state */
 	tstate state;
+	/** Thread priority */
 	tpriority priority;
+	/** Set if the thread has been interrupted */
 	int interrupted;
+	/** If set, indicates which interrupt_monitor_t we're waiting for */
 	interrupt_monitor_t * waitingfor;
 
-	/* Thread information */
+	/** Thread name */
 	char * name;
 
-	/* Return value */
+	/** Thread lock */
 	monitor_t lock[1];
+
+	/** Return value for thread_join */
 	void * retval;
 
-	/* Queue */
-	thread_t *prev;
+	/** Thread queue next thread */
 	thread_t *next;
+	/** Thread queue prev thread */
+	thread_t *prev;
 };
 
-enum tstate { THREAD_NEW, THREAD_RUNNABLE, THREAD_RUNNING, THREAD_SLEEPING, THREAD_TERMINATED };
-enum tpriority { THREAD_INTERRUPT = 0, THREAD_NORMAL, THREAD_IDLE, THREAD_PRIORITIES };
+/** Thread state */
+enum tstate {
+	/** Thread is new */
+	THREAD_NEW,
+	/** Thread is runnable */
+	THREAD_RUNNABLE,
+	/** Thread is running */
+	THREAD_RUNNING,
+	/** Thread is sleeping */
+	THREAD_SLEEPING,
+	/** Thread is terminated */
+	THREAD_TERMINATED
+};
+
+/** Thread priority */
+enum tpriority {
+	/** Thread interrupt priority */
+	THREAD_INTERRUPT = 0,
+	/** Thread normal priority */
+	THREAD_NORMAL,
+	/** Thread idle priority */
+	THREAD_IDLE,
+	/** Thread interrupt priority count */
+	THREAD_PRIORITIES
+};
 
 #ifndef barrier
 #define barrier() asm volatile("": : :"memory")
@@ -53,12 +90,21 @@ enum tpriority { THREAD_INTERRUPT = 0, THREAD_NORMAL, THREAD_IDLE, THREAD_PRIORI
 int preempt;
 static tls_key tls_next = 1;
 
+/** 
+ * Get the next TLS key
+ * \return Next key
+ */
 int tls_get_key()
 {
 	return arch_atomic_postinc(&tls_next);
 }
 
-
+/**
+ * Set the thread local data given by the key.
+ *
+ * \arg key TLS key retrieved using \ref tls_get_key
+ * \arg p Pointer value
+ */
 void tls_set(int key, void * p)
 {
 	thread_t * thread = arch_get_thread();
@@ -69,6 +115,12 @@ void tls_set(int key, void * p)
 	thread->tls[key] = p;
 }
 
+/**
+ * Get the thread local data given by the key.
+ *
+ * \arg key TLS key retrieved using \ref tls_get_key
+ * \return Pointer value
+ */
 void * tls_get(int key)
 {
 	thread_t * thread = arch_get_thread();
@@ -84,6 +136,10 @@ static void thread_finalize(void * p);
 static slab_type_t threads[1] = {SLAB_TYPE(sizeof(thread_t), thread_mark, thread_finalize)};
 
 static spin_t queuelock;
+
+/**
+ * Lock scheduler
+ */
 void scheduler_lock()
 {
 	spin_lock(&queuelock);
@@ -94,6 +150,13 @@ static void scheduler_unlock()
 	spin_unlock(&queuelock);
 }
 
+/**
+ * Put the given thread on the given queue, in the given state.
+ * \arg queue Current queue
+ * \arg thread Thread to queue
+ * \arg state Thread state
+ * \return New queue head
+ */
 thread_t * thread_prequeue(thread_t * queue, thread_t * thread, tstate state)
 {
 	if (0 == thread) {
