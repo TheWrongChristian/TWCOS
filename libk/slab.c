@@ -118,6 +118,23 @@ static void slab_unlock()
 	mutex_unlock(slablock);
 }
 
+static slab_type_t * slab_min = 0;
+static slab_type_t * slab_max = 0;
+static void slab_register(slab_type_t * stype)
+{
+	if (0 == slab_min || stype < slab_min) {
+		slab_min = stype;
+	}
+	if (0 == slab_max || stype > slab_max) {
+		slab_max = stype;
+	}
+}
+
+static int slab_valid(slab_type_t * stype)
+{
+	return (slab_min <= stype && stype <= slab_max);
+}
+
 static slab_t * slab_new(slab_type_t * stype)
 {
 	if (0 == stype->magic) {
@@ -141,6 +158,7 @@ static slab_t * slab_new(slab_type_t * stype)
 		stype->count = (4*(ARCH_PAGE_SIZE-sizeof(slab_t))-31) / (4 * stype->slotsize + 1);
 		slab_lock(0);
 		LIST_APPEND(types, stype);
+		slab_register(stype);
 		slab_unlock();
 	}
 
@@ -196,7 +214,6 @@ static int SLAB_SLOT_NUM(slab_t * slab, void * p)
 	return slot;
 }
 #endif
-
 
 void * slab_alloc_p(slab_type_t * stype)
 {
@@ -317,7 +334,7 @@ static slab_t * slab_get(void * p)
 		/* Check magic numbers */
 		slab_t * slab = ARCH_PAGE_ALIGN(p);
 
-		if (slab == ARCH_PAGE_ALIGN(slab->data) && slab->magic == slab->type->magic && (slab_slot_t*)slab->data <= (slab_slot_t*)p) {
+		if (slab == ARCH_PAGE_ALIGN(slab->data) && slab_valid(slab->type) && slab->magic == slab->type->magic && (slab_slot_t*)slab->data <= (slab_slot_t*)p) {
 			return slab;
 		}
 	}
