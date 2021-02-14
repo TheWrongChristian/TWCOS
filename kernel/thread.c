@@ -436,6 +436,7 @@ noreturn void thread_exit(void * retval)
  *
  * \arg thread Thread to get return code from.
  * \return Return code as passed to \ref thread_exit
+ */
 void * thread_join(thread_t * thread)
 {
 	MONITOR_AUTOLOCK(thread->lock) {
