@@ -41,15 +41,14 @@ typedef monitor_t mutex_t;
 
 #define AUTOLOCK_CONCAT(a, b) a ## b
 #define AUTOLOCK_VAR(line) AUTOLOCK_CONCAT(s,line)
-#define SPIN_AUTOLOCK(lock) int AUTOLOCK_VAR(__LINE__) = 0; while((AUTOLOCK_VAR(__LINE__) =spin_autolock(lock, AUTOLOCK_VAR(__LINE__) )))
-#if 0
-#define MUTEX_AUTOLOCK(lock) int AUTOLOCK_VAR(__LINE__) = 0; while((AUTOLOCK_VAR(__LINE__) =mutex_autolock(lock, AUTOLOCK_VAR(__LINE__) )))
-#endif
+#define AUTOLOCK_DO(lock, locklock, unlocklock) int AUTOLOCK_VAR(__LINE__) = 1; for(locklock(lock); AUTOLOCK_VAR(__LINE__); AUTOLOCK_VAR(__LINE__)=0, unlocklock(lock))
+
+#define INTERRUPT_MONITOR_AUTOLOCK(lock) AUTOLOCK_DO(lock, interrupt_monitor_enter, interrupt_monitor_leave)
+#define MONITOR_AUTOLOCK(lock) AUTOLOCK_DO(lock, monitor_enter, monitor_leave)
+#define SPIN_AUTOLOCK(lock) AUTOLOCK_DO(lock, spin_lock, spin_unlock)
 #define MUTEX_AUTOLOCK(lock) MONITOR_AUTOLOCK(lock)
-#define MONITOR_AUTOLOCK(lock) int AUTOLOCK_VAR(__LINE__) = 0; while((AUTOLOCK_VAR(__LINE__) =monitor_autolock(lock, AUTOLOCK_VAR(__LINE__) )))
-#define INTERRUPT_MONITOR_AUTOLOCK(lock) int AUTOLOCK_VAR(__LINE__) = 0; while((AUTOLOCK_VAR(__LINE__) =interrupt_monitor_autolock(lock, AUTOLOCK_VAR(__LINE__) )))
-#define READER_AUTOLOCK(lock) int AUTOLOCK_VAR(__LINE__) = 0; while((AUTOLOCK_VAR(__LINE__) =rwlock_autolock(lock, AUTOLOCK_VAR(__LINE__), 0)))
-#define WRITER_AUTOLOCK(lock) int AUTOLOCK_VAR(__LINE__) = 0; while((AUTOLOCK_VAR(__LINE__) =rwlock_autolock(lock, AUTOLOCK_VAR(__LINE__), 1)))
+#define READER_AUTOLOCK(lock) AUTOLOCK_DO(lock, rwlock_read, rwlock_unlock)
+#define WRITER_AUTOLOCK(lock) AUTOLOCK_DO(lock, rwlock_write, rwlock_unlock)
 
 #endif
 
@@ -105,77 +104,6 @@ void spin_lock(spin_t * l)
 		arch_pause();
 	}
 }
-
-#if 0
-int mutex_autolock(mutex_t * lock, int state)
-{
-        if (state) {
-                mutex_unlock(lock);
-                state = 0;
-        } else {
-                mutex_lock(lock);
-                state = 1;
-        }
-
-        return state;
-} 
-#endif
-
-int spin_autolock(spin_t * lock, int state)
-{
-        if (state) {
-                spin_unlock(lock);
-                state = 0;
-        } else {
-                spin_lock(lock);
-                state = 1;
-        }
-
-        return state;
-} 
-
-int monitor_autolock(monitor_t * lock, int state)
-{
-        if (state) {
-                monitor_leave(lock);
-                state = 0;
-        } else {
-                monitor_enter(lock);
-                state = 1;
-        }
-
-        return state;
-} 
-
-int interrupt_monitor_autolock(interrupt_monitor_t * lock, int state)
-{
-        if (state) {
-                interrupt_monitor_leave(lock);
-                state = 0;
-        } else {
-                interrupt_monitor_enter(lock);
-                state = 1;
-        }
-
-        return state;
-} 
-
-int rwlock_autolock(rwlock_t * lock, int state, int write)
-{
-        if (state) {
-		rwlock_unlock(lock);
-                state = 0;
-        } else {
-		if (write) {
-			rwlock_write(lock);
-		} else {
-			rwlock_read(lock);
-		}
-                state = 1;
-        }
-
-        return state;
-} 
 
 #if 0
 static void thread_lock_signal(mutex_t * lock)
