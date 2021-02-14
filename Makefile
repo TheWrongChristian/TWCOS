@@ -126,3 +126,7 @@ cppcheck-gui:
 
 clean::
 	rm -f $(OBJS:.o=.d)
+	rm -rf doc
+
+docs::
+	doxygen kernel.dox
