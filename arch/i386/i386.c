@@ -609,30 +609,18 @@ int arch_atomic_postinc(int * p)
 	return i;
 }
 
-int arch_spin_trylock(spin_t * p)
+void arch_pause()
+{
+	asm volatile("pause");
+}
+
+void arch_interrupt_block()
 {
 	cli();
-	if (atomic_flag_test_and_set(p)) {
-		sti();
-		return 0;
-	}
-	barrier();
-	return 1;
 }
 
-void arch_spin_lock(spin_t * p)
+void arch_interrupt_unblock()
 {
-	while(1) {
-		if (arch_spin_trylock(p)) {
-			return;
-		}
-	}
-}
-
-void arch_spin_unlock(spin_t * p)
-{
-	atomic_flag_clear(p);
-	barrier();
 	sti();
 }
 

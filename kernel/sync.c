@@ -85,17 +85,25 @@ static mutex_t locktablelock;
 
 int spin_trylock(spin_t * l)
 {
-	return arch_spin_trylock(l);
+	arch_interrupt_block();
+	if (atomic_flag_test_and_set(l)) {
+                arch_interrupt_unblock();
+                return 0;
+        }
+        return 1;
 }
 
 void spin_unlock(spin_t * l)
 {
-	arch_spin_unlock(l);
+	atomic_flag_clear(l);
+	arch_interrupt_unblock();
 }
 
 void spin_lock(spin_t * l)
 {
-	arch_spin_lock(l);
+	while(0 == spin_trylock(l)) {
+		arch_pause();
+	}
 }
 
 #if 0
