@@ -4,6 +4,7 @@
 #include <stdint.h>
 #include <stdarg.h>
 #include <stddef.h>
+#include <stdatomic.h>
 #include <stdnoreturn.h>
 
 struct arch_trap_frame_t
@@ -611,13 +612,12 @@ int arch_atomic_postinc(int * p)
 int arch_spin_trylock(spin_t * p)
 {
 	cli();
-	if (*p) {
+	if (atomic_flag_test_and_set(p)) {
 		sti();
 		return 0;
 	}
-	*p=1;
 	barrier();
-	return *p;
+	return 1;
 }
 
 void arch_spin_lock(spin_t * p)
@@ -631,7 +631,7 @@ void arch_spin_lock(spin_t * p)
 
 void arch_spin_unlock(spin_t * p)
 {
-	*p = 0;
+	atomic_flag_clear(p);
 	barrier();
 	sti();
 }

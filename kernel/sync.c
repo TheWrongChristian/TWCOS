@@ -4,8 +4,9 @@
 #if INTERFACE
 #include <stdint.h>
 #include <stddef.h>
+#include <stdatomic.h>
 
-typedef volatile uint32_t spin_t;
+typedef volatile atomic_flag spin_t;
 
 struct monitor_t {
 	interrupt_monitor_t lock[1];
@@ -40,7 +41,7 @@ typedef monitor_t mutex_t;
 
 #define AUTOLOCK_CONCAT(a, b) a ## b
 #define AUTOLOCK_VAR(line) AUTOLOCK_CONCAT(s,line)
-#define SPIN_AUTOLOCK(lock) spin_t AUTOLOCK_VAR(__LINE__) = 0; while((AUTOLOCK_VAR(__LINE__) =spin_autolock(lock, AUTOLOCK_VAR(__LINE__) )))
+#define SPIN_AUTOLOCK(lock) int AUTOLOCK_VAR(__LINE__) = 0; while((AUTOLOCK_VAR(__LINE__) =spin_autolock(lock, AUTOLOCK_VAR(__LINE__) )))
 #if 0
 #define MUTEX_AUTOLOCK(lock) int AUTOLOCK_VAR(__LINE__) = 0; while((AUTOLOCK_VAR(__LINE__) =mutex_autolock(lock, AUTOLOCK_VAR(__LINE__) )))
 #endif

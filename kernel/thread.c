@@ -338,7 +338,7 @@ void thread_set_name(thread_t * thread, char * name)
 	thread->name = name;
 }
 
-static spin_t allthreadslock = 0;
+static spin_t allthreadslock = ATOMIC_FLAG_INIT;
 static GCROOT map_t * allthreads = 0;
 static void thread_track(thread_t * thread, int add)
 {
