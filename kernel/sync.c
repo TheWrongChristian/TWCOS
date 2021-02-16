@@ -8,18 +8,71 @@
 
 typedef volatile atomic_flag spin_t;
 
+/**
+ * Monitor synchronisation primitive
+ *
+ * Monitors is a combined mutex/condition variable, similar to Java monitors.
+ * \see https://en.wikipedia.org/wiki/Monitor_(synchronization)
+ *
+ * To lock a monitor, you \ref monitor_enter the monitor. Whilst in the monitor,
+ * you own the monitor to the exclusion of other threads.
+ *
+ * To unlock a monitor, you \ref monitor_leave the monitor. After you leave the monitor,
+ * you no longer own the monitor and cannot access any data protected by the monitor.
+ *
+ * Whilst in the monitor, you can \ref monitor_wait for a condition, putting the thread
+ * to sleep and leaving the monitor.
+ *
+ * Whilst in the monitor, you can \ref monitor_signal or \ref monitor_broadcast the monitor
+ * to indicate some condition is now true, waking up thread(s) in \ref monitor_wait.
+ */
 struct monitor_t {
 	interrupt_monitor_t lock[1];
 	thread_t * volatile owner;
 	volatile int count;
 };
 
+/**
+ * Reader writer lock synchronisation primitive.
+ *
+ * Reader writer locks allow either multiple readers or a single writer
+ * enter the critical section protected by the lock.
+ *
+ * Readers can only read the data so protected, but a writer can modify
+ * the data safe in the knowledge that no-one else is reading nor writing
+ * the data.
+ *
+ * Read lock is acquired using \ref rwlock_read, and can be escalated
+ * to a write lock using \ref rwlock_escalate.
+ *
+ * A write lock is acquired using using \ref rwlock_write.
+ *
+ * Either lock type is released using \ref rwlock_unlock.
+ */
 struct rwlock_t {
 	monitor_t lock[1];
 	int readcount;
 	thread_t * volatile writer;
 };
 
+/**
+ * Interrupt safe monitor synchronisation primitive
+ *
+ * Monitors is a combined mutex/condition variable, similar to Java monitors.
+ * \see https://en.wikipedia.org/wiki/Monitor_(synchronization)
+ *
+ * To lock a interrupt monitor, you \ref interrupt_monitor_enter the monitor. Whilst in the monitor,
+ * you own the monitor to the exclusion of other threads.
+ *
+ * To unlock a monitor, you \ref interrupt_monitor_leave the monitor. After you leave the monitor,
+ * you no longer own the monitor and cannot access any data protected by the monitor.
+ *
+ * Whilst in the monitor, you can \ref interrupt_monitor_wait for a condition, putting the thread
+ * to sleep and leaving the monitor.
+ *
+ * Whilst in the monitor, you can \ref interrupt_monitor_signal or \ref interrupt_monitor_broadcast the monitor
+ * to indicate some condition is now true, waking up thread(s) in \ref interrupt_monitor_wait.
+ */
 struct interrupt_monitor_t {
 	spin_t spin;
 	int onerror;
@@ -41,13 +94,37 @@ typedef monitor_t mutex_t;
 
 #define AUTOLOCK_CONCAT(a, b) a ## b
 #define AUTOLOCK_VAR(line) AUTOLOCK_CONCAT(s,line)
-#define AUTOLOCK_DO(lock, locklock, unlocklock) int AUTOLOCK_VAR(__LINE__) = 1; for(locklock(lock); AUTOLOCK_VAR(__LINE__); AUTOLOCK_VAR(__LINE__)=0, unlocklock(lock))
+#define AUTOLOCK_DO(lock, locklock, unlocklock) int AUTOLOCK_VAR(__LINE__) = 1; for(locklock(lock); AUTOLOCK_VAR(__LINE__)--; unlocklock(lock))
 
+/**
+ * Wrap the following statement (or block statement) by the interrupt monitor.
+ * \arg lock The lock.
+ */
 #define INTERRUPT_MONITOR_AUTOLOCK(lock) AUTOLOCK_DO(lock, interrupt_monitor_enter, interrupt_monitor_leave)
+/**
+ * Wrap the following statement (or block statement) by the monitor.
+ * \arg lock The lock.
+ */
 #define MONITOR_AUTOLOCK(lock) AUTOLOCK_DO(lock, monitor_enter, monitor_leave)
+/**
+ * Wrap the following statement (or block statement) by the spin lock.
+ * \arg lock The lock.
+ */
 #define SPIN_AUTOLOCK(lock) AUTOLOCK_DO(lock, spin_lock, spin_unlock)
+/**
+ * Wrap the following statement (or block statement) by the mutex.
+ * \arg lock The lock.
+ */
 #define MUTEX_AUTOLOCK(lock) MONITOR_AUTOLOCK(lock)
+/**
+ * Wrap the following statement (or block statement) by the reader lock.
+ * \arg lock The lock.
+ */
 #define READER_AUTOLOCK(lock) AUTOLOCK_DO(lock, rwlock_read, rwlock_unlock)
+/**
+ * Wrap the following statement (or block statement) by the writer lock.
+ * \arg lock The lock.
+ */
 #define WRITER_AUTOLOCK(lock) AUTOLOCK_DO(lock, rwlock_write, rwlock_unlock)
 
 #endif
@@ -76,12 +153,18 @@ static void monitor_mark(void * p)
 }
 #endif
 
-static slab_type_t monitors[1] = {SLAB_TYPE(sizeof(monitor_t), 0, 0)};
 #if 0
+static slab_type_t monitors[1] = {SLAB_TYPE(sizeof(monitor_t), 0, 0)};
 static GCROOT map_t * locktable;
 static mutex_t locktablelock;
 #endif
 
+/**
+ * Try to lock the given spin lock.
+ *
+ * \arg l The lock
+ * \return 1 if the lock was acquired, 0 if the lock is already locked.
+ */
 int spin_trylock(spin_t * l)
 {
 	arch_interrupt_block();
@@ -92,12 +175,22 @@ int spin_trylock(spin_t * l)
         return 1;
 }
 
+/**
+ * Unlock the given spin lock.
+ *
+ * \arg l The lock
+ */
 void spin_unlock(spin_t * l)
 {
 	atomic_flag_clear(l);
 	arch_interrupt_unblock();
 }
 
+/**
+ * Lock the given spin lock.
+ *
+ * \arg l The lock
+ */
 void spin_lock(spin_t * l)
 {
 	while(0 == spin_trylock(l)) {
@@ -141,11 +234,11 @@ void mutex_unlock(mutex_t * lock)
 	monitor_leave(lock);
 }
 
-monitor_t * monitor_create()
-{
-	return slab_calloc(monitors);
-}
-
+/**
+ * Enter (lock) the monitor.
+ *
+ * \arg monitor The monitor lock.
+ */
 void monitor_enter(monitor_t * monitor)
 {
 	INTERRUPT_MONITOR_AUTOLOCK(monitor->lock) {
@@ -161,6 +254,11 @@ void monitor_enter(monitor_t * monitor)
 	assert(monitor->owner == arch_get_thread());
 }
 
+/**
+ * Leave (unlock) the monitor.
+ *
+ * \arg monitor The monitor lock.
+ */
 void monitor_leave(monitor_t * monitor)
 {
 	assert(monitor->owner == arch_get_thread());
@@ -173,6 +271,13 @@ void monitor_leave(monitor_t * monitor)
 	}
 }
 
+/**
+ * Wait for a condition.
+ *
+ * \arg monitor The monitor lock.
+ * \arg timeout Timeout in microseconds.
+ * \throw TimeoutException if the condition doesn't happen with the timeout
+ */
 void monitor_wait_timeout(monitor_t * monitor, timerspec_t timeout)
 {
 	assert(monitor->owner == arch_get_thread());
@@ -186,11 +291,21 @@ void monitor_wait_timeout(monitor_t * monitor, timerspec_t timeout)
 	}
 }
 
+/**
+ * Wait for a condition.
+ *
+ * \arg monitor The monitor lock.
+ */
 void monitor_wait(monitor_t * monitor)
 {
 	monitor_wait_timeout(monitor, 0);
 }
 
+/**
+ * Signal a condition, waking up a waiting thread.
+ *
+ * \arg monitor The monitor lock.
+ */
 void monitor_signal(monitor_t * monitor)
 {
 	assert(monitor->owner == arch_get_thread());
@@ -199,6 +314,11 @@ void monitor_signal(monitor_t * monitor)
 	}
 }
 
+/**
+ * Signal a condition, waking up all waiting threads.
+ *
+ * \arg monitor The monitor lock.
+ */
 void monitor_broadcast(monitor_t * monitor)
 {
 	assert(monitor->owner == arch_get_thread());
@@ -242,6 +362,16 @@ static void interrupt_monitor_owned(interrupt_monitor_t * monitor)
 	}
 }
 
+static INLINE_FLATTEN void interrupt_monitor_leave_dtor(void * p)
+{
+	interrupt_monitor_leave(p);
+}
+
+/**
+ * Enter (lock) the monitor.
+ *
+ * \arg monitor The monitor lock.
+ */
 void interrupt_monitor_enter(interrupt_monitor_t * monitor)
 {
 	interrupt_monitor_t * waitingfor = arch_get_thread()->waitingfor;
@@ -259,7 +389,7 @@ void interrupt_monitor_enter(interrupt_monitor_t * monitor)
 	}
 	arch_get_thread()->waitingfor = waitingfor;
 	monitor->owner = arch_get_thread();
-	monitor->onerror = exception_onerror(interrupt_monitor_leave, monitor);
+	monitor->onerror = exception_onerror(interrupt_monitor_leave_dtor, monitor);
 	interrupt_monitor_owned(monitor);
 }
 
@@ -271,6 +401,11 @@ static void interrupt_monitor_leave_and_schedule(interrupt_monitor_t * monitor)
 	thread_schedule();
 }
 
+/**
+ * Leave (unlock) the monitor.
+ *
+ * \arg monitor The monitor lock.
+ */
 void interrupt_monitor_leave(interrupt_monitor_t * monitor)
 {
 	interrupt_monitor_owned(monitor);
@@ -305,6 +440,13 @@ static void interrupt_monitor_wait_timeout_thread(void * p)
 	}
 }
 
+/**
+ * Wait for a condition.
+ *
+ * \arg monitor The monitor lock.
+ * \arg timeout Timeout in microseconds.
+ * \throw TimeoutException if the condition doesn't happen with the timeout
+ */
 void interrupt_monitor_wait_timeout(interrupt_monitor_t * monitor, timerspec_t timeout)
 {
 	interrupt_monitor_owned(monitor);
@@ -327,12 +469,22 @@ void interrupt_monitor_wait_timeout(interrupt_monitor_t * monitor, timerspec_t t
 	}
 }
 
+/**
+ * Wait for a condition.
+ *
+ * \arg monitor The monitor lock.
+ */
 void interrupt_monitor_wait(interrupt_monitor_t * monitor)
 {
 	interrupt_monitor_owned(monitor);
 	interrupt_monitor_wait_timeout(monitor, 0);
 }
 
+/**
+ * Signal a condition, waking up a waiting thread.
+ *
+ * \arg monitor The monitor lock.
+ */
 void interrupt_monitor_signal(interrupt_monitor_t * monitor)
 {
 	interrupt_monitor_owned(monitor);
@@ -345,6 +497,11 @@ void interrupt_monitor_signal(interrupt_monitor_t * monitor)
 	}
 }
 
+/**
+ * Signal a condition, waking up all waiting threads.
+ *
+ * \arg monitor The monitor lock.
+ */
 void interrupt_monitor_broadcast(interrupt_monitor_t * monitor)
 {
 	while(monitor->waiting) {
@@ -398,6 +555,11 @@ static int thread_trylock_internal(mutex_t * lock)
 }
 #endif
 
+/**
+ * Lock a read/write lock in read mode.
+ *
+ * \arg lock The lock.
+ */
 void rwlock_read(rwlock_t * lock)
 {
 	MONITOR_AUTOLOCK(lock->lock) {
@@ -413,6 +575,11 @@ void rwlock_read(rwlock_t * lock)
 	}
 }
 
+/**
+ * Lock a read/write lock in write mode.
+ *
+ * \arg lock The lock.
+ */
 void rwlock_write(rwlock_t * lock)
 {
 	thread_t * thread = arch_get_thread();
@@ -425,6 +592,11 @@ void rwlock_write(rwlock_t * lock)
 	}
 }
 
+/**
+ * Escalate a read/write lock in read mode to write mode.
+ *
+ * \arg lock The lock.
+ */
 void rwlock_escalate(rwlock_t * lock)
 {
 	thread_t * thread = arch_get_thread();
@@ -438,6 +610,11 @@ void rwlock_escalate(rwlock_t * lock)
 	}
 }
 
+/**
+ * Unlock a read/write lock.
+ *
+ * \arg lock The lock.
+ */
 void rwlock_unlock(rwlock_t * lock)
 {
 	thread_t * thread = arch_get_thread();
