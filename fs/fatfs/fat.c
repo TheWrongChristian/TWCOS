@@ -145,6 +145,8 @@ static cluster_t fatfs_cluster_next_get(fatfs_t * fatfs, cluster_t cluster)
 		next |= (cluster_t)fatfs->fat1[3+(cluster<<2)]<<24;
 		next &= 0xffffff;
 		break;
+	default:
+		kernel_panic("Invalid FAT size: %d\n");
 	}
 
 	return next;
