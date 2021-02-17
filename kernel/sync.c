@@ -217,11 +217,6 @@ static void thread_lock_wait(mutex_t * lock)
 	thread_schedule();
 	spin_lock(&lock->spin);
 }
-
-mutex_t * mutex_create()
-{
-	return slab_calloc(mutexes);
-}
 #endif
 
 void mutex_lock(mutex_t * lock)
@@ -372,7 +367,7 @@ static INLINE_FLATTEN void interrupt_monitor_leave_dtor(void * p)
  *
  * \arg monitor The monitor lock.
  */
-void interrupt_monitor_enter(interrupt_monitor_t * monitor)
+INLINE_FLATTEN void interrupt_monitor_enter(interrupt_monitor_t * monitor)
 {
 	interrupt_monitor_t * waitingfor = arch_get_thread()->waitingfor;
 	arch_get_thread()->waitingfor = monitor;
@@ -406,7 +401,7 @@ static void interrupt_monitor_leave_and_schedule(interrupt_monitor_t * monitor)
  *
  * \arg monitor The monitor lock.
  */
-void interrupt_monitor_leave(interrupt_monitor_t * monitor)
+INLINE_FLATTEN void interrupt_monitor_leave(interrupt_monitor_t * monitor)
 {
 	interrupt_monitor_owned(monitor);
 	monitor->owner = 0;
@@ -509,52 +504,6 @@ void interrupt_monitor_broadcast(interrupt_monitor_t * monitor)
 	}
 }
 
-#if 0
-static interrupt_monitor_t locks[32] = {0};
-static void interrupt_monitor_irq_trigger(int irq)
-{
-	INTERRUPT_MONITOR_AUTOLOCK(locks+irq) {
-                interrupt_monitor_broadcast(locks+irq);
-        }
-}
-
-static monitor_t * thread_monitor_get(void * p)
-{
-	mutex_lock(&locktablelock);
-	if (0 == locktable) {
-		locktable = tree_new(0, TREE_SPLAY);
-	}
-
-	monitor_t * lock = map_getpp(locktable, p);
-	if (0 == lock) {
-		lock = slab_calloc(monitors);
-		map_putpp(locktable, p, lock);
-	}
-
-	mutex_unlock(&locktablelock);
-
-	return lock;
-}
-
-static int thread_trylock_internal(mutex_t * lock)
-{
-	if (0 == lock->count) {
-		/* Not in use, mark it as used and locked */
-		lock->count = 1;
-		lock->owner = arch_get_thread();
-		spin_unlock(&lock->spin);
-		return 1;
-	} else if (lock->owner == arch_get_thread()) {
-		/* Recursive lock, increase count */
-		lock->count++;
-		spin_unlock(&lock->spin);
-		return 1;
-	}
-
-	return 0;
-}
-#endif
-
 /**
  * Lock a read/write lock in read mode.
  *
@@ -627,50 +576,6 @@ void rwlock_unlock(rwlock_t * lock)
 		monitor_broadcast(lock->lock);
 	}
 }
-
-#if 0
-int thread_tryplock(void * p)
-{
-	mutex_t * lock = thread_monitor_get(p);
-
-	return thread_trylock_internal(lock);
-}
-
-void thread_lock(void * p)
-{
-	monitor_t * lock = thread_monitor_get(p);
-
-	monitor_enter(lock);
-}
-
-void thread_unlock(void *p)
-{
-	monitor_t * lock = thread_monitor_get(p);
-
-	monitor_leave(lock);
-}
-
-void thread_signal(void *p)
-{
-	monitor_t * lock = thread_monitor_get(p);
-
-	monitor_signal(lock);
-}
-
-void thread_broadcast(void *p)
-{
-	monitor_t * lock = thread_monitor_get(p);
-
-	monitor_broadcast(lock);
-}
-
-void thread_wait(void *p)
-{
-	monitor_t * lock = thread_monitor_get(p);
-
-	monitor_wait(lock);
-}
-#endif
 
 static void sync_deadlock_test()
 {
