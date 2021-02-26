@@ -35,6 +35,8 @@ static void ns16550_control(ns16550_device_t * dev)
 static void ns16550_outq(ns16550_device_t * dev)
 {
 	uint8_t data = fifo_get(dev->outq);
+	while(0 == (isa_inb(dev->baseport+5) & 1<<5)) {
+	}
 	isa_outb(dev->baseport, data);
 }
 
