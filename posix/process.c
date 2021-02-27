@@ -112,6 +112,7 @@ pid_t process_fork()
 
 	/* New address space */
 	new->as = process_duplicate_as(current);
+	vmap_release_asid(new->as);
 
 	/* New heap */
 	if (current->heap) {
