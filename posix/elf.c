@@ -217,6 +217,7 @@ int elf_execve(vnode_t * f, process_t * p, char * argv[], char * envp[])
 	KTRY {
 		/* Create and switch to new address space */
 		p->as = tree_new(0, TREE_TREAP);
+		vmap_release_asid(p->as);
 		vmap_set_asid(p->as);
 
 		/* Read in the header */
