@@ -19,6 +19,7 @@ BOOTSTRAP_CODE void bootstrap_paging_init()
 	}
 }
 
+#if 0
 static char * mem_type(int type)
 {
 	switch(type) {
@@ -35,6 +36,7 @@ static char * mem_type(int type)
 	}
 	return "Unknown";
 }
+#endif
 
 extern char _bootstrap_start[];
 extern char _bootstrap_end[];
@@ -74,7 +76,7 @@ void * arch_heap_page()
 
 int arch_is_heap_pointer(void *p)
 {
-	return ((char*)p)>=&_bootstrap_nextalloc && (char*)p<nextalloc;
+	return ((char*)p)>=_bootstrap_nextalloc && (char*)p<nextalloc;
 }
 
 void * modules[8]={0};
@@ -102,7 +104,7 @@ void arch_init()
 		if (mod) {
 			modules[i] = (void*)(mod->mod_start+koffset);
 			modulesizes[i] = mod->mod_end-mod->mod_start;
-			nextalloc = koffset + mod->mod_end;
+			nextalloc = (void*)(koffset + mod->mod_end);
 			nextalloc = PTR_ALIGN_NEXT(nextalloc,ARCH_PAGE_SIZE);
 		} else {
 			break;
@@ -163,12 +165,12 @@ void arch_init()
 	pci_scan(pci_probe_print);
 
 	kernel_printk("Bootstrap end - %p\n", nextalloc);
+	sti(0xffffffff);
 
 	/* Initialize the console */
 	console_initialize(info);
 
-	sti(1);
-	kernel_startlogging(1);
+	kernel_startlogging(0);
 }
 
 #if INTERFACE

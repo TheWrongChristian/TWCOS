@@ -11,7 +11,7 @@ typedef long suseconds_t;
 typedef unsigned mode_t;
 typedef uintptr_t size_t;
 typedef intptr_t ssize_t;
-typedef const char * const ustring;
+typedef char * ustring;
 typedef int32_t off_t;
 typedef int64_t off64_t;
 typedef uint32_t ino_t;
@@ -36,8 +36,8 @@ typedef struct timespec * ptimespec;
 struct dirent {
 	ino_t d_ino;
 	off_t d_off;
-	size_t d_reclen;
-	char d_name[0];
+	unsigned short d_reclen;
+	char d_name[1];
 };
 typedef struct dirent * pdirent;
 
@@ -45,8 +45,9 @@ typedef struct dirent * pdirent;
 struct dirent64 {
 	ino64_t d_ino;
 	off64_t d_off;
-	size_t d_reclen;
-	char d_name[0];
+	unsigned short d_reclen;
+	char d_type;
+	char d_name[1];
 };
 typedef struct dirent64 * pdirent64;
 

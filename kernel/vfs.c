@@ -84,6 +84,7 @@ static int page_cache_key_comp( map_key p1, map_key p2 )
 	}
 }
 
+#if 0
 static int page_cache_key_vnode_match(map_key p1, map_key p2)
 {
 	page_cache_key_t * k1 = (page_cache_key_t *)p1;
@@ -91,6 +92,7 @@ static int page_cache_key_vnode_match(map_key p1, map_key p2)
 
 	return (k1->vnode == k2->vnode);
 }
+#endif
 
 static GCROOT map_t * page_cache;
 
@@ -99,6 +101,50 @@ void page_cache_init()
 	INIT_ONCE();
 
 	page_cache = tree_new(page_cache_key_comp, TREE_TREAP);
+}
+
+static void vnode_default_put_page(vnode_t * vnode, off64_t offset, vmpage_t * vmpage)
+{
+	KTHROW(NotImplementedException, "Not implemented");
+}
+
+static vmpage_t * vnode_default_get_page(vnode_t * vnode, off64_t offset)
+{
+	KTHROW(NotImplementedException, "Not implemented");
+}
+
+static void vnode_default_close(vnode_t * vnode)
+{
+}
+
+off64_t vnode_default_get_size(vnode_t * vnode)
+{
+	return 0;
+}
+
+void vnode_default_set_size(vnode_t * vnode, off64_t size)
+{
+}
+
+
+
+void vnode_fill_defaults(vnode_t * vnode)
+{
+	if (!vnode->fs->vnodeops->put_page) {
+		vnode->fs->vnodeops->put_page = vnode_default_put_page;
+	}
+	if (!vnode->fs->vnodeops->get_page) {
+		vnode->fs->vnodeops->get_page = vnode_default_get_page;
+	}
+	if (!vnode->fs->vnodeops->close) {
+		vnode->fs->vnodeops->close = vnode_default_close;
+	}
+	if (!vnode->fs->vnodeops->get_size) {
+		vnode->fs->vnodeops->get_size = vnode_default_get_size;
+	}
+	if (!vnode->fs->vnodeops->set_size) {
+		vnode->fs->vnodeops->set_size = vnode_default_set_size;
+	}
 }
 
 
@@ -134,14 +180,16 @@ void vnode_put_page( vnode_t * vnode, off64_t offset, vmpage_t * vmpage )
 	vnode->fs->vnodeops->put_page(vnode, offset, vmpage);
 }
 
-static void vnode_sync_page_walk(void * p, void * key, void * data)
+static void vnode_sync_page_walk(const void * const p, void * key, void * data)
 {
-	page_cache_key_t * prefix = (page_cache_key_t *)key;
+	const page_cache_key_t * prefix = (const page_cache_key_t *)key;
 	vnode_put_page(prefix->vnode, prefix->offset, (vmpage_t*)data);
 }
 
-static int vnode_prefix(page_cache_key_t * prefix, page_cache_key_t * key)
+static int vnode_prefix(void * vprefix, void * vkey)
 {
+	page_cache_key_t * prefix = vprefix;
+	page_cache_key_t * key = vkey;
 	return prefix->vnode == key->vnode;
 }
 
@@ -210,7 +258,7 @@ typedef struct file_buffer_s {
 } file_buffer_t;
 
 static GCROOT file_buffer_t * bufs=0;
-static int bufslock[] = {0};
+static spin_t bufslock[] = {0};
 
 static file_buffer_t * vnode_get_buffer(vnode_t * vnode, off64_t offset)
 {
@@ -350,7 +398,6 @@ struct vfstree_dirent_t {
 vnode_t * vfstree_get_vnode(vnode_t * dir, const char * name) 
 {
 	vfstree_t * vfstree = container_of(dir->fs, vfstree_t, fs);
-	vnode_t * vnode = 0;
 	vfstree_dirent_t key = { dir, name };
 
 	return map_getpp(vfstree->tree, &key);
@@ -365,12 +412,12 @@ void vfstree_put_vnode(vnode_t * dir, const char * name, vnode_t * vnode)
 	map_putpp(vfstree->tree, key, vnode);
 }
 
-static int vfstree_dirent_cmp(void * p1, void * p2)
+static int vfstree_dirent_cmp(map_key p1, map_key p2)
 {
-	vfstree_dirent_t * d1 = p1;
-	vfstree_dirent_t * d2 = p2;
+	vfstree_dirent_t * d1 = (vfstree_dirent_t *)p1;
+	vfstree_dirent_t * d2 = (vfstree_dirent_t *)p2;
 
-	int dir_diff = d1->dir-d2->dir;
+	ptrdiff_t dir_diff = d1->dir-d2->dir;
 	if (0 == dir_diff) {
 		if (0 == d1->name && d2->name) {
 			return -1;
@@ -381,7 +428,7 @@ static int vfstree_dirent_cmp(void * p1, void * p2)
 		}
 	}
 
-	return dir_diff;
+	return (dir_diff<0) ? -1 : (dir_diff>0) ? 1 : 0;
 }
 
 typedef uint8_t byte;
@@ -389,22 +436,23 @@ typedef struct vfstree_getdents_walk_t vfstree_getdents_walk_t;
 struct vfstree_getdents_walk_t {
 	off64_t startoffset;
 	off64_t offset;
-	byte * buf;
-	byte * next;
+	char * buf;
+	char * next;
 	size_t bufsize;
 };
 
-static int vfstree_getdents_walk(void * p, void * key, void * data)
+static void vfstree_getdents_walk(const void * const p, void * key, map_data data)
 {
 	vfstree_getdents_walk_t * info = (vfstree_getdents_walk_t*)p;
 
 	vfstree_dirent_t * vfstreedirent = (vfstree_dirent_t*)key;
-	ino64_t inode = (uintptr_t)data;
+	ino64_t inode = (unsigned)data;
 	struct dirent64 * dirent = vfs_dirent64(inode, info->offset, vfstreedirent->name, 0);
-	if (dirent->d_off < info->startoffset) {
+	dirent->d_off += dirent->d_reclen;
+	if (info->offset < info->startoffset) {
 		/* Already read this entry */
 		info->offset += dirent->d_reclen;
-		return 0;
+		return;
 	}
 
 	size_t bufleft = info->bufsize - (info->next - info->buf);
@@ -414,11 +462,7 @@ static int vfstree_getdents_walk(void * p, void * key, void * data)
 		memcpy(info->next, dirent, dirent->d_reclen);
 		info->next += dirent->d_reclen;
 		info->offset += dirent->d_reclen;
-		return 0;
 	}
-
-	/* No room left */
-	return 1;
 }
 
 vnode_t * vfstree_newdir(vnode_t * dir, const char * name)
@@ -442,7 +486,7 @@ static int vfstree_getdents(vnode_t * dir, off64_t offset, struct dirent64 * buf
 {
 	vfstree_t * fs = container_of(dir->fs, vfstree_t, fs);
 	vfstree_dirent_t prefix = { dir };
-	vfstree_getdents_walk_t info = { offset, 0, buf, buf, bufsize };
+	vfstree_getdents_walk_t info = { offset, 0, (char*)buf, (char*)buf, bufsize };
 
 	map_walkpi_prefix(fs->tree, vfstree_getdents_walk, &info, vfstree_getdents_prefix, &prefix);
 
@@ -473,7 +517,7 @@ void vfs_mount(vnode_t * dir, vnode_t * root)
 			mounts=splay_new(0);
 		}
 
-		vnode_t * existing = map_putpp(mounts, dir, root);
+		map_putpp(mounts, dir, root);
 	}
 }
 
@@ -512,6 +556,7 @@ void * vfs_dirent64(ino64_t ino, ino64_t offset, const char * name, char type)
 	dirent->d_ino = ino;
 	dirent->d_off = offset;
 	dirent->d_reclen = reclen;
+	dirent->d_type = type;
 	strcpy(dirent->d_name, name);
 
 	return dirent;

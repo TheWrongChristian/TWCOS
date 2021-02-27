@@ -23,6 +23,13 @@ struct slab_weakref_t {
 	unsigned int seq;
 };
 
+struct gc_stats_t
+{
+	size_t inuse;
+	size_t peak;
+	size_t total;
+};
+
 #define SLAB_TYPE(s, m, f) {.magic=0, .esize=s, .mark=m, .finalize=f}
 
 #ifdef DEBUG
@@ -67,6 +74,7 @@ typedef struct slab {
 
 static slab_type_t * types;
 
+#if 0
 static thread_t * cleaner_thread;
 int is_cleaner()
 {
@@ -89,16 +97,10 @@ static void cleaner()
 		}
 	}
 }
+#endif
 
 void slab_init()
 {
-	INIT_ONCE();
-	kernel_startlogging(1);
-#if 0
-	if (0 == thread_fork()) {
-		cleaner();
-	}
-#endif
 }
 
 static mutex_t slablock[1];
@@ -114,6 +116,23 @@ static void slab_lock(int gc)
 static void slab_unlock()
 {
 	mutex_unlock(slablock);
+}
+
+static slab_type_t * slab_min = 0;
+static slab_type_t * slab_max = 0;
+static void slab_register(slab_type_t * stype)
+{
+	if (0 == slab_min || stype < slab_min) {
+		slab_min = stype;
+	}
+	if (0 == slab_max || stype > slab_max) {
+		slab_max = stype;
+	}
+}
+
+static int slab_valid(slab_type_t * stype)
+{
+	return (slab_min <= stype && stype <= slab_max);
 }
 
 static slab_t * slab_new(slab_type_t * stype)
@@ -139,6 +158,7 @@ static slab_t * slab_new(slab_type_t * stype)
 		stype->count = (4*(ARCH_PAGE_SIZE-sizeof(slab_t))-31) / (4 * stype->slotsize + 1);
 		slab_lock(0);
 		LIST_APPEND(types, stype);
+		slab_register(stype);
 		slab_unlock();
 	}
 
@@ -149,7 +169,7 @@ static slab_t * slab_new(slab_type_t * stype)
 		slab->type = stype;
 		slab->available = (uint32_t*)(slab+1);
 		slab->finalize = slab->available + (slab->type->count+32)/32;
-		slab->data = (slab_slot_t*)(slab->finalize + (slab->type->count+32)/32);
+		slab->data = (char*)(slab->finalize + (slab->type->count+32)/32);
 		bitarray_setall(slab->available, stype->count, 1);
 
 		LIST_PREPEND(stype->first, slab);
@@ -195,7 +215,6 @@ static int SLAB_SLOT_NUM(slab_t * slab, void * p)
 }
 #endif
 
-
 void * slab_alloc_p(slab_type_t * stype)
 {
 	static unsigned int seq = 0;
@@ -235,8 +254,6 @@ void * slab_alloc_p(slab_type_t * stype)
 	mutex_unlock(stype->lock);
 
 	KTHROW(OutOfMemoryException, "Out of memory");
-	/* Shouldn't get here */
-	return 0;
 }
 
 void * slab_calloc_p(slab_type_t * stype)
@@ -267,12 +284,7 @@ void slab_nomark(void * p)
 	/* Does nothing */
 }
 
-static struct
-{
-	size_t inuse;
-	size_t peak;
-	size_t total;
-} gc_stats = {0};
+gc_stats_t gc_stats = {0};
 
 static struct gccontext {
 	/* The block to be scanned */
@@ -322,7 +334,7 @@ static slab_t * slab_get(void * p)
 		/* Check magic numbers */
 		slab_t * slab = ARCH_PAGE_ALIGN(p);
 
-		if (slab == ARCH_PAGE_ALIGN(slab->data) && slab->magic == slab->type->magic && (slab_slot_t*)slab->data <= (slab_slot_t*)p) {
+		if (slab == ARCH_PAGE_ALIGN(slab->data) && slab_valid(slab->type) && slab->magic == slab->type->magic && (slab_slot_t*)slab->data <= (slab_slot_t*)p) {
 			return slab;
 		}
 	}
@@ -440,10 +452,6 @@ static void slab_test_finalize(void * p)
 static void slab_test_mark(void *p)
 {
 	kernel_printk("Marking: %p\n", p);
-}
-
-static void slab_malloc_finalize(void * p)
-{
 }
 
 static void slab_weakref_mark(void * p)

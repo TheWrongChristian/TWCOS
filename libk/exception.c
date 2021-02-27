@@ -21,6 +21,7 @@ struct exception_cause {
 	/* Exception location */
 	char * file;
 	int line;
+	void * backtrace[32];
 
 	/* Exception message */
 	char message[256];
@@ -36,7 +37,8 @@ struct exception_frame {
 
 	/* State */
 	jmp_buf env;
-	dtor_t * dtor_frame;
+	int ndtor;
+	dtor_t dtors[16];
 
 	/* Exception chain */
 	struct exception_frame * next;
@@ -74,6 +76,7 @@ exception_def Throwable = { "Throwable", 0 };
 exception_def Exception = { "Exception", &Throwable };
 exception_def Error = { "Error", &Throwable };
 exception_def RuntimeException = { "RuntimeException", &Exception };
+exception_def NotImplementedException = { "NotImplementedException", &RuntimeException };
 
 static tls_key exception_key;
 static slab_type_t causes[1] = {SLAB_TYPE(sizeof(struct exception_cause), 0, 0)};
@@ -88,21 +91,81 @@ exception_frame * exception_push(exception_frame * frame)
 
 	/* Link the frame into the chain */
 	frame->next = tls_get(exception_key);
+	assert(frame != frame->next);
 	tls_set(exception_key, frame);
 
 	frame->cause = 0;
 	frame->state = EXCEPTION_NEW;
 	frame->caught = 0;
-	frame->dtor_frame = dtor_poll_frame();
+	frame->ndtor = 0;
+	//frame->dtor_frame = dtor_poll_frame();
 
 	return frame;
 }
 
-void exception_throw_cause(struct exception_cause * cause)
+int exception_onerror(dtor_f dtor, void * p)
+{
+	if (exception_key) {
+		exception_frame * frame = tls_get(exception_key);
+		if (!frame) {
+			return 0;
+		}
+		check_int_bounds(frame->ndtor, 0, countof(frame->dtors)-1, "exception_onerror");
+		frame->dtors[frame->ndtor].dtor = dtor;
+		frame->dtors[frame->ndtor].p = p;
+		return frame->ndtor++;
+	}
+
+	return 0;
+}
+
+void exception_onerror_pop(int pop)
+{
+	if (exception_key) {
+		exception_frame * frame = tls_get(exception_key);
+		if (frame) {
+			check_int_bounds(pop, 0, frame->ndtor, "exception_onerror");
+			frame->ndtor = pop;
+		}
+	}
+}
+
+void exception_clearall()
+{
+	assert(exception_key);
+	tls_set(exception_key, 0);
+}
+
+static void exception_backtrace(struct exception_cause * cause)
+{
+	void ** from = (void**)&from;
+
+	memset(cause->backtrace, 0, sizeof(cause->backtrace));
+#if 0
+	for(int i=0; from<to && i<countof(cause->backtrace); from++) {
+		extern char code_start[], code_end[];
+		void * p = *from;
+		if (p>=code_start && p<code_end) {
+			cause->backtrace[i++] = p;
+		}
+	}
+#endif
+	arch_thread_backtrace(cause->backtrace, countof(cause->backtrace));
+}
+
+noreturn void exception_throw_cause(struct exception_cause * cause)
 {
 	struct exception_frame * frame = tls_get(exception_key);
 
+	if (0 == frame) {
+		kernel_panic("Unhandled exception (%s:%d): %s", cause->file, cause->line, cause->message);
+	}
+
 	frame->cause = cause;
+
+	for(int i=frame->ndtor; i; i--) {
+		frame->dtors[i-1].dtor(frame->dtors[i-1].p);
+	}
 
 	longjmp(frame->env, 1);
 }
@@ -113,6 +176,7 @@ exception_cause * exception_vcreate(exception_def * type, char * file, int line,
 	cause->type = type;
 	cause->file = file;
 	cause->line = line;
+	exception_backtrace(cause);
 	vsnprintf(cause->message, sizeof(cause->message), message, ap);
 
 	return cause;
@@ -170,7 +234,7 @@ int exception_finished(char * file, int line)
 		frame->state = EXCEPTION_FINISHING;
 		return 0;
 	case EXCEPTION_FINISHING:
-		dtor_pop(frame->dtor_frame);
+		//dtor_pop(frame->dtor_frame);
 		tls_set(exception_key, frame->next);
 		if (frame->cause && 0 == frame->caught) {
 			exception_throw_cause(frame->cause);
@@ -220,6 +284,38 @@ char * exception_message()
 	}
 
 	return "No exception";
+}
+
+exception_cause * exception_get_cause()
+{
+	exception_frame * frame = tls_get(exception_key);
+
+	if (frame->cause) {
+		return frame->cause;
+	}
+
+	return 0;
+}
+
+noreturn void exception_panic(const char * fmt, ...)
+{
+	va_list ap;
+	va_start(ap,fmt);
+	exception_vpanic(fmt, ap);
+	va_end(ap);
+}
+
+noreturn void exception_vpanic(const char * fmt, va_list ap)
+{
+	exception_cause * cause = exception_get_cause();
+
+	if (cause) {
+		for(int i=0; i<countof(cause->backtrace) && cause->backtrace[i]; i++) {
+			stream_printf(console_stream(), "%d: %p\n", i, cause->backtrace[i]);
+		}
+		stream_printf(console_stream(), "%s:%d\n", cause->file, cause->line);
+	}
+	kernel_vpanic(fmt, ap);
 }
 
 int exception_finally()

@@ -208,15 +208,18 @@ int elf_execve(vnode_t * f, process_t * p, char * argv[], char * envp[])
 	for(int i=0; i<envc; i++) {
 		tenvp[i] = tstrdup(envp[i]);
 	}
+	tenvp[envc] = 0;
 
 
+	struct Elf32_Ehdr ehdr[1];
+	/* Default user stack will be at 16MB */
+	void * stacktop = (void*)0x1000000;
 	KTRY {
 		/* Create and switch to new address space */
 		p->as = tree_new(0, TREE_TREAP);
 		vmap_set_asid(p->as);
 
 		/* Read in the header */
-		struct Elf32_Ehdr ehdr[1];
 		size_t read = vnode_read(f, 0, ehdr, sizeof(ehdr[0]));
 		if (read != sizeof(ehdr[0])) {
 			KTHROW(Exception, "Unsupported executable format");
@@ -237,17 +240,17 @@ int elf_execve(vnode_t * f, process_t * p, char * argv[], char * envp[])
 			KTHROW(Exception, "Unsupported executable format");
 		}
 
-		/* Default user stack will be at 16MB */
-		void * stacktop = (void*)0x1000000;
-		void * stackbot = ARCH_PAGE_SIZE;
+		void * stackbot = (void*)ARCH_PAGE_SIZE;
 		void * brk = 0;
 		for(int i=0; i<ehdr->e_phnum; i++) {
 			if (1 == phdr[i].type) {
 				void * vaddr = (void*)PTR_ALIGN(phdr[i].vaddr, phdr[i].align);
-				size_t msize = PTR_ALIGN_NEXT(phdr[i].msize, phdr[i].align);
-				void * vend = (void*)PTR_ALIGN(((char*)vaddr + msize), phdr[i].align);
-				size_t fsize = PTR_ALIGN_NEXT(phdr[i].fsize, phdr[i].align);
-				uintptr_t offset = PTR_ALIGN(phdr[i].offset, phdr[i].align);
+				size_t msize = ROUNDUP(phdr[i].msize, phdr[i].align);
+#if 0
+				void * vend = PTR_ALIGN(((char*)vaddr + msize), phdr[i].align);
+				size_t fsize = ROUNDUP(phdr[i].fsize, phdr[i].align);
+#endif
+				uintptr_t offset = ROUNDDOWN(phdr[i].offset, phdr[i].align);
 				int perms = SEGMENT_U | SEGMENT_P;
 				int isexec = phdr[i].flags & 1;
 				int iswr = phdr[i].flags & 2;
@@ -272,7 +275,7 @@ int elf_execve(vnode_t * f, process_t * p, char * argv[], char * envp[])
 
 				if (iswr) {
 					uintptr_t zstart = phdr[i].vaddr+phdr[i].fsize;
-					uintptr_t zend = PTR_ALIGN_NEXT(phdr[i].vaddr+phdr[i].msize, phdr[i].align);
+					uintptr_t zend = ROUNDUP(phdr[i].vaddr+phdr[i].msize, phdr[i].align);
 					memset((void*)(zstart), 0, zend-zstart);
 					if ((void*)zend>brk) {
 						brk = (void*)zend;
@@ -306,8 +309,6 @@ int elf_execve(vnode_t * f, process_t * p, char * argv[], char * envp[])
 		stacktop = arch_user_stack_mempcy(stacktop, &argc, sizeof(argc));
 
 		arena_setstate(0, state);
-
-		arch_startuser((void*)ehdr->e_entry, stacktop);
 	} KCATCH(Exception) {
 		/* Restore old as */
 		p->as = oldas;
@@ -317,6 +318,9 @@ int elf_execve(vnode_t * f, process_t * p, char * argv[], char * envp[])
 
 		KRETHROW();
 	}
+
+	exception_clearall();
+	arch_startuser((void*)ehdr->e_entry, stacktop);
 
 	return 0;
 }

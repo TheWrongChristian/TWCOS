@@ -8,10 +8,10 @@
 typedef uintptr_t map_key;
 typedef intptr_t map_data;
 
-typedef void (*walk_func)(void * p, map_key key, map_data data);
-typedef void (*walkip_func)(void * p, map_key key, void * data);
-typedef void (*walkpp_func)(void * p, void * key, void * data);
-typedef void (*walkpi_func)(void * p, void * key, map_data data);
+typedef void (*walk_func)(const void * const p, map_key key, map_data data);
+typedef void (*walkip_func)(const void * const p, map_key key, void * data);
+typedef void (*walkpp_func)(const void * const p, void * key, void * data);
+typedef void (*walkpi_func)(const void * const p, void * key, map_data data);
 
 typedef int (*prefix_func)(map_key prefix, map_key key);
 typedef int (*prefixp_func)(void * prefix, void * key);
@@ -23,14 +23,14 @@ typedef int (*prefixp_func)(void * prefix, void * key);
 #define i2p(d) ((void *)d)
 
 struct map_ops {
-	void (*destroy)( map_t * map );
-	void (*walk)( map_t * map, walk_func func, void *p );
-	void (*walk_range)( map_t * map, walk_func func, void *p, map_key from, map_key to );
-	map_data (*put)( map_t * map, map_key key, map_data data );
-	map_data (*get)( map_t * map, map_key key, map_eq_test cond );
-	map_data (*remove)( map_t * map, map_key key );
-	void (*optimize)(map_t * map);
-	iterator_t * (*iterator)( map_t * map );
+	void (*destroy)( const map_t * map );
+	void (*walk)( const map_t * map, const walk_func func, const void *p );
+	void (*walk_range)( const map_t * map, const walk_func func, const void *p, const map_key from, const map_key to );
+	map_data (*put)( const map_t * map, const map_key key, const map_data data );
+	map_data (*get)( const map_t * map, const map_key key, const map_eq_test cond );
+	map_data (*remove)( const map_t * map, const map_key key );
+	void (*optimize)(const map_t * map);
+	iterator_t * (*iterator)( const map_t * map );
 };
 
 typedef struct map_s {
@@ -75,28 +75,28 @@ struct walk_wrapper
 		map_key key_prefix;
 		void * key_prefixp;
 	};
-	void * p;
+	const void * const p;
 };
 
-static void walk_walkip_func( void * p, map_key key, map_data data )
+static void walk_walkip_func( const void * const p, map_key key, map_data data )
 {
 	struct walk_wrapper * w = (struct walk_wrapper*)p;
 	w->walkip(w->p, key, (void*)data);
 }
 
-static void walk_walkpp_func( void * p, map_key key, map_data data )
+static void walk_walkpp_func( const void * const p, map_key key, map_data data )
 {
 	struct walk_wrapper * w = (struct walk_wrapper*)p;
 	w->walkpp(w->p, (void*)key, (void*)data);
 }
 
-static void walk_walkpi_func( void * p, map_key key, map_data data )
+static void walk_walkpi_func( const void * const p, map_key key, map_data data )
 {
 	struct walk_wrapper * w = (struct walk_wrapper*)p;
 	w->walkpi(w->p, (void*)key, data);
 }
 
-static void walk_walk_prefix_func( void * p, map_key key, map_data data )
+static void walk_walk_prefix_func( const void * const p, map_key key, map_data data )
 {
 	struct walk_wrapper * w = (struct walk_wrapper*)p;
 	if (w->prefix(w->key_prefix, key)) {
@@ -104,7 +104,7 @@ static void walk_walk_prefix_func( void * p, map_key key, map_data data )
 	}
 }
 
-static void walk_walkip_prefix_func( void * p, map_key key, map_data data )
+static void walk_walkip_prefix_func( const void * const p, map_key key, map_data data )
 {
 	struct walk_wrapper * w = (struct walk_wrapper*)p;
 	if (w->prefix(w->key_prefix, key)) {
@@ -112,7 +112,7 @@ static void walk_walkip_prefix_func( void * p, map_key key, map_data data )
 	}
 }
 
-static void walk_walkpp_prefix_func( void * p, map_key key, map_data data )
+static void walk_walkpp_prefix_func( const void * const p, map_key key, map_data data )
 {
 	struct walk_wrapper * w = (struct walk_wrapper*)p;
 	if (w->prefixp(w->key_prefixp, (void*)key)) {
@@ -120,7 +120,7 @@ static void walk_walkpp_prefix_func( void * p, map_key key, map_data data )
 	}
 }
 
-static void walk_walkpi_prefix_func( void * p, map_key key, map_data data )
+static void walk_walkpi_prefix_func( const void * const p, map_key key, map_data data )
 {
 	struct walk_wrapper * w = (struct walk_wrapper*)p;
 	if (w->prefixp(w->key_prefixp, (void*)key)) {
@@ -128,7 +128,7 @@ static void walk_walkpi_prefix_func( void * p, map_key key, map_data data )
 	}
 }
 
-void map_walkip( map_t * map, walkip_func func, void * p )
+void map_walkip( map_t * const map, walkip_func func, const void * const p )
 {
 	struct walk_wrapper wrapper = {
 		walkip: func,
@@ -207,37 +207,37 @@ void map_walk_prefix( map_t * map, walk_func func, void * p, prefix_func prefix_
 void map_walkip_prefix( map_t * map, walkpp_func func, void * p, prefix_func prefix_func, map_key prefix)
 {
 	struct walk_wrapper wrapper = {
-		walk: func,
+		walk: (walk_func)func,
 		prefix: prefix_func,
 		key_prefix: prefix,
 		p: p,
 	};
 	map_key from = prefix;
-	map->ops->walk_range(map, walk_walk_prefix_func, &wrapper, from, 0);
+	map->ops->walk_range(map, walk_walkip_prefix_func, &wrapper, from, 0);
 }
 
 void map_walkpi_prefix( map_t * map, walkpi_func func, void * p, prefixp_func prefix_func, void * prefix)
 {
 	struct walk_wrapper wrapper = {
-		walk: func,
+		walk: (walk_func)func,
 		prefixp: prefix_func,
 		key_prefixp: prefix,
 		p: p,
 	};
 	void * from = prefix;
-	map->ops->walk_range(map, walk_walk_prefix_func, &wrapper, from, 0);
+	map->ops->walk_range(map, walk_walkpi_prefix_func, &wrapper, (map_data)from, (map_data)0);
 }
 
 void map_walkpp_prefix( map_t * map, walkpp_func func, void * p, prefixp_func prefix_func, void * prefix)
 {
 	struct walk_wrapper wrapper = {
-		walk: func,
+		walk: (walk_func)func,
 		prefixp: prefix_func,
 		key_prefixp: prefix,
 		p: p,
 	};
 	void * from = prefix;
-	map->ops->walk_range(map, walk_walk_prefix_func, &wrapper, from, 0);
+	map->ops->walk_range(map, walk_walkpp_prefix_func, &wrapper, (map_data)from, (map_data)0);
 }
 
 map_data map_put( map_t * map, map_key key, map_data data )
@@ -295,7 +295,7 @@ void * map_getip_cond( map_t * map, map_key key, map_eq_test cond )
 	return (void*)map->ops->get(map, key, cond);
 }
 
-void * map_getpp_cond( map_t * map, void * key, map_eq_test cond )
+void * map_getpp_cond( const map_t * map, const void * key, const map_eq_test cond )
 {
 	return (void*)map->ops->get(map, (map_key)key, cond);
 }
@@ -330,7 +330,7 @@ iterator_t * map_iterator( map_t * map)
         return map->ops->iterator(map);
 }
 
-static void map_walk_dump(void * p, void * key, void * data)
+static void map_walk_dump(const void * const p, void * key, void * data)
 {
         kernel_printk("%s\n", data);
 
@@ -461,7 +461,7 @@ static size_t map_compound_key_process( map_compound_key_t * key, const char * f
 				int copylen = key->buflen - len;
 				memcpy(buf, s, copylen);
 
-				return key;
+				return key->buflen;
 			}
 			len += strlen(s)+1;
 		} else {
@@ -580,15 +580,17 @@ void map_test(map_t * map, map_t * akmap)
 		map_removepp(map, data[i]);
 	}
 
+#if 0
 	map_compound_key_t * key1 = map_compound_key("i4i8s", (int32_t)10, (int64_t)32, "blah");
 	map_compound_tempkey_t prefix = {0};
 	map_compound_key_t * key2 = map_compound_tempkey(&prefix, "i4i8", (int32_t)10, (int64_t)32);
 	int comp = map_compound_key_comp(key1, key2);
 	int isprefix = map_compound_key_prefix(key2, key1);
 	// kernel_printk("comp=%d, isprefix=%s\n", comp, (isprefix) ? "true" : "false");
+#endif
 }
 
-static void map_put_all_walk(void *p,map_key key,map_data data)
+static void map_put_all_walk(const void *const p,map_key key,map_data data)
 {
 	map_t * to = (map_t *)p;
 

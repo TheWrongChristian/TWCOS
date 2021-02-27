@@ -1,4 +1,3 @@
-static const char ident[] = "@(#) $Header: /cvstrac/cvstrac/makeheaders.c,v 1.4 2005/03/16 22:17:51 drh Exp $";
 /*
 ** This program is free software; you can redistribute it and/or
 ** modify it under the terms of the Simplified BSD License (also
@@ -32,7 +31,6 @@ static const char ident[] = "@(#) $Header: /cvstrac/cvstrac/makeheaders.c,v 1.4 
 ** This program is distributed in the hope that it will be useful,
 ** but without any warranty; without even the implied warranty of
 ** merchantability or fitness for a particular purpose.
-** appropriate header files.
 */
 #include <stdio.h>
 #include <stdlib.h>
@@ -40,11 +38,12 @@ static const char ident[] = "@(#) $Header: /cvstrac/cvstrac/makeheaders.c,v 1.4 
 #include <memory.h>
 #include <sys/stat.h>
 #include <assert.h>
+#include <string.h>
+
 #if defined( __MINGW32__) ||  defined(__DMC__) || defined(_MSC_VER) || defined(__POCC__)
 #  ifndef WIN32
 #    define WIN32
 #  endif
-# include <string.h>
 #else
 # include <unistd.h>
 #endif
@@ -114,15 +113,15 @@ struct InStream {
 **
 ** Not every object has a forward declaration.  If it does, thought, the
 ** forward declaration will be contained in the zFwd field for C and
-** the zFwdCpp for C++.  The zDecl field contains the complete 
-** declaration text.  
+** the zFwdCpp for C++.  The zDecl field contains the complete
+** declaration text.
 */
 typedef struct Decl Decl;
 struct Decl {
   char *zName;       /* Name of the object being declared.  The appearance
                      ** of this name is a source file triggers the declaration
                      ** to be added to the header for that file. */
-  char *zFile;       /* File from which extracted.  */
+  const char *zFile; /* File from which extracted.  */
   char *zIf;         /* Surround the declaration with this #if */
   char *zFwd;        /* A forward declaration.  NULL if there is none. */
   char *zFwdCpp;     /* Use this forward declaration for C++. */
@@ -165,7 +164,7 @@ struct Decl {
 **    EXPORT scope        The object is visible and usable everywhere.
 **
 ** The DP_Flag is a temporary use flag that is used during processing to
-** prevent an infinite loop.  It's use is localized.  
+** prevent an infinite loop.  It's use is localized.
 **
 ** The DP_Cplusplus, DP_ExternCReqd and DP_ExternReqd flags are permanent
 ** and are used to specify what type of declaration the object requires.
@@ -203,7 +202,7 @@ struct Decl {
 ** of these flags are very different.
 */
 #define PS_Extern        0x000800    /* "extern" has been seen */
-#define PS_Export        0x001000    /* If between "#if EXPORT_INTERFACE" 
+#define PS_Export        0x001000    /* If between "#if EXPORT_INTERFACE"
                                      ** and "#endif" */
 #define PS_Export2       0x002000    /* If "EXPORT" seen */
 #define PS_Typedef       0x004000    /* If "typedef" has been seen */
@@ -233,7 +232,7 @@ struct Decl {
 #define TY_Defunct       0x10000000  /* Used to erase a declaration */
 
 /*
-** Each nested #if (or #ifdef or #ifndef) is stored in a stack of 
+** Each nested #if (or #ifdef or #ifndef) is stored in a stack of
 ** instances of the following structure.
 */
 typedef struct Ifmacro Ifmacro;
@@ -295,14 +294,14 @@ struct InFile {
   IdentTable idTable;      /* All identifiers in this input file */
 };
 
-/* 
+/*
 ** An unbounded string is able to grow without limit.  We use these
 ** to construct large in-memory strings from lots of smaller components.
 */
 typedef struct String String;
 struct String {
   int nAlloc;      /* Number of bytes allocated */
-  int nUsed;       /* Number of bytes used (not counting null terminator) */
+  int nUsed;       /* Number of bytes used (not counting nul terminator) */
   char *zText;     /* Text of the string */
 };
 
@@ -330,15 +329,19 @@ struct GenState {
 ** The following text line appears at the top of every file generated
 ** by this program.  By recognizing this line, the program can be sure
 ** never to read a file that it generated itself.
+**
+** The "#undef INTERFACE" part is a hack to work around a name collision
+** in MSVC 2008.
 */
-const char zTopLine[] = 
-  "/* \aThis file was automatically generated.  Do not edit! */\n";
+const char zTopLine[] =
+  "/* \aThis file was automatically generated.  Do not edit! */\n"
+  "#undef INTERFACE\n";
 #define nTopLine (sizeof(zTopLine)-1)
 
 /*
 ** The name of the file currently being parsed.
 */
-static char *zFilename;
+static const char *zFilename;
 
 /*
 ** The stack of #if macros for the file currently being parsed.
@@ -700,7 +703,7 @@ static char *ReadFile(const char *zFilename){
   char *zBuf;
   int n;
 
-  if( stat(zFilename,&sStat)!=0 
+  if( stat(zFilename,&sStat)!=0
 #ifndef WIN32
     || !S_ISREG(sStat.st_mode)
 #endif
@@ -746,7 +749,7 @@ static int WriteFile(const char *zFilename, const char *zOutput){
 #define TT_EOF             8   /* End of file */
 #define TT_Error           9   /* An error condition */
 #define TT_BlockComment    10  /* A C-Style comment at the left margin that
-                                * spans multple lines */
+                                * spans multiple lines */
 #define TT_Other           0   /* None of the above */
 
 /*
@@ -887,8 +890,8 @@ static int GetToken(InStream *pIn, Token *pToken){
           }
           i++;
         }
-        if( z[i] ){ 
-          i += 2; 
+        if( z[i] ){
+          i += 2;
         }else{
           isBlockComment = 0;
           fprintf(stderr,"%s:%d: Unterminated comment\n",
@@ -904,7 +907,7 @@ static int GetToken(InStream *pIn, Token *pToken){
       }
       break;
 
-    case '0': 
+    case '0':
       if( z[i+1]=='x' || z[i+1]=='X' ){
         /* A hex constant */
         i += 2;
@@ -961,7 +964,7 @@ static int GetToken(InStream *pIn, Token *pToken){
       pToken->nText = i - pIn->i;
       break;
 
-    case ':': 
+    case ':':
       pToken->eType = TT_Other;
       pToken->nText = 1 + (z[i+1]==':');
       break;
@@ -975,7 +978,7 @@ static int GetToken(InStream *pIn, Token *pToken){
     case '%':
     case '^':
     case '&':
-    case '|': 
+    case '|':
       pToken->eType = TT_Other;
       pToken->nText = 1 + (z[i+1]=='=');
       break;
@@ -1015,7 +1018,10 @@ static int GetNonspaceToken(InStream *pIn, Token *pToken){
        pToken->eType!=TT_Space ? pToken->zText : "<space>"); */
     pToken->pComment = blockComment;
     switch( pToken->eType ){
-      case TT_Comment:
+      case TT_Comment:          /*0123456789 12345678 */
+       if( strncmp(pToken->zText, "/*MAKEHEADERS-STOP", 18)==0 ) return nErr;
+       break;
+
       case TT_Space:
         break;
 
@@ -1062,7 +1068,7 @@ static int GetNonspaceToken(InStream *pIn, Token *pToken){
   /* NOT REACHED */
 }
 
-/* 
+/*
 ** This routine looks for identifiers (strings of contiguous alphanumeric
 ** characters) within a preprocessor directive and adds every such string
 ** found to the given identifier table
@@ -1104,7 +1110,7 @@ static void FindIdentifiersInMacro(Token *pToken, IdentTable *pTable){
 ** unterminated token.
 */
 static int GetBigToken(InStream *pIn, Token *pToken, IdentTable *pTable){
-  const char *z, *zStart;
+  const char *zStart;
   int iStart;
   int nBrace;
   int c;
@@ -1133,7 +1139,6 @@ static int GetBigToken(InStream *pIn, Token *pToken, IdentTable *pTable){
       return nErr;
   }
 
-  z = pIn->z;
   iStart = pIn->i;
   zStart = pToken->zText;
   nLine = pToken->nLine;
@@ -1155,7 +1160,7 @@ static int GetBigToken(InStream *pIn, Token *pToken, IdentTable *pTable){
           IdentTableInsert(pTable,pToken->zText,pToken->nText);
         }
         break;
-  
+
       case TT_Preprocessor:
         if( pTable!=0 ){
           FindIdentifiersInMacro(pToken,pTable);
@@ -1261,7 +1266,7 @@ void main(int argc, char **argv){
   pList = TokenizeFile(zFile,&sTable);
   for(p=pList; p; p=p->pNext){
     int j;
-    switch( p->eType ){ 
+    switch( p->eType ){
       case TT_Space:
         printf("%4d: Space\n",p->nLine);
         break;
@@ -1328,7 +1333,7 @@ static void PrintTokens(Token *pFirst, Token *pLast){
 
       default:
         c = pFirst->zText[0];
-        printf("%s%.*s", 
+        printf("%s%.*s",
           (needSpace && (c=='*' || c=='{')) ? " " : "",
           pFirst->nText, pFirst->zText);
         needSpace = pFirst->zText[0]==',';
@@ -1369,9 +1374,9 @@ static char *TokensToString(
   pLast = pLast->pNext;
   while( pFirst!=pLast ){
     if( pFirst==pSkip ){ iSkip = nSkip; }
-    if( iSkip>0 ){ 
+    if( iSkip>0 ){
       iSkip--;
-      pFirst=pFirst->pNext; 
+      pFirst=pFirst->pNext;
       continue;
     }
     switch( pFirst->eType ){
@@ -1382,9 +1387,9 @@ static char *TokensToString(
         needSpace = 0;
         break;
 
-      case TT_Id: 
+      case TT_Id:
         switch( pFirst->zText[0] ){
-          case 'E':        
+          case 'E':
             if( pFirst->nText==6 && strncmp(pFirst->zText,"EXPORT",6)==0 ){
               skipOne = 1;
             }
@@ -1402,6 +1407,7 @@ static char *TokensToString(
         }
         if( skipOne ){
           pFirst = pFirst->pNext;
+          skipOne = 0;
           continue;
         }
         /* Fall thru to the next case */
@@ -1468,6 +1474,7 @@ static int ProcessTypeDecl(Token *pList, int flags, int *pReset){
   for(pEnd=pName->pNext; pEnd && pEnd->eType!=TT_Braces; pEnd=pEnd->pNext){
     switch( pEnd->zText[0] ){
       case '(':
+      case ')':
       case '*':
       case '[':
       case '=':
@@ -1485,7 +1492,7 @@ static int ProcessTypeDecl(Token *pList, int flags, int *pReset){
   */
 
   /*
-  ** If the braces are followed immedately by a semicolon, then we are
+  ** If the braces are followed immediately by a semicolon, then we are
   ** dealing a type declaration only.  There is not variable definition
   ** following the type declaration.  So reset...
   */
@@ -1643,13 +1650,13 @@ static Token *FindDeclName(Token *pFirst, Token *pLast){
     if( p->eType==TT_Id ){
       static IdentTable sReserved;
       static int isInit = 0;
-      static char *aWords[] = { "char", "class", 
-       "const", "double", "enum", "extern", "EXPORT", "ET_PROC", 
+      static const char *aWords[] = { "char", "class",
+       "const", "double", "enum", "extern", "EXPORT", "ET_PROC",
        "float", "int", "long",
        "PRIVATE", "PROTECTED", "PUBLIC",
-       "register", "static", "struct", "sizeof", "signed", "typedef", 
+       "register", "static", "struct", "sizeof", "signed", "typedef",
        "union", "volatile", "virtual", "void", };
-  
+
       if( !isInit ){
         int i;
         for(i=0; i<sizeof(aWords)/sizeof(aWords[0]); i++){
@@ -1679,14 +1686,12 @@ static Token *FindDeclName(Token *pFirst, Token *pLast){
 ** added to their class definitions.
 */
 static int ProcessMethodDef(Token *pFirst, Token *pLast, int flags){
-  Token *pCode;
   Token *pClass;
   char *zDecl;
   Decl *pDecl;
   String str;
   int type;
 
-  pCode = pLast;
   pLast = pLast->pPrev;
   while( pFirst->zText[0]=='P' ){
     int rc = 1;
@@ -1731,6 +1736,16 @@ static int ProcessMethodDef(Token *pFirst, Token *pLast, int flags){
   }
   StringAppend(&str, "  ", 0);
   zDecl = TokensToString(pFirst, pLast, ";\n", pClass, 2);
+  if(strncmp(zDecl, pClass->zText, pClass->nText)==0){
+    /* If member initializer list is found after a constructor,
+    ** skip that part. */
+    char * colon = strchr(zDecl, ':');
+    if(colon!=0 && colon[1]!=0){
+      *colon++ = ';';
+      *colon++ = '\n';
+      *colon = 0;
+    }
+  }
   StringAppend(&str, zDecl, 0);
   SafeFree(zDecl);
   pDecl->zExtra = StrDup(StringGet(&str), 0);
@@ -1766,7 +1781,7 @@ static int ProcessProcedureDef(Token *pFirst, Token *pLast, int flags){
     pLast = pLast->pPrev;
   }
   if( pLast==0 || pLast==pFirst || pFirst->pNext==pLast ){
-    fprintf(stderr,"%s:%d: Unrecognized syntax.\n", 
+    fprintf(stderr,"%s:%d: Unrecognized syntax.\n",
       zFilename, pFirst->nLine);
     return 1;
   }
@@ -1781,7 +1796,10 @@ static int ProcessProcedureDef(Token *pFirst, Token *pLast, int flags){
       zFilename, pFirst->nLine);
     return 1;
   }
-
+  if( strncmp(pName->zText,"main",pName->nText)==0 ){
+    /* skip main() decl. */
+    return 0;
+  }
   /*
   ** At this point we've isolated a procedure declaration between pFirst
   ** and pLast with the name pName.
@@ -1847,7 +1865,7 @@ static int ProcessInlineProc(Token *pFirst, int flags, int *pReset){
 
 #ifdef DEBUG
   if( debugMask & PARSER ){
-    printf("**** Found inline routine: %.*s on line %d...\n", 
+    printf("**** Found inline routine: %.*s on line %d...\n",
        pName->nText, pName->zText, pFirst->nLine);
     PrintTokens(pFirst,pEnd);
     printf("\n");
@@ -1881,12 +1899,12 @@ static int ProcessInlineProc(Token *pFirst, int flags, int *pReset){
 ** a '='.  If it is '=', then assume we have a variable definition.
 **
 ** If pEnd is ';', then the determination is more difficult.  We have
-** to search for an occurance of an ID followed immediately by '('.
+** to search for an occurrence of an ID followed immediately by '('.
 ** If found, we have a prototype.  Otherwise we are dealing with a
 ** variable definition.
 */
 static int isVariableDef(Token *pFirst, Token *pEnd){
-  if( pEnd && pEnd->zText[0]=='=' && 
+  if( pEnd && pEnd->zText[0]=='=' &&
     (pEnd->pPrev->nText!=8 || strncmp(pEnd->pPrev->zText,"operator",8)!=0)
   ){
     return 1;
@@ -1900,6 +1918,18 @@ static int isVariableDef(Token *pFirst, Token *pEnd){
   return 1;
 }
 
+/*
+** Return TRUE if pFirst is the first token of a static assert.
+*/
+static int isStaticAssert(Token *pFirst){
+  if( (pFirst->nText==13 && strncmp(pFirst->zText, "static_assert", 13)==0)
+   || (pFirst->nText==14 && strncmp(pFirst->zText, "_Static_assert", 14)==0)
+  ){
+    return 1;
+  }else{
+    return 0;
+  }
+}
 
 /*
 ** This routine is called whenever we encounter a ";" or "=".  The stuff
@@ -1947,7 +1977,7 @@ static int ProcessDecl(Token *pFirst, Token *pEnd, int flags){
        ((pFirst->nText==6 && strncmp(pFirst->zText,"static",6)==0)
         || (pFirst->nText==5 && strncmp(pFirst->zText,"LOCAL",6)==0))
     ){
-      /* Lose the initial "static" or local from local variables. 
+      /* Lose the initial "static" or local from local variables.
       ** We'll prepend "extern" later. */
       pFirst = pFirst->pNext;
       isLocal = 1;
@@ -1958,9 +1988,11 @@ static int ProcessDecl(Token *pFirst, Token *pEnd, int flags){
   }else if( flags & PS_Method ){
     /* Methods are declared by their class.  Don't declare separately. */
     return nErr;
+  }else if( isStaticAssert(pFirst) ){
+    return 0;
   }
   isVar =  (flags & (PS_Typedef|PS_Method))==0 && isVariableDef(pFirst,pEnd);
-  if( isVar && (flags & (PS_Interface|PS_Export|PS_Local))!=0 
+  if( isVar && (flags & (PS_Interface|PS_Export|PS_Local))!=0
   && (flags & PS_Extern)==0 ){
     fprintf(stderr,"%s:%d: Can't define a variable in this context\n",
       zFilename, pFirst->nLine);
@@ -1968,9 +2000,14 @@ static int ProcessDecl(Token *pFirst, Token *pEnd, int flags){
   }
   pName = FindDeclName(pFirst,pEnd->pPrev);
   if( pName==0 ){
-    fprintf(stderr,"%s:%d: Can't find a name for the object declared here.\n",
-      zFilename, pFirst->nLine);
-    return nErr+1;
+    if( pFirst->nText==4 && strncmp(pFirst->zText,"enum",4)==0 ){
+      /* Ignore completely anonymous enums.  See documentation section 3.8.1. */
+      return nErr;
+    }else{
+      fprintf(stderr,"%s:%d: Can't find a name for the object declared here.\n",
+        zFilename, pFirst->nLine);
+      return nErr+1;
+    }
   }
 
 #ifdef DEBUG
@@ -2093,7 +2130,7 @@ static int ParsePreprocessor(Token *pToken, int flags, int *pPresetFlags){
 
   if( nCmd==5 && strncmp(zCmd,"endif",5)==0 ){
     /*
-    ** Pop the if stack 
+    ** Pop the if stack
     */
     pIf = ifStack;
     if( pIf==0 ){
@@ -2104,7 +2141,7 @@ static int ParsePreprocessor(Token *pToken, int flags, int *pPresetFlags){
     SafeFree(pIf);
   }else if( nCmd==6 && strncmp(zCmd,"define",6)==0 ){
     /*
-    ** Record a #define if we are in PS_Interface or PS_Export 
+    ** Record a #define if we are in PS_Interface or PS_Export
     */
     Decl *pDecl;
     if( !(flags & (PS_Local|PS_Interface|PS_Export)) ){ return 0; }
@@ -2127,7 +2164,7 @@ static int ParsePreprocessor(Token *pToken, int flags, int *pPresetFlags){
     }
   }else if( nCmd==7 && strncmp(zCmd,"include",7)==0 ){
     /*
-    ** Record an #include if we are in PS_Interface or PS_Export 
+    ** Record an #include if we are in PS_Interface or PS_Export
     */
     Include *pInclude;
     char *zIf;
@@ -2178,11 +2215,13 @@ static int ParsePreprocessor(Token *pToken, int flags, int *pPresetFlags){
       PushIfMacro(0,0,0,pToken->nLine,PS_Export);
     }else if( nArg==15 && strncmp(zArg,"LOCAL_INTERFACE",15)==0 ){
       PushIfMacro(0,0,0,pToken->nLine,PS_Local);
+    }else if( nArg==15 && strncmp(zArg,"MAKEHEADERS_STOPLOCAL_INTERFACE",15)==0 ){
+      PushIfMacro(0,0,0,pToken->nLine,PS_Local);
     }else{
       PushIfMacro(0,zArg,nArg,pToken->nLine,0);
     }
   }else if( nCmd==5 && strncmp(zCmd,"ifdef",5)==0 ){
-    /* 
+    /*
     ** Push an #ifdef.
     */
     zArg = &zCmd[5];
@@ -2205,7 +2244,7 @@ static int ParsePreprocessor(Token *pToken, int flags, int *pPresetFlags){
     PushIfMacro("!defined",zArg,nArg,pToken->nLine,0);
   }else if( nCmd==4 && strncmp(zCmd,"else",4)==0 ){
     /*
-    ** Invert the #if on the top of the stack 
+    ** Invert the #if on the top of the stack
     */
     if( ifStack==0 ){
       fprintf(stderr,"%s:%d: '#else' without an '#if'\n",zFilename,
@@ -2222,19 +2261,19 @@ static int ParsePreprocessor(Token *pToken, int flags, int *pPresetFlags){
     }
   }else{
     /*
-    ** This directive can be safely ignored 
+    ** This directive can be safely ignored
     */
     return 0;
   }
 
-  /* 
-  ** Recompute the preset flags 
+  /*
+  ** Recompute the preset flags
   */
   *pPresetFlags = 0;
   for(pIf = ifStack; pIf; pIf=pIf->pNext){
     *pPresetFlags |= pIf->flags;
   }
-    
+
   return nErr;
 }
 
@@ -2244,7 +2283,7 @@ static int ParsePreprocessor(Token *pToken, int flags, int *pPresetFlags){
 ** pList is a list of tokens in the file.  Whitespace tokens have been
 ** eliminated, and text with {...} has been collapsed into a
 ** single TT_Brace token.
-** 
+**
 ** initFlags are a set of parse flags that should always be set for this
 ** file.  For .c files this is normally 0.  For .h files it is PS_Interface.
 */
@@ -2277,7 +2316,7 @@ static int ParseFile(Token *pList, int initFlags){
         break;
 
       case '=':
-        if( pList->pPrev->nText==8 
+        if( pList->pPrev->nText==8
             && strncmp(pList->pPrev->zText,"operator",8)==0 ){
           break;
         }
@@ -2347,7 +2386,9 @@ static int ParseFile(Token *pList, int initFlags){
          break;
 
        case 'i':
-         if( pList->nText==6 && strncmp(pList->zText,"inline",6)==0 ){
+         if( pList->nText==6 && strncmp(pList->zText,"inline",6)==0
+          && (flags & PS_Static)==0
+         ){
            nErr += ProcessInlineProc(pList,flags,&resetFlag);
          }
          break;
@@ -2467,7 +2508,7 @@ static void InsertExtraDecl(Decl *pDecl){
 
 /*
 ** Reset the DP_Forward and DP_Declared flags on all Decl structures.
-** Set both flags for anything that is tagged as local and isn't 
+** Set both flags for anything that is tagged as local and isn't
 ** in the file zFilename so that it won't be printing in other files.
 */
 static void ResetDeclFlags(char *zFilename){
@@ -2570,7 +2611,7 @@ static void DeclareObject(
   int doneTypedef = 0;   /* True if a typedef has been done for this object */
 
   /* printf("BEGIN %s of %s\n",needFullDecl?"FULL":"PROTOTYPE",pDecl->zName);*/
-  /* 
+  /*
   ** For any object that has a forward declaration, go ahead and do the
   ** forward declaration first.
   */
@@ -2622,8 +2663,8 @@ static void DeclareObject(
   ** value of DP_Flag out from under us.
   */
   for(p=pDecl; p; p=p->pSameName){
-    if( !DeclHasProperty(p,DP_Declared) 
-     && (p->zFwd==0 || needFullDecl) 
+    if( !DeclHasProperty(p,DP_Declared)
+     && (p->zFwd==0 || needFullDecl)
      && p->zDecl!=0
     ){
       DeclSetProperty(p,DP_Forward|DP_Declared|DP_Flag);
@@ -2633,7 +2674,7 @@ static void DeclareObject(
   }
 
   /*
-  ** Call ScanText() recusively (this routine is called from ScanText())
+  ** Call ScanText() recursively (this routine is called from ScanText())
   ** to include declarations required to come before these declarations.
   */
   for(p=pDecl; p; p=p->pSameName){
@@ -2731,8 +2772,8 @@ static void ScanText(
       pDecl = FindDecl(sToken.zText,sToken.nText);
       if( pDecl==0 ) continue;
 
-      /* 
-      ** If we get this far, we've found an identifier that has a 
+      /*
+      ** If we get this far, we've found an identifier that has a
       ** declaration in the database.  Now see if we the full declaration
       ** or just a forward declaration.
       */
@@ -2757,7 +2798,7 @@ static void ScanText(
 
 /*
 ** Provide a full declaration to any object which so far has had only
-** a foward declaration.
+** a forward declaration.
 */
 static void CompleteForwardDeclarations(GenState *pState){
   Decl *pDecl;
@@ -2766,8 +2807,8 @@ static void CompleteForwardDeclarations(GenState *pState){
   do{
     progress = 0;
     for(pDecl=pDeclFirst; pDecl; pDecl=pDecl->pNext){
-      if( DeclHasProperty(pDecl,DP_Forward) 
-       && !DeclHasProperty(pDecl,DP_Declared) 
+      if( DeclHasProperty(pDecl,DP_Forward)
+       && !DeclHasProperty(pDecl,DP_Declared)
       ){
         DeclareObject(pDecl,pState,1);
         progress = 1;
@@ -2838,7 +2879,7 @@ static int MakeHeader(InFile *pFile, FILE *report, int nolocal_flag){
   }else if( report ){
     fprintf(report,"unchanged\n");
   }
-  SafeFree(zOldVersion); 
+  SafeFree(zOldVersion);
   IdentTableReset(&includeTable);
   StringReset(&outStr);
   return nErr;
@@ -2874,7 +2915,7 @@ static int MakeGlobalHeader(int forExport){
   printf("%s",StringGet(&outStr));
   IdentTableReset(&includeTable);
   StringReset(&outStr);
-  return 0;  
+  return 0;
 }
 
 #ifdef DEBUG
@@ -3036,7 +3077,7 @@ static InFile *CreateInFile(char *zArg, int *pnErr){
   InFile *pFile;
   int i;
 
-  /* 
+  /*
   ** Get the name of the input file to be scanned.  The input file is
   ** everything before the first ':' or the whole file if no ':' is seen.
   **
@@ -3067,7 +3108,7 @@ static InFile *CreateInFile(char *zArg, int *pnErr){
     int nHdr;
     char *zHdr;
     zHdr = &zSrc[nSrc+1];
-    for(nHdr=0; zHdr[nHdr] && zHdr[nHdr]!=':'; nHdr++){}
+    for(nHdr=0; zHdr[nHdr]; nHdr++){}
     pFile->zHdr = StrDup(zHdr,nHdr);
   }
 
@@ -3095,7 +3136,7 @@ static InFile *CreateInFile(char *zArg, int *pnErr){
 
   /*
   ** If pFile->zSrc contains no 'c' or 'C' in its extension, it
-  ** must be a header file.   In that case, we need to set the 
+  ** must be a header file.   In that case, we need to set the
   ** PS_Interface flag.
   */
   pFile->flags |= PS_Interface;
@@ -3106,7 +3147,7 @@ static InFile *CreateInFile(char *zArg, int *pnErr){
     }
   }
 
-  /* Done! 
+  /* Done!
   */
   return pFile;
 }
@@ -3158,7 +3199,7 @@ static void AddParameters(int index, int *pArgc, char ***pArgv){
       if( c=='\n' ){
         startOfLine = 1;
       }
-      c = getc(in); 
+      c = getc(in);
       if( startOfLine && c=='#' ){
         while( c!=EOF && c!='\n' ){
           c = getc(in);
@@ -3180,7 +3221,7 @@ static void AddParameters(int index, int *pArgc, char ***pArgv){
           zNew = malloc( sizeof(char*) * nAlloc );
         }else{
           nAlloc *= 2;
-          zNew = realloc( zNew, sizeof(char*) * nAlloc );  
+          zNew = realloc( zNew, sizeof(char*) * nAlloc );
         }
       }
       if( zNew ){
@@ -3192,6 +3233,7 @@ static void AddParameters(int index, int *pArgc, char ***pArgv){
       }
     }
   }
+  fclose(in);
   newArgc = argc + nNew - 1;
   for(i=0; i<=index; i++){
     zNew[i] = argv[i];
@@ -3250,7 +3292,7 @@ static void Usage(const char *argv0, const char *argvN){
 ** The following text contains a few simple #defines that we want
 ** to be available to every file.
 */
-static char zInit[] = 
+static const char zInit[] =
   "#define INTERFACE 0\n"
   "#define EXPORT_INTERFACE 0\n"
   "#define LOCAL_INTERFACE 0\n"

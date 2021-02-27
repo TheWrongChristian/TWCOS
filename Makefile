@@ -17,7 +17,8 @@ SYS_H := \
  include/sys/stat.h \
  include/sys/time.h \
  include/sys/types.h \
- include/sys/errno.h
+ include/sys/errno.h \
+ include/sys/unistd.h
 
 subdir := build
 include $(subdir)/subdir.mk
@@ -25,11 +26,11 @@ subdir := libk
 include $(subdir)/subdir.mk
 subdir := kernel
 include $(subdir)/subdir.mk
+subdir := posix
+include $(subdir)/subdir.mk
 subdir := fs
 include $(subdir)/subdir.mk
 subdir := drivers
-include $(subdir)/subdir.mk
-subdir := shell
 include $(subdir)/subdir.mk
 subdir := build
 include $(subdir)/tools.mk
@@ -81,12 +82,12 @@ system-kvm: all
 	$(QEMU) $(QEMU_OPTS) -m $(QEMU_MEM) -s -cdrom boot.iso -boot d
 
 run-kvmoverhead: all
-	$(QEMU) $(QEMU_OPTS) -m $(QEMU_MEM) -kernel $(KERNEL) -initrd $(INITRD_TAR) &
-	$(QEMU) -enable-kvm $(QEMU_OPTS) -m $(QEMU_MEM) -kernel $(KERNEL) -initrd $(INITRD_TAR)
+	$(QEMU) -m $(QEMU_MEM) -kernel $(KERNEL) -initrd $(INITRD_TAR) &
+	$(QEMU) -enable-kvm -m $(QEMU_MEM) -kernel $(KERNEL) -initrd $(INITRD_TAR)
 
 run-gcoverhead: all
-	$(QEMU) -enable-kvm $(QEMU_OPTS) -m $(QEMU_MEM) -kernel $(KERNEL) -initrd $(INITRD_TAR) &
-	$(QEMU) -enable-kvm $(QEMU_OPTS) -m 10$(QEMU_MEM) -kernel $(KERNEL) -initrd $(INITRD_TAR)
+	$(QEMU) -enable-kvm -m $(QEMU_MEM) -kernel $(KERNEL) -initrd $(INITRD_TAR) &
+	$(QEMU) -enable-kvm -m 10$(QEMU_MEM) -kernel $(KERNEL) -initrd $(INITRD_TAR)
 
 qemu-kvm: all .gdbinit
 	$(QEMU) -enable-kvm $(QEMU_OPTS) -m $(QEMU_MEM) -s -S -kernel $(KERNEL) -initrd $(INITRD_TAR)
@@ -108,7 +109,7 @@ cflowr:
 	cflow -d 9 -r $(SRCS_C) 
 
 cloc:
-	cloc $(SRCS_C)
+	cloc $(SRCS_C) $(SRCS_S) $(SYS_H)
 
 cxref:
 	cxref -html-src $(SRCS_C) $(SRCS_C:.c=.h)
@@ -125,4 +126,8 @@ cppcheck-gui:
 -include $(OBJS:.o=.d)
 
 clean::
-	rm -f $(OBJS:.o=.d)
+	rm -f $(OBJS:.o=.d) $(SRCS_C:.c=.h)
+	rm -rf doc
+
+docs::
+	doxygen kernel.dox

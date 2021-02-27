@@ -9,8 +9,6 @@ typedef uint32_t * bitarray;
 
 int bitarray_firstset(bitarray array, int size)
 {
-	uint32_t mask = 0x80000000;
-	
 	for(int i=0; i<size; i+=32) {
 		uint32_t a = array[i/32];
 

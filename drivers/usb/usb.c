@@ -187,22 +187,27 @@ void usb_test(usb_hub_t * hub)
 	usb_device_t dev[] = {{0, USB_DEVICE_LOW_SPEED, 0}};
 	usb_endpoint_t endpoint[] = {{.device=&dev[0]}};
 
+	TRACE();
 	future_t * f1 = usb_packet(usbsetup, endpoint, config, countof(config));
 	future_t * f2 = usb_packet(usbin, endpoint, response, countof(response));
 	future_get(f1);
 	future_get(f2);
 
+	TRACE();
 	future_t * f3 = hcd_packet(hcd, usbout, endpoint, 0, 0);
 	future_get(f3);
 
+	TRACE();
 	static uint8_t setaddress[] = {0x00, 0x5, 0x1, 0x0, 0x0, 0x0, 0x0, 0x0};
 	f1 = hcd_packet(hcd, usbsetup, endpoint, setaddress, countof(setaddress));
 	f2 = hcd_packet(hcd, usbin, endpoint, 0, 0);
 	dev->dev = 1;
 
+	TRACE();
 	future_get(f1);
 	future_get(f2);
 
+	TRACE();
 	uint8_t * buf = malloc(response[0]);
 	config[6] = response[0];
 	f1 = hcd_packet(hcd, usbsetup, endpoint, config, countof(config));
@@ -210,6 +215,7 @@ void usb_test(usb_hub_t * hub)
 	future_get(f1);
 	future_get(f2);
 
+	TRACE();
 	f3 = hcd_packet(hcd, usbout, endpoint, 0, 0);
 	future_get(f3);
 #endif

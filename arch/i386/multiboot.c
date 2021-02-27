@@ -282,8 +282,8 @@ BOOTSTRAP_DATA multiboot_header header = {
 	.flags = MULTIBOOT_PAGE_ALIGN | MULTIBOOT_MEMORY_INFO | MULTIBOOT_VIDEO_MODE,
 	.checksum = -(MULTIBOOT_HEADER_MAGIC + (MULTIBOOT_PAGE_ALIGN | MULTIBOOT_MEMORY_INFO | MULTIBOOT_VIDEO_MODE)),
 	.mode_type = 0,
-	.width = 800,
-	.height = 600,
+	.width = 0,
+	.height = 0,
 	.depth = 32,
 };
 

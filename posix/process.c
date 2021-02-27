@@ -62,7 +62,7 @@ map_t * process_files()
 	return process->files;
 }
 
-static void process_duplicate_as_copy_seg(void * p, void * key, void * data)
+static void process_duplicate_as_copy_seg(const void * const p, void * key, void * data)
 {
 	map_t * as = (map_t*)p;
 	segment_t * seg = (segment_t *)data;
@@ -154,16 +154,19 @@ pid_t process_fork()
 		return 0;
 	} else {
 		thread->process = new;
+		char newname[64];
+		snprintf(newname, countof(newname), "%d", new->pid);
+		thread_set_name(thread, strdup(newname));
 		map_putpp(thread->process->threads, thread, thread);
 	}
 
 	return new->pid;
 }
 
-static void process_exit_reparent(void * p, map_key key, void * data)
+static void process_exit_reparent(const void * const p, map_key key, void * data)
 {
 	process_t * current = data;
-	current->parent = p;
+	current->parent = (process_t *)p;
 }
 
 pid_t process_getpid()
@@ -214,9 +217,9 @@ int process_exit(int code)
 	return 0;
 }
 
-static void process_waitpid_getzombie(void * p, map_key key, void * data)
+static void process_waitpid_getzombie(const void * const p, map_key key, void * data)
 {
-	longjmp(p, key);
+	longjmp((void *)p, key);
 }
 
 pid_t process_waitpid(pid_t pid, int * wstatus, int options)

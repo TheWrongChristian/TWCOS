@@ -51,7 +51,7 @@ void command_loop()
 
 int main(int argc, char * argv[], char * envp[])
 {
-#if 1
+#if 0
 	malloc(1024);
 	if (fork()) {
 		int status;
