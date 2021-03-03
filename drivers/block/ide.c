@@ -258,6 +258,8 @@ static void ide_probe_channel(idechannel_t * channel)
 					/* Some error */
 				}
 			}
+		} KCATCH(TimeoutException) {
+			/* Ignored */
 		} KCATCH(Exception) {
 			kernel_printk("%s: Exception probing device %d\n", devfsname, i);
 		}
@@ -340,6 +342,7 @@ static uint8_t ide_read(idechannel_t * channel, int reg)
 		result = isa_inb(channel->ctrl+reg-0xc);
 		break;
 	default:
+		kernel_panic("Invalid IDE register: %x\n", reg);
 		break;
 	}
 
