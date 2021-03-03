@@ -141,15 +141,6 @@ static void exception_backtrace(struct exception_cause * cause)
 	void ** from = (void**)&from;
 
 	memset(cause->backtrace, 0, sizeof(cause->backtrace));
-#if 0
-	for(int i=0; from<to && i<countof(cause->backtrace); from++) {
-		extern char code_start[], code_end[];
-		void * p = *from;
-		if (p>=code_start && p<code_end) {
-			cause->backtrace[i++] = p;
-		}
-	}
-#endif
 	arch_thread_backtrace(cause->backtrace, countof(cause->backtrace));
 }
 
