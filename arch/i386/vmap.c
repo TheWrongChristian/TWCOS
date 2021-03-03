@@ -111,6 +111,7 @@ void vmap_release_asid(asid vid)
 
 		if (ptid>=0) {
 			asids[ptid].vid = 0;
+			asids[ptid].seq = 0;
 		}
 	}
 }
