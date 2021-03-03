@@ -98,6 +98,17 @@ usb_device_t * usb_hub_get_device(usb_hub_t * hub, int port)
 	return hub->ports[port];
 }
 
+#if 0
+static future_t * usb_request_response(usb_endpoint_t * endpoint, usbpid_t pid, void * request, size_t requestlen, void * response, size_t responselen)
+{
+	future_t * f1 = usb_packet(endpoint, usbsetup, request, requestlen);
+	future_t * f2 = usb_packet(endpoint, usbin, response, responselen);
+	future_chain(f2, f1);
+
+	return f2;
+}
+#endif
+
 static void usb_initialize_device(usb_device_t * device)
 {
 	uint8_t config[] = {0x80, 0x6, 0x0, 0x1, 0x0, 0x0, 0x8, 0x0};
