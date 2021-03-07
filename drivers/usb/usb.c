@@ -161,10 +161,10 @@ void usb_hub_enumerate(usb_hub_t * hub)
 		usb_device_t * device = usb_hub_get_device(hub, i);
 		if (device && 0 == device->dev) {
 			/* Get the device into an addressed state */
+			device->hub = hub;
 			usb_initialize_device(device);
 		}
 		hub->ports[i]=device;
-		device->hub = hub;
 	}
 }
 
