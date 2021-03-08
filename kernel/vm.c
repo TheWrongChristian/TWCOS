@@ -148,10 +148,13 @@ static void vm_invalid_pointer(void * p, int write, int user, int present)
 
 segment_t * vm_get_segment(map_t * as, const void * p)
 {
-	/* Check for kernel address space */
 	segment_t * seg = map_getpp_cond(as, p, MAP_LE);
 
-	return seg;
+	if (seg && (char*)p - (char*)seg->base < seg->size) { 
+		return seg;
+	} else {
+		return 0;
+	}
 }
 
 static mutex_t kaslock = {0};

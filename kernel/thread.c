@@ -40,6 +40,8 @@ struct thread_t {
 	int interrupted;
 	/** If set, indicates which interrupt_monitor_t we're waiting for */
 	interrupt_monitor_t * waitingfor;
+	/** If set, indicates which interrupt_monitor_t we're sleeping on */
+	interrupt_monitor_t * sleepingon;
 
 	/** Thread name */
 	char * name;

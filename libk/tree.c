@@ -35,6 +35,7 @@ typedef struct {
 
 static node_t * tree_node_first(tree_t * tree);
 static const node_t * node_next( const node_t * const current );
+#if 0
 static void tree_mark(void * p)
 {
 	tree_t * tree = (tree_t*)p;
@@ -56,6 +57,9 @@ void debug_finalize(void * p)
 
 static slab_type_t nodes[1] = { SLAB_TYPE(sizeof(node_t), node_mark, debug_finalize)};
 static slab_type_t trees[1] = { SLAB_TYPE(sizeof(tree_t), tree_mark, debug_finalize)};
+#endif
+static slab_type_t nodes[1] = { SLAB_TYPE(sizeof(node_t), 0, 0)};
+static slab_type_t trees[1] = { SLAB_TYPE(sizeof(tree_t), 0, 0)};
 
 /*
  * Rotate left:

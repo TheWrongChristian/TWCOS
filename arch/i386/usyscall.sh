@@ -193,6 +193,23 @@ void * sbrk(intptr_t incr)
 	return internal_brk(current + incr);
 }
 
+static intptr_t _syscall_fuzz_arg(int seed)
+{
+	static intptr_t savedseed = 0;
+	if (seed) {
+		savedseed=seed;
+	}
+	savedseed = savedseed*1664525 + 1013904223;
+
+	return savedseed;
+}
+
+int _syscall_fuzz(int seed)
+{
+	return syscall_5(_syscall_fuzz_arg(seed) % 256, _syscall_fuzz_arg(0),
+		_syscall_fuzz_arg(0), _syscall_fuzz_arg(0),
+		_syscall_fuzz_arg(0), _syscall_fuzz_arg(0));
+}
 
 EOF
 }
