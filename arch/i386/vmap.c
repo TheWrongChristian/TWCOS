@@ -233,7 +233,9 @@ int vmap_isuser(const asid vid, const void * vaddress)
 
 void vmap_unmap(const asid vid, const void * vaddress)
 {
-	vmap_set_pte(vid, vaddress, 0);
+	if (vmap_probe_ptid(vid)>=0) {
+		vmap_set_pte(vid, vaddress, 0);
+	}
 }
 
 extern char code_start[];
