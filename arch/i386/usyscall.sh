@@ -204,9 +204,33 @@ static intptr_t _syscall_fuzz_arg(int seed)
 	return savedseed;
 }
 
+#define countof(a) (sizeof(a)/sizeof(a[0]))
+static int _syscall_fuzz_exclude(int sc)
+{
+	if (sc<0) {
+		return 1;
+	}
+
+	int exclusions[]={1, 2, 162};
+	for(int i=0; i<countof(exclusions); i++) {
+		if (sc == exclusions[i]) {
+			return 1;
+		}
+	}
+
+	return 0;
+}
+
 int _syscall_fuzz(int seed)
 {
-	return syscall_5(_syscall_fuzz_arg(seed) % 256, _syscall_fuzz_arg(0),
+	int sc;
+
+	/* Skip fork - don't want to fork bomb */
+	do {
+		sc = _syscall_fuzz_arg(seed) % 256;
+		seed = 0;
+	} while(_syscall_fuzz_exclude(sc));
+	return syscall_5(sc, _syscall_fuzz_arg(0),
 		_syscall_fuzz_arg(0), _syscall_fuzz_arg(0),
 		_syscall_fuzz_arg(0), _syscall_fuzz_arg(0));
 }
