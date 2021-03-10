@@ -268,11 +268,10 @@ static void timer_sleep_cb(void * p)
 
 void timer_sleep(timerspec_t usec)
 {
+	if (!usec) {
+		return;
+	}
 	struct sleepvar sleep[1] = {{0}};
-#if 0
-	timer_event_t timer[1] = {0};
-	timer_set(timer, usec, timer_sleep_cb, sleep);
-#endif
 
 	KTRY {
 		INTERRUPT_MONITOR_AUTOLOCK(sleep->lock) {
