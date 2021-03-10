@@ -4,6 +4,7 @@
 
 #include <stdint.h>
 #include <stdarg.h>
+#include <sys/types.h>
 
 typedef uintptr_t map_key;
 typedef intptr_t map_data;
@@ -31,6 +32,7 @@ struct map_ops {
 	map_data (*remove)( const map_t * map, const map_key key );
 	void (*optimize)(const map_t * map);
 	iterator_t * (*iterator)( const map_t * map );
+	size_t (*size)(const map_t * map);
 };
 
 typedef struct map_s {
@@ -328,6 +330,11 @@ void map_optimize(map_t * map)
 iterator_t * map_iterator( map_t * map)
 {
         return map->ops->iterator(map);
+}
+
+size_t map_size( map_t * map)
+{
+        return map->ops->size(map);
 }
 
 static void map_walk_dump(const void * const p, void * key, void * data)

@@ -727,6 +727,17 @@ static void tree_optimize(const map_t * map)
 	tree->root = node_optimize(tree->root);
 }
 
+static size_t tree_size(const map_t * map)
+{
+        tree_t * tree = container_of(map, tree_t, map);
+
+	if (tree->root) {
+		return tree->root->count;
+	} else {
+		return 0;
+	}
+}
+
 void tree_init()
 {
 	INIT_ONCE();
@@ -745,7 +756,8 @@ map_t * tree_new(int (*comp)(map_key k1, map_key k2), treemode mode)
 		get: tree_get,
 		optimize: tree_optimize,
 		remove: tree_remove,
-		iterator: tree_iterator
+		iterator: tree_iterator,
+		size: tree_size
 	};
 
 	tree->map.ops = &tree_ops;
