@@ -571,29 +571,40 @@ static void thread_test2(rwlock_t * rw)
 	rwlock_unlock(rw);
 }
 
-static void thread_update_acct(const void * const ignored, void * key, void * data)
+static void thread_update_acct(const void * const p, void * key, void * data)
 {
-	thread_t * current = key;
-	timerspec_t first = INT64_MAX;
-	timerspec_t sum = 0;
-	for(int i=0; i<countof(current->accts); i++) {
-		sum += current->accts[i].tlen;
-		if (current->accts[i].tstart<first) {
-			first = current->accts[i].tstart;
+	timerspec_t *puptime = p;
+	thread_t * thread = key;
+	if (thread == arch_get_thread()) {
+		thread->accts[thread->acct].tlen = (*puptime) - thread->accts[thread->acct].tstart;
+		thread->acct++;
+		if (sizeof(thread->accts)/sizeof(thread->accts[0]) == thread->acct) {
+			thread->acct = 0;
 		}
 	}
-	current->period = timer_uptime(0) - first;
-	current->usage = sum;
+	timerspec_t sum = 0;
+	timerspec_t from = (*puptime) - 1000000;
+	for(int i=0; i<countof(thread->accts); i++) {
+		timerspec_t acctstart = thread->accts[i].tstart;
+		timerspec_t acctend = acctstart + thread->accts[i].tlen;
+		if (acctstart > from) {
+			sum += (acctend - acctstart);
+		} else if (acctend > from) {
+			sum += (acctend - from);
+		}
+	}
+	thread->usage = sum;
 
-	int percent = 100 * current->usage / current->period;
-	kernel_printk("%s: %d\n", current->name ? current->name : "Unknown", percent);
+	int percent = 100 * thread->usage / 1000000;
+	kernel_printk("%s: %d\n", thread->name ? thread->name : "Unknown", percent);
 }
 
 void thread_update_accts()
 {
 	SPIN_AUTOLOCK(&allthreadslock) {
+		timerspec_t uptime = timer_uptime(1);
 		if (allthreads) {
-			map_walkpp(allthreads, thread_update_acct, 0);
+			map_walkpp(allthreads, thread_update_acct, &uptime);
 		}
 	}
 }
