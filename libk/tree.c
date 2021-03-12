@@ -35,6 +35,7 @@ typedef struct {
 
 static node_t * tree_node_first(tree_t * tree);
 static const node_t * node_next( const node_t * const current );
+#if 0
 static void tree_mark(void * p)
 {
 	tree_t * tree = (tree_t*)p;
@@ -56,6 +57,9 @@ void debug_finalize(void * p)
 
 static slab_type_t nodes[1] = { SLAB_TYPE(sizeof(node_t), node_mark, debug_finalize)};
 static slab_type_t trees[1] = { SLAB_TYPE(sizeof(tree_t), tree_mark, debug_finalize)};
+#endif
+static slab_type_t nodes[1] = { SLAB_TYPE(sizeof(node_t), 0, 0)};
+static slab_type_t trees[1] = { SLAB_TYPE(sizeof(tree_t), 0, 0)};
 
 /*
  * Rotate left:
@@ -723,6 +727,17 @@ static void tree_optimize(const map_t * map)
 	tree->root = node_optimize(tree->root);
 }
 
+static size_t tree_size(const map_t * map)
+{
+        tree_t * tree = container_of(map, tree_t, map);
+
+	if (tree->root) {
+		return tree->root->count;
+	} else {
+		return 0;
+	}
+}
+
 void tree_init()
 {
 	INIT_ONCE();
@@ -741,7 +756,8 @@ map_t * tree_new(int (*comp)(map_key k1, map_key k2), treemode mode)
 		get: tree_get,
 		optimize: tree_optimize,
 		remove: tree_remove,
-		iterator: tree_iterator
+		iterator: tree_iterator,
+		size: tree_size
 	};
 
 	tree->map.ops = &tree_ops;

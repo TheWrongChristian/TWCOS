@@ -193,6 +193,47 @@ void * sbrk(intptr_t incr)
 	return internal_brk(current + incr);
 }
 
+static intptr_t _syscall_fuzz_arg(int seed)
+{
+	static intptr_t savedseed = 0;
+	if (seed) {
+		savedseed=seed;
+	}
+	savedseed = savedseed*1664525 + 1013904223;
+
+	return savedseed;
+}
+
+#define countof(a) (sizeof(a)/sizeof(a[0]))
+static int _syscall_fuzz_exclude(int sc)
+{
+	if (sc<0) {
+		return 1;
+	}
+
+	int exclusions[]={1, 2, 162};
+	for(int i=0; i<countof(exclusions); i++) {
+		if (sc == exclusions[i]) {
+			return 1;
+		}
+	}
+
+	return 0;
+}
+
+int _syscall_fuzz(int seed)
+{
+	int sc;
+
+	/* Skip fork - don't want to fork bomb */
+	do {
+		sc = _syscall_fuzz_arg(seed) % 256;
+		seed = 0;
+	} while(_syscall_fuzz_exclude(sc));
+	return syscall_5(sc, _syscall_fuzz_arg(0),
+		_syscall_fuzz_arg(0), _syscall_fuzz_arg(0),
+		_syscall_fuzz_arg(0), _syscall_fuzz_arg(0));
+}
 
 EOF
 }

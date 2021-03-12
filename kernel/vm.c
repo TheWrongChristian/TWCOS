@@ -48,6 +48,11 @@
 #define SEGMENT_U 0x8
 #define SEGMENT_P 0x10
 
+#define USER_VALIDATE_WRITE (1<<0)
+#define USER_VALIDATE_STRZ (1<<1)
+#define USER_VALIDATE_ARRAY (1<<2)
+#define USER_VALIDATE_ARRAYZ (1<<3)
+
 enum object_type_e { OBJECT_DIRECT, OBJECT_ANON, OBJECT_VNODE };
 
 struct vmobject_ops_t {
@@ -148,10 +153,13 @@ static void vm_invalid_pointer(void * p, int write, int user, int present)
 
 segment_t * vm_get_segment(map_t * as, const void * p)
 {
-	/* Check for kernel address space */
 	segment_t * seg = map_getpp_cond(as, p, MAP_LE);
 
-	return seg;
+	if (seg && (char*)p - (char*)seg->base < seg->size) { 
+		return seg;
+	} else {
+		return 0;
+	}
 }
 
 static mutex_t kaslock = {0};
@@ -175,8 +183,12 @@ static int vm_resolve_address(const void * p, address_info_t * info)
 		info->as = as;
 		info->seg = seg;
 		info->offset = (char*)p - (char*)seg->base;
+		assert(info->offset>=0);
 
-		return 1;
+		if (info->offset<seg->size) {
+			/* Must be within the segment to be valid */
+			return 1;
+		}
 	}
 
 	return 0;
@@ -194,6 +206,52 @@ void vm_kas_remove(segment_t * seg)
 	MUTEX_AUTOLOCK(&kaslock) {
 		assert(seg == map_removepp(kas, seg->base));
 		vm_segment_unmap(kas, seg);
+	}
+}
+
+void vm_validate_user(void * p, size_t size, uint32_t flags)
+{
+	address_info_t info[1];
+
+	if (vm_resolve_address(p, info)) {
+		int write = flags & USER_VALIDATE_WRITE;
+		int strz = flags & USER_VALIDATE_STRZ;
+		int array = flags & USER_VALIDATE_ARRAY;
+		int arrayz = flags & USER_VALIDATE_ARRAYZ;
+		segment_t * seg = info->seg;
+		off64_t offset = info->offset;
+		map_t * as = info->as;
+
+		/* Note, an empty user address space is treated specially */
+		if (kas == as && map_size(arch_get_thread()->process->as)) {
+			/* A kernel address space pointer */
+			KTHROWF(InvalidPointerException, "Invalid user pointer: %p", p);
+		}
+
+		if (info->offset + size >= seg->size) {
+			/* Extends beyond the segment */
+			KTHROWF(InvalidPointerException, "Invalid user pointer: %p", p);
+		}
+
+		if (write && (seg->perms & SEGMENT_W)) {
+			/* No permission to write */
+			KTHROWF(InvalidPointerException, "Invalid user write pointer: %p", p);
+		}
+
+		if (array) {
+			void ** array = p;
+			for(int i=0; i<size/sizeof(void*); i++) {
+				vm_validate_user(array[i], 0, flags & (USER_VALIDATE_WRITE | USER_VALIDATE_STRZ));
+			}
+		} else if (arrayz) {
+			void ** array = p;
+			size_t segleft = seg->size - offset;
+			for(int i=0; i<segleft/sizeof(void*) && array[i]; i++) {
+				vm_validate_user(array[i], 0, flags & (USER_VALIDATE_WRITE | USER_VALIDATE_STRZ));
+			}
+		}
+	} else {
+		KTHROWF(InvalidPointerException, "Invalid user pointer: %p", p);
 	}
 }
 

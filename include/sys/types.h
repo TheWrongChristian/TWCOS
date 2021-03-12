@@ -12,8 +12,8 @@ typedef unsigned mode_t;
 typedef uintptr_t size_t;
 typedef intptr_t ssize_t;
 typedef char * ustring;
-typedef int32_t off_t;
-typedef int64_t off64_t;
+typedef uint32_t off_t;
+typedef uint64_t off64_t;
 typedef uint32_t ino_t;
 typedef uint64_t ino64_t;
 

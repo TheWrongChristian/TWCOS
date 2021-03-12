@@ -12,3 +12,5 @@ subdir:=$(userdir)/picol
 include $(subdir)/subdir.mk
 subdir:=$(userdir)/partcl
 include $(subdir)/subdir.mk
+subdir:=$(userdir)/fuzz
+include $(subdir)/subdir.mk

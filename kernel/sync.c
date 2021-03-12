@@ -390,10 +390,12 @@ INLINE_FLATTEN void interrupt_monitor_enter(interrupt_monitor_t * monitor)
 
 static void interrupt_monitor_leave_and_schedule(interrupt_monitor_t * monitor)
 {
-	scheduler_lock();	
+	scheduler_lock();
 	monitor->waiting = thread_queue(monitor->waiting, 0, THREAD_SLEEPING);
+	arch_get_thread()->sleepingon = monitor;
 	interrupt_monitor_leave(monitor);
 	thread_schedule();
+	arch_get_thread()->sleepingon = NULL;
 }
 
 /**

@@ -376,6 +376,7 @@ void slab_gc_mark(void * root)
 void slab_gc_mark_range(void * from, void * to)
 {
 	gclevel++;
+	assert(gclevel<countof(context));
 	context[gclevel].from = from;
 	context[gclevel].to = to;
 }
