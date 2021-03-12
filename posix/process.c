@@ -286,7 +286,6 @@ void * process_brk(void * p)
 {
 	process_t * current = process_get();
 	void * brk = ((char*)current->heap->base) + current->heap->size;
-	extern char _kernel_offset[1];
 	if (p > brk && (char*)p < _kernel_offset) {
 		/* Extend the heap */
 		current->heap->size = (uintptr_t)p - (uintptr_t)current->heap->base;
