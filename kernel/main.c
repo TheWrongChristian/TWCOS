@@ -66,6 +66,8 @@ void kernel_main() {
 		ide_pciscan();
 		kernel_debug("Initialising uhci\n");
 		uhci_pciscan();
+		kernel_debug("Initialising ehci\n");
+		ehci_pciscan();
 		kernel_debug("Initialising done\n");
 #if 0
 		vnode_t * root = tarfs_test();

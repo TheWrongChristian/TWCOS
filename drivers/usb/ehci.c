@@ -681,5 +681,5 @@ void ehci_probe(uint8_t bus, uint8_t slot, uint8_t function)
 
 void ehci_pciscan()
 {
-	pci_scan_class(ehci_probe, 0xc, 0x3, 0, 0xffff, 0xffff);
+	pci_scan_class(ehci_probe, 0xc, 0x3, 0x20, 0xffff, 0xffff);
 }
