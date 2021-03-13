@@ -47,9 +47,30 @@ uint8_t pci_headertype(uint8_t bus, uint8_t slot, uint8_t function)
 	return pci_config_byte(bus, slot, function, 0xe);
 }
 
-uint32_t pci_bar(uint8_t bus, uint8_t slot, uint8_t function, uint8_t bar)
+void * pci_bar_map(uint8_t bus, uint8_t slot, uint8_t function, uint8_t bar)
 {
-	return pci_config_read(bus, slot, function, 0x10 + bar*4);
+	uint32_t reg = pci_config_read(bus, slot, function, 0x10 + bar*4);
+
+	if (reg & 1) {
+		/* I/O space */
+		return pci_map_io(reg);
+	} else {
+		/* Get the size */
+		pci_config_write(bus, slot, function, 0x10 + bar*4, ~0);
+		uint32_t size = pci_config_read(bus, slot, function, 0x10 + bar*4);
+		size &= ~0xf;
+		size ^= ~0;
+		size++;
+		pci_config_write(bus, slot, function, 0x10 + bar*4, reg);
+
+		int type = (reg >> 1) & 0x3;
+		switch(type) {
+		case 0:
+			return vm_map_paddr(reg & 0xFFFFFFF0, size);
+		default:
+			KTHROWF(NotImplementedException, "Memory mapping of PCI this type of BAR not supported: %d", type);
+		}
+	}
 }
 
 uint32_t pci_bar_base(uint8_t bus, uint8_t slot, uint8_t function, uint8_t bar)

@@ -129,7 +129,8 @@ typedef monitor_t mutex_t;
 
 #endif
 
-exception_def TimeoutException = { "TimeoutException", &Exception };
+exception_def InterruptException = { "InterruptException", &Exception };
+exception_def TimeoutException = { "TimeoutException", &InterruptException };
 
 #if 0
 static void mutex_mark(void * p)

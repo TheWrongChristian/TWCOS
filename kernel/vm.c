@@ -582,7 +582,7 @@ static vmpage_t * vm_direct_get_page(vmobject_t * object, off64_t offset)
 	return 0;
 }
 
-static vmobject_t * vm_object_direct( page_t base, int size);
+static vmobject_t * vm_object_direct( page_t base, size_t size);
 static vmobject_t * vm_direct_clone(vmobject_t * object)
 {
 	vmobject_direct_t * from = container_of(object, vmobject_direct_t, vmobject);
@@ -591,7 +591,7 @@ static vmobject_t * vm_direct_clone(vmobject_t * object)
 	return &direct->vmobject;
 }
 
-static vmobject_t * vm_object_direct( page_t base, int size)
+static vmobject_t * vm_object_direct( page_t base, size_t size)
 {
 	static vmobject_ops_t direct_ops = {
 		get_page: vm_direct_get_page,
@@ -604,6 +604,36 @@ static vmobject_t * vm_object_direct( page_t base, int size)
 	direct->base = base;
 	direct->size = size;
 	return &direct->vmobject;
+}
+
+/**
+ * Wrapper map physical memory into virtual memory
+ */
+void * vm_map_paddr(page_t paddr, size_t size)
+{
+	static spin_t lock[] = {0};
+	static map_t * paddrmap = 0;
+
+	void * p = 0;
+	SPIN_AUTOLOCK(lock) {
+		if (0 == paddrmap) {
+			paddrmap = treap_new(0);
+		}
+
+		/* Get an existing mapping if it's already mapped */
+		p = map_getip(paddrmap, paddr);
+		if (0 == p) {
+			/* Virtual address */
+			size = ROUNDUP(size, ARCH_PAGE_SIZE);
+			p = vm_kas_get(size);
+			segment_t * segdirect = vm_segment_direct(p, size, SEGMENT_R | SEGMENT_W, paddr);
+			vm_kas_add(segdirect);
+			map_putip(paddrmap, paddr, p);
+		}
+	}
+
+        return p;
+
 }
 
 /*

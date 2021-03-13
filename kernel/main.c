@@ -61,7 +61,6 @@ void kernel_main() {
 		kernel_debug("Initialising uart\n");
 		ns16550_init();
 		kernel_debug("Initialising devfs\n");
-		packet_test();
 		pci_scan(pci_probe_devfs);
 		kernel_debug("Initialising ide\n");
 		ide_pciscan();
@@ -149,6 +148,8 @@ void kernel_main() {
 	}
 
 	KTRY {
+		bits_test();
+		packet_test();
 		list_test();
 #if 0
 		sync_test();
