@@ -64,9 +64,10 @@ void * pci_bar_map(uint8_t bus, uint8_t slot, uint8_t function, uint8_t bar)
 		pci_config_write(bus, slot, function, 0x10 + bar*4, reg);
 
 		int type = (reg >> 1) & 0x3;
+		int pgoff = reg & (ARCH_PAGE_SIZE-1) & ~0x3;
 		switch(type) {
 		case 0:
-			return vm_map_paddr(reg >> ARCH_PAGE_SIZE_LOG2, size);
+			return PTR_BYTE_ADDRESS(vm_map_paddr(reg >> ARCH_PAGE_SIZE_LOG2, size + pgoff), pgoff);
 		default:
 			KTHROWF(NotImplementedException, "Memory mapping of PCI this type of BAR not supported: %d", type);
 		}
