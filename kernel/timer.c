@@ -130,6 +130,11 @@ static void timer_expire()
 		/* Poke other threads */
 		interrupt_monitor_broadcast(timers->lock);
 	}
+
+	/* Does the current thread need preempting */
+	if (uptime > arch_get_thread()->preempt) {
+		preempt = 1;
+	}
 }
 
 static void timer_expire_thread()
@@ -151,6 +156,7 @@ static void timer_expire_thread()
 			if (timer->state == TIMER_EXPIRED) {
 				LIST_DELETE(expired, timer);
 				timer->cb(timer->p);
+				timer->state = TIMER_IDLE;
 			}
 		}
 	}

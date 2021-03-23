@@ -93,11 +93,12 @@ uint32_t pci_bar_base(uint8_t bus, uint8_t slot, uint8_t function, uint8_t bar)
 uint32_t pci_bar_size(uint8_t bus, uint8_t slot, uint8_t function, uint8_t bar)
 {
 	uint32_t reg = pci_config_read(bus, slot, function, 0x10 + bar*4);
-	uint32_t size = 0;
-	uint32_t mask = (reg & 1) ? 0xFFFFFFFC : 0xFFFFFFF0;
 
 	pci_config_write(bus, slot, function, 0x10 + bar*4, 0xffffffff);
-	size = 1 + ~(pci_config_read(bus, slot, function, 0x10 + bar*4)&mask);
+	uint32_t size = pci_config_read(bus, slot, function, 0x10 + bar*4);
+	size &= (reg & 1) ? 0xFFFFFFFC : 0xFFFFFFF0;
+	size ^= ~0;
+	size++;
 	pci_config_write(bus, slot, function, 0x10 + bar*4, reg);
 
 	return size;
@@ -215,7 +216,7 @@ static void pci_probe_device(pci_probe_qualifier_t * qualifier, pci_probe_callba
 		/* Multi-function device */
 		int i;
 
-		for(i=1; i<8; i++) {
+		for(i=0; i<8; i++) {
 			if (0xFFFF != pci_vendorid(bus, device, i)) {
 				pci_probe_function(qualifier, cb, bus, device, i);
 			}

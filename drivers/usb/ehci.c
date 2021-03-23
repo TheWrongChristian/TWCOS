@@ -110,6 +110,27 @@ struct ehci_hcd_t {
 	uint16_t status;
 };
 
+static packet_field_t ehci_capreg_fields[] = {
+	PACKET_FIELD(1),
+	PACKET_FIELD(1),
+	PACKET_FIELD(2),
+	PACKET_FIELD(4),
+	PACKET_FIELD(4),
+	PACKET_FIELD(8),
+};
+static packet_def_t ehci_capreg[] = {PACKET_DEF(ehci_capreg_fields)};
+
+static packet_field_t ehci_opreg_fields[] = {
+	PACKET_FIELD(4),
+	PACKET_FIELD(4),
+	PACKET_FIELD(4),
+	PACKET_FIELD(4),
+	PACKET_FIELD(4),
+	PACKET_FIELD(4),
+	PACKET_FIELD(4),
+};
+static packet_def_t ehci_opreg[] = {PACKET_DEF(ehci_opreg_fields)};
+
 static void ehci_status_check(ehci_q * q, future_t * future)
 {
 	ehci_td * td = q->velementlink.td;
@@ -387,14 +408,23 @@ static void ehci_start(ehci_hcd_t * hcd)
 	}
 }
 
+static void ehci_dumpcap(ehci_hcd_t * hcd)
+{
+	kernel_printk("EHCI capreg: %p\n", hcd->base);
+	kernel_printk("EHCI caplength: %d\n", packet_get(ehci_capreg, hcd->base, 0));
+	kernel_printk("EHCI hciversion: %x\n", packet_get(ehci_capreg, hcd->base, 2));
+	kernel_printk("EHCI hcsparams: %x\n", packet_get(ehci_capreg, hcd->base, 3));
+	kernel_printk("EHCI hccparams: %x\n", packet_get(ehci_capreg, hcd->base, 4));
+}
+
 static void ehci_reset(ehci_hcd_t * hcd)
 {
-	int waittime = 20; // 20 ms max
+	int waittime = 1000; // 1000 ms max
+	TRACE();
 	ehci_stop(hcd);
-	hcd->opreg[EHCI_USBCMD] &= EHCI_USBCMD_HCRESET;
-	while(waittime && hcd->opreg[EHCI_USBCMD] & EHCI_USBCMD_HCRESET) {
+	hcd->opreg[EHCI_USBCMD] |= EHCI_USBCMD_HCRESET;
+	while(waittime-- && hcd->opreg[EHCI_USBCMD] & EHCI_USBCMD_HCRESET) {
 		timer_sleep(1000);
-		waittime--;
 	}
 
 	if (hcd->opreg[EHCI_USBCMD] & EHCI_USBCMD_HCRESET) {
@@ -406,6 +436,9 @@ static ehci_hcd_t * ehci_init(void * base, int irq)
 {
 	ehci_hcd_t * hcd = calloc(1, sizeof(*hcd));
 	hcd->base = base;
+	ehci_dumpcap(hcd);
+	uint32_t opreg_offset = packet_get(ehci_capreg, hcd->base, 0);
+	hcd->opreg = (uint32_t*)((uint8_t*)hcd->base) + opreg_offset;
 	hcd->lock = interrupt_monitor_irq(irq);
 	hcd->pframelist = vmpage_calloc(CORE_SUB4G);
 	hcd->framelist = vm_kas_get_aligned(ARCH_PAGE_SIZE, ARCH_PAGE_SIZE);
@@ -416,6 +449,9 @@ static ehci_hcd_t * ehci_init(void * base, int irq)
 	bitarray_setall(hcd->hcd.ids, 32*countof(hcd->hcd.ids), 1);
 	bitarray_set(hcd->hcd.ids, 0, 0);
 	vmpage_map(hcd->pframelist, kas, hcd->framelist, 1, 0);
+
+
+	ehci_reset(hcd);
 #if 0
 	for(int i=0; i<countof(hcd->queues); i++) {
 		hcd->queues[i] = ehci_q_get();
@@ -668,6 +704,7 @@ static future_t * ehci_packet(usb_endpoint_t * endpoint, usbpid_t pid, void * bu
 
 void ehci_probe(uint8_t bus, uint8_t slot, uint8_t function)
 {
+	TRACE();
 	void * base = pci_bar_map(bus, slot, function, 0);
 	int irq = pci_irq(bus, slot, function);
 	static GCROOT ehci_hcd_t * hcd;

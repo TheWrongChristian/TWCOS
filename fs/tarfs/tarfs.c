@@ -201,8 +201,6 @@ static void tarfs_regularfile( vnode_t * root, tarfs_header_t * h, dev_t * dev, 
 
 	char * fullname = tarfs_fullname(h);
 
-	kernel_printk("Regular  : %s\n", fullname);
-
 	tarfsnode_t * node = malloc(sizeof(*node));
 	vnode_init(&node->vnode, VNODE_REGULAR, &fs);
 	node->dev = dev;
@@ -214,7 +212,6 @@ static void tarfs_regularfile( vnode_t * root, tarfs_header_t * h, dev_t * dev, 
 static void tarfs_directory( vnode_t * root, tarfs_header_t * h )
 {
 	char * fullname = tarfs_fullname(h);
-	kernel_printk("Directory: %s\n", fullname);
 
 	tarfs_add_node(root, fullname, NULL);
 }

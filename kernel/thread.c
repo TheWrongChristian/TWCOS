@@ -31,6 +31,7 @@ struct thread_t {
 	} accts[64];
 	timerspec_t period;
 	timerspec_t usage;
+	timerspec_t preempt;
 
 	/** Current thread state */
 	tstate state;
@@ -293,6 +294,8 @@ int thread_schedule()
 					}
 					arch_thread_switch(next);
 					current->accts[current->acct].tstart = timer_uptime(1);
+					/* By default, preempt after 100ms */
+					current->preempt = current->accts[current->acct].tstart + 100000;
 					return 1;
 				} else {
 					/* Restore thread state to running */
@@ -573,7 +576,7 @@ static void thread_test2(rwlock_t * rw)
 
 static void thread_update_acct(const void * const p, void * key, void * data)
 {
-	timerspec_t *puptime = p;
+	const timerspec_t *puptime = p;
 	thread_t * thread = key;
 	if (thread == arch_get_thread()) {
 		thread->accts[thread->acct].tlen = (*puptime) - thread->accts[thread->acct].tstart;

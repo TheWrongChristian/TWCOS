@@ -18,7 +18,19 @@
 #endif
 #endif
 
-static void idle() {
+static void stats()
+{
+	thread_set_name(0, "Stats");
+	while(1) {
+		kernel_printk("Stats\n");
+		kernel_printk("GC stats: %d, %d, %d\n", (int)gc_stats.inuse, (int)gc_stats.peak, (int)gc_stats.total);
+		thread_update_accts();
+		timer_sleep(1000000);
+	}
+}
+
+static void idle()
+{
 	thread_set_priority(0, THREAD_IDLE);
 	thread_set_name(0, "Idle");
 	timerspec_t uptime = timer_uptime(0);
@@ -28,20 +40,16 @@ static void idle() {
 			thread_gc();
 #endif
 		}
-		timerspec_t newuptime = timer_uptime(0);
-		if (newuptime-uptime > 1000000) {
-			kernel_printk("Stats\n");
-			kernel_printk("GC stats: %d, %d, %d\n", (int)gc_stats.inuse, (int)gc_stats.peak, (int)gc_stats.total);
-			uptime = newuptime;
-			thread_update_accts();
-		}
 		arch_idle();
 	}
 }
 
-void kernel_main() {
+void kernel_main()
+{
 	/* Initialize console interface */
 	arch_init();
+
+	kernel_startlogging(0);
 
 #if 0
 	char * str = sym_lookup(kernel_main);
@@ -64,11 +72,13 @@ void kernel_main() {
 		pci_scan(pci_probe_devfs);
 		kernel_debug("Initialising ide\n");
 		ide_pciscan();
-		kernel_debug("Initialising uhci\n");
-		uhci_pciscan();
 		kernel_debug("Initialising ehci\n");
 		ehci_pciscan();
+		kernel_debug("Initialising uhci\n");
+		uhci_pciscan();
 		kernel_debug("Initialising done\n");
+		pci_scan(pci_probe_print);
+
 #if 0
 		vnode_t * root = tarfs_test();
 		vfs_test(root);
@@ -155,8 +165,8 @@ void kernel_main() {
 		list_test();
 #if 0
 		sync_test();
-#endif
 		cache_test();
+#endif
 		utf8_test();
 		pipe_test();
 	} KCATCH(Throwable) {
@@ -183,7 +193,13 @@ void kernel_main() {
 		exception_panic("Error starting init\n");
 	}
 
-	idle();
+	static thread_t * thrstat = 0;
+	thrstat = thread_fork();
+	if (thrstat) {
+		idle();
+	} else {
+		stats();
+	}
 }
 
 void kernel_break()
