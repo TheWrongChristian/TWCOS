@@ -17,6 +17,15 @@ MAKEHEADERS=$(TOP)/build/makeheaders
 include $(TOP)/build/param.mk
 
 COPTS=-g -DDEBUG
+# Override COPTS if present
+-include $(TOP)/build/copts.mk
+
+debug-config:
+	echo 'COPTS=-g -DDEBUG' > $(TOP)/build/copts.mk
+
+prod-config:
+	echo 'COPTS=-O3' > $(TOP)/build/copts.mk
+
 KOPTS:=-ffreestanding
 UOPTS:=-I$(TOP)/user/pdclib/include -I$(TOP)/user/pdclib/platform/twcos/include
 CFLAGS=$(COPTS) $(UOPTS) --sysroot=. -pipe -std=gnu99 -Wall -I$(TOP)/arch/$(ARCH)/include -I$(TOP)/include
@@ -32,4 +41,4 @@ $(OBJS): CFLAGS+=$(KOPTS)
 %.d: %.S
 	-$(CC) $(CFLAGS) -M -MF $@ -MT $(@:.d=.o) -MG $<
 
-.PHONY: clean
+.PHONY: clean debug-config prod-config
