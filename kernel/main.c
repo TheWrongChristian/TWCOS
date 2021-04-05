@@ -22,6 +22,7 @@ static void stats()
 {
 	thread_set_name(0, "Stats");
 	while(1) {
+		kernel_printk("\033[H\033[J");
 		kernel_printk("Stats\n");
 		kernel_printk("GC stats: %d, %d, %d\n", (int)gc_stats.inuse, (int)gc_stats.peak, (int)gc_stats.total);
 		thread_update_accts();
@@ -150,11 +151,13 @@ void kernel_main()
 	}
 
 	KTRY {
+#if 1
 		vnode_t * uart = file_namev("/devfs/char/uart/1016");
 		if (uart) {
 			stream_t * stream = vnode_stream(uart);
 			kernel_startlogging(stream);
 		}
+#endif
 	} KCATCH(Throwable) {
 		kernel_printk("Error opening serial port\n");
 	}
