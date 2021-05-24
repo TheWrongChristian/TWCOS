@@ -426,6 +426,21 @@ static size_t map_compound_key_process( map_compound_key_t * key, const char * f
 			switch(*f) {
 				uint32_t i32;
 				uint64_t i64;
+			case '1':
+				i32 = va_arg(ap, uint8_t);
+				if (buf) {
+					*buf++=(i32) & 0xff;
+				}
+				len += 1;
+				break;
+			case '2':
+				i32 = va_arg(ap, uint16_t);
+				if (buf) {
+					*buf++=(i32>>8) & 0xff;
+					*buf++=(i32) & 0xff;
+				}
+				len += 2;
+				break;
 			case '4':
 				i32 = va_arg(ap, uint32_t);
 				if (buf) {
