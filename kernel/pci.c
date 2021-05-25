@@ -6,6 +6,12 @@
 
 typedef void (*pci_probe_callback)(uint8_t bus, uint8_t slot, uint8_t function);
 
+struct pci_addr_t {
+	uint8_t bus;
+	uint8_t slot;
+	uint8_t function;
+};
+
 #endif
 
 static uint8_t pci_config_byte(uint8_t bus, uint8_t slot, uint8_t function, uint8_t offset)
@@ -259,4 +265,23 @@ void pci_scan_class(pci_probe_callback cb, uint8_t class, uint8_t subclass, uint
 {
 	pci_probe_qualifier_t qualifier[1] = {{.class = class, .subclass = subclass, .progif = progif, .vendorid = vendorid, .deviceid = deviceid}};
 	pci_scan_qualified(qualifier, cb);
+}
+
+static device_type_t pci_type;
+
+void pci_enumerate_callback(uint8_t bus, uint8_t slot, uint8_t function)
+{
+	uint8_t class = pci_class(bus, slot, function);
+	uint8_t subclass = pci_subclass(bus, slot, function);
+	uint8_t progif = pci_progif(bus, slot, function);
+	map_compound_key_t * classkey = map_compound_key("i4i1i1i1", pci_type, class, subclass, progif);
+
+	uint16_t vendorid = pci_vendorid(bus, slot, function);
+	uint16_t deviceid = pci_deviceid(bus, slot, function);
+	map_compound_key_t * vendorkey = map_compound_key("i4i2i2", pci_type, vendorid, deviceid);
+}
+
+void pci_enumerate()
+{
+	pci_type = device_type("bus/pci");
 }
