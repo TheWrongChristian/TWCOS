@@ -10,6 +10,9 @@ struct device_ops_t
 struct device_t
 {
 	device_ops_t * ops;
+
+	device_t * parent;
+	map_t * children;
 };
 
 typedef int device_type_t;
