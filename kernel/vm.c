@@ -155,7 +155,7 @@ segment_t * vm_get_segment(map_t * as, const void * p)
 {
 	segment_t * seg = map_getpp_cond(as, p, MAP_LE);
 
-	if (seg && (char*)p - (char*)seg->base < seg->size) { 
+	if (seg && (char*)p - (char*)seg->base <= seg->size) { 
 		return seg;
 	} else {
 		return 0;

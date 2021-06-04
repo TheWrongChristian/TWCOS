@@ -1,4 +1,4 @@
-SH_SRCS_C := $(subdir)/main.c $(subdir)/tokenizer.c # $(subdir)/window.c $(subdir)/testshell.c
+SH_SRCS_C := $(subdir)/sh.c # $(subdir)/main.c $(subdir)/tokenizer.c # $(subdir)/window.c $(subdir)/testshell.c
 SH_OBJS_C := $(SH_SRCS_C:.c=.o)
 
 SH2_SRCS_C := $(subdir)/shell.c
