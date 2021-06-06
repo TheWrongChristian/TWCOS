@@ -61,6 +61,8 @@ void kernel_main()
 		thread_init();
 		kernel_debug("Initialising memory allocation\n");
 		slab_init();
+		kernel_debug("Initialising device manager\n");
+		device_manager_init();
 		kernel_debug("Initialising page cache\n");
 		page_cache_init();
 		kernel_debug("Initialising processes\n");
@@ -69,17 +71,17 @@ void kernel_main()
 		timer_init();
 		kernel_debug("Initialising uart\n");
 		ns16550_init();
+#if 0
 		kernel_debug("Initialising devfs\n");
 		pci_scan(pci_probe_devfs);
-		kernel_debug("Initialising ide\n");
-		ide_pciscan();
-		kernel_debug("Initialising ehci\n");
-		ehci_pciscan();
-		kernel_debug("Initialising uhci\n");
-		uhci_pciscan();
-		kernel_debug("Initialising done\n");
-		pci_scan(pci_probe_print);
-
+#endif
+		kernel_debug("Initialising drivers\n");
+		ide_pciinit();
+		ehci_pciinit();
+		uhci_pciinit();
+		pci_init(NULL);
+		kernel_debug("Probing devices\n");
+		device_probe_unclaimed();
 #if 0
 		vnode_t * root = tarfs_test();
 		vfs_test(root);

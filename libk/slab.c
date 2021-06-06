@@ -46,6 +46,8 @@ struct gc_stats_t
 #define slab_calloc(type) slab_calloc_p(type)
 #endif
 
+#define mclone(p) mclone_sized(p, sizeof(*p))
+
 #define GCROOT __attribute__((section(".gcroot")))
 
 #endif
@@ -645,6 +647,12 @@ void *realloc_p(void *p, size_t size)
 
 	kernel_panic("realloc: we shouldn't get here!");
 	return 0;
+}
+
+void * mclone_sized(void * src, size_t size)
+{
+	void * p = malloc(size);
+	return memcpy(p, src, size);
 }
 
 void slab_test()

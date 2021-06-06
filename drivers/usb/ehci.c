@@ -702,11 +702,11 @@ static future_t * ehci_packet(usb_endpoint_t * endpoint, usbpid_t pid, void * bu
 	return future;
 }
 
-void ehci_probe(uint8_t bus, uint8_t slot, uint8_t function)
+void ehci_probe(device_t * device)
 {
 	TRACE();
-	void * base = pci_bar_map(bus, slot, function, 0);
-	int irq = pci_irq(bus, slot, function);
+	void * base = pci_bar_map(device, 0);
+	int irq = pci_irq(device);
 	static GCROOT ehci_hcd_t * hcd;
 	TRACE();
 	hcd = ehci_init(base, irq);
@@ -716,7 +716,7 @@ void ehci_probe(uint8_t bus, uint8_t slot, uint8_t function)
 	}
 }
 
-void ehci_pciscan()
+void ehci_pciinit()
 {
-	pci_scan_class(ehci_probe, 0xc, 0x3, 0x20, 0xffff, 0xffff);
+	device_driver_register(pci_progif_key(0xc, 0x3, 0x20), ehci_probe);
 }

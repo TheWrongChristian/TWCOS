@@ -676,10 +676,10 @@ static future_t * uhci_packet(usb_endpoint_t * endpoint, usbpid_t pid, void * bu
 	return future;
 }
 
-void uhci_probe(uint8_t bus, uint8_t slot, uint8_t function)
+void uhci_probe(device_t * device)
 {
-	uintptr_t bar4 = pci_bar_base(bus, slot, function, 4);
-	int irq = pci_irq(bus, slot, function);
+	uintptr_t bar4 = pci_bar_base(device, 4);
+	int irq = pci_irq(device);
 	static GCROOT uhci_hcd_t * hcd;
 	hcd = uhci_reset(bar4, irq);
 	if (hcd) {
@@ -687,8 +687,8 @@ void uhci_probe(uint8_t bus, uint8_t slot, uint8_t function)
 	}
 }
 
-void uhci_pciscan()
+void uhci_pciinit()
 {
-	TRACE();
-	pci_scan_class(uhci_probe, 0xc, 0x3, 0, 0xffff, 0xffff);
+        device_driver_register(pci_progif_key(0xc, 0x3, 0), uhci_probe);
 }
+

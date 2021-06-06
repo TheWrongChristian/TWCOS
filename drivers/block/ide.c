@@ -119,7 +119,6 @@ static uint8_t ide_wait(idechannel_t * channel, int polling);
 static void ide_command(idechannel_t * channel, uint8_t command);
 static void ide_drive_identify(idechannel_t * channel, int slave, uint8_t * buf, size_t bufsize);
 static void ide_drive_transfer_sectors(idechannel_t * channel, int slave, off64_t lba, int write, void * buf, size_t bufsize);
-static void ide_probe(uint8_t bus, uint8_t slot, uint8_t function);
 
 struct idedevice_t {
 	dev_t dev;
@@ -511,6 +510,24 @@ static void ide_drive_transfer_sectors(idechannel_t * channel, int slave, off64_
 	}
 }
 
+static void ide_probe_compat(device_t * device)
+{
+	uint8_t irq = pci_irq(device);
+	uintptr_t bar0 = pci_bar_base(device, 0);
+	uintptr_t bar1 = pci_bar_base(device, 1);
+	uintptr_t bar2 = pci_bar_base(device, 2);
+	uintptr_t bar3 = pci_bar_base(device, 3);
+	uintptr_t bar4 = pci_bar_base(device, 4);
+
+	ide_initialize(bar0, bar1, bar2, bar3, bar4, 0x15);
+}
+
+void ide_pciinit()
+{
+	device_driver_register(pci_progif_key(1, 1, 0x80), ide_probe_compat);
+}
+
+#if 0
 static void ide_probe(uint8_t bus, uint8_t slot, uint8_t function)
 {
 	if (1==pci_class(bus, slot, function) && 1==pci_subclass(bus, slot, function)) {
@@ -537,3 +554,4 @@ void ide_pciscan()
 {
 	pci_scan_class(ide_probe, 1, 1, 0x80, 0xffff, 0xffff);
 }
+#endif
