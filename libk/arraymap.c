@@ -2,7 +2,8 @@
 
 exception_def ArrayMapFullException = { "ArrayMapFullException", &Exception };
 
-typedef struct arraymap_s {
+typedef struct arraymap_t arraymap_t;
+struct arraymap_t {
 	map_t map;
 
 	int capacity;
@@ -14,7 +15,7 @@ typedef struct arraymap_s {
 		map_key key;
 		map_data data;
 	} data[0];
-} arraymap_t;
+};
 
 
 static void arraymap_destroy(const map_t * map)
@@ -185,29 +186,34 @@ static map_data arraymap_remove( const map_t * map, map_key key )
 	return 0;
 }
 
+static interface_map_t arraymap_t_map [] =
+{
+        INTERFACE_MAP_ENTRY(arraymap_t, iid_map_t, map),
+};
+static INTERFACE_IMPL_QUERY(map_t, arraymap_t, map)
+static INTERFACE_OPS_TYPE(map_t) INTERFACE_IMPL_NAME(map_t, arraymap_t) = {
+        INTERFACE_IMPL_QUERY_METHOD(map_t, arraymap_t)
+        INTERFACE_IMPL_METHOD(destroy, arraymap_destroy)
+        INTERFACE_IMPL_METHOD(walk, arraymap_walk)
+        INTERFACE_IMPL_METHOD(walk_range, arraymap_walk_range)
+        INTERFACE_IMPL_METHOD(put, arraymap_put)
+        INTERFACE_IMPL_METHOD(get, arraymap_get)
+        INTERFACE_IMPL_METHOD(remove, arraymap_remove)
+};
+
 map_t * arraymap_new(int (*comp)(map_key k1, map_key k2), int capacity)
 {
-	static struct map_ops arraymap_ops = {
-		destroy: arraymap_destroy,
-		walk: arraymap_walk,
-		walk_range: arraymap_walk_range,
-		put: arraymap_put,
-		get: arraymap_get,
-		optimize: 0,
-		remove: arraymap_remove,
-		iterator: 0
-	};
 	arraymap_t * map = 0;
 	int size = sizeof(*map) + capacity * sizeof(map->data[0]);
 
 	map = calloc(1, size);
 
-	map->map.ops = &arraymap_ops;
+	map->map.ops = &arraymap_t_map_t;
 	map->capacity = capacity;
 	map->comp = (comp) ? comp : map_keycmp;
 	map->count = 0;
 
-	return &map->map;
+	return com_query(arraymap_t_map, iid_map_t, map);
 }
 
 

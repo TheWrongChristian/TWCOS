@@ -6,21 +6,22 @@
 
 #define PTR_BYTE_ADDRESS(base, offset) (void*)(((char*)base)+offset)
 
-#define INTERFACE_BEGIN(iface) typedef struct iface ## _ops iface ## _ops ; struct iface ## _ops { void * (*query)(void *, void*);
+typedef void * (*interface_query_t)(void *, void*);
 
-#define INTERFACE_METHOD(rettype, method, ...) rettype (*method)(void *, __VA_ARGS__);
-
-#define INTERFACE_END(iface) };
-
-#define INTERFACE_IMPL_BEGIN(iface, container) \
-void * container ## _ ## iface ## _ ## query (iface * i, void * id) \
+#define INTERFACE_IMPL_QUERY(iface, container, member) \
+void * INTERFACE_IMPL_QUERY_NAME(iface, container)(iface * i, void * id) \
 { \
-	return com_query(i, id, container ## _ ## iface); \
-} \
+	return com_query(INTERFACE_MAP_NAME(container), id, container_of(i, container, member)); \
+}
+#define INTERFACE_OPS_TYPE(iface) iface ## _ops
 static iface ## _ops container ## _ ## iface 
-#define INTERFACE_IMPL_QUERY(iface, container) .query = container ## _ ## iface ## _ ## query
+#define INTERFACE_IMPL_QUERY_METHOD(iface, container) .query = INTERFACE_IMPL_QUERY_NAME(iface, container)
 
 #define INTERFACE_IMPL_METHOD(method, method_impl) , .method = method_impl
+
+
+#define INTERFACE_IMPL_NAME(iface, container) container ## _ ## iface
+#define INTERFACE_IMPL_QUERY_NAME(iface, container) container ## _ ## iface ## _ ## query
 
 struct interface_map_t {
 	void * id;
@@ -29,9 +30,9 @@ struct interface_map_t {
 
 #define METHOD_PROLOG(iface, container, member) container * pThis = container_of(iface, container, member)
 
-#define INTERFACE_MAP_BEGIN(container) interface_map_t container ## map [] = {
+#define INTERFACE_MAP_NAME(container) container ## _map
 
-#define INTERFACE_MAP_ENTRY(container, iface, member) { container ## _ ## iface, offsetof(container, member) }
+#define INTERFACE_MAP_ENTRY(container, iid, member) { iid, offsetof(container, member) }
 
 #define INTERFACE_MAP_END(container) {0,0} };
 

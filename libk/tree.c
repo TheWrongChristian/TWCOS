@@ -747,9 +747,13 @@ void tree_init()
 
 }
 
-#if 1
-INTERFACE_IMPL_BEGIN(map_t, tree_t) = {
-	INTERFACE_IMPL_QUERY(map_t, tree_t)
+static interface_map_t tree_t_map [] =
+{
+	INTERFACE_MAP_ENTRY(tree_t, iid_map_t, map),
+};
+static INTERFACE_IMPL_QUERY(map_t, tree_t, map)
+static INTERFACE_OPS_TYPE(map_t) INTERFACE_IMPL_NAME(map_t, tree_t) = {
+	INTERFACE_IMPL_QUERY_METHOD(map_t, tree_t)
 	INTERFACE_IMPL_METHOD(destroy, tree_destroy)
 	INTERFACE_IMPL_METHOD(walk, tree_walk)
 	INTERFACE_IMPL_METHOD(walk_range, tree_walk_range)
@@ -760,12 +764,12 @@ INTERFACE_IMPL_BEGIN(map_t, tree_t) = {
 	INTERFACE_IMPL_METHOD(iterator, tree_iterator)
 	INTERFACE_IMPL_METHOD(size, tree_size)
 };
-#endif
 
 map_t * tree_new(int (*comp)(map_key k1, map_key k2), treemode mode)
 {
 	tree_init();
 	tree_t * tree = slab_alloc(trees);
+#if 0
 	static struct map_ops tree_ops = {
 		destroy: tree_destroy,
 		walk: tree_walk,
@@ -777,13 +781,14 @@ map_t * tree_new(int (*comp)(map_key k1, map_key k2), treemode mode)
 		iterator: tree_iterator,
 		size: tree_size
 	};
+#endif
 
-	tree->map.ops = &tree_ops;
+	tree->map.ops = &tree_t_map_t;
 	tree->root = 0;
 	tree->mode = mode;
 	tree->comp = (comp) ? comp : map_keycmp;
 
-	return &tree->map;
+	return com_query(tree_t_map, iid_map_t, tree);
 }
 
 map_t * splay_new(int (*comp)(map_key k1, map_key k2))
