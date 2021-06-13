@@ -23,7 +23,6 @@ typedef int (*prefixp_func)(void * prefix, void * key);
 #define p2i(p) ((intptr_t)p)
 #define i2p(d) ((void *)d)
 
-typedef struct map_ops map_t_ops;
 struct map_t_ops {
 	void * (*query)(map_t *, void*);
 	void (*destroy)( const map_t * map );

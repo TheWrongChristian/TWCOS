@@ -769,20 +769,6 @@ map_t * tree_new(int (*comp)(map_key k1, map_key k2), treemode mode)
 {
 	tree_init();
 	tree_t * tree = slab_alloc(trees);
-#if 0
-	static struct map_ops tree_ops = {
-		destroy: tree_destroy,
-		walk: tree_walk,
-		walk_range: tree_walk_range,
-		put: tree_put,
-		get: tree_get,
-		optimize: tree_optimize,
-		remove: tree_remove,
-		iterator: tree_iterator,
-		size: tree_size
-	};
-#endif
-
 	tree->map.ops = &tree_t_map_t;
 	tree->root = 0;
 	tree->mode = mode;
