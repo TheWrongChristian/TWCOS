@@ -7,7 +7,10 @@ enum treemode { TREE_SPLAY=1, TREE_TREAP, TREE_COUNT };
 
 exception_def OutOfBoundsException = { "OutOfBoundsException", &RuntimeException };
 
-typedef struct node {
+typedef struct tree_t tree_t;
+typedef struct node_t node_t;
+
+struct node_t {
 	map_key key;
 	map_data data;
 
@@ -18,12 +21,12 @@ typedef struct node {
 	int priority;
 
 	/* Nodes connectivity */
-	struct node * parent;
-	struct node * left;
-	struct node * right;
-} node_t;
+	node_t * parent;
+	node_t * left;
+	node_t * right;
+};
 
-typedef struct {
+struct tree_t {
 	map_t map;
 
 	node_t * root;
@@ -31,7 +34,7 @@ typedef struct {
 	int mode;
 
 	int (*comp)(map_key k1, map_key k2);
-} tree_t;
+};
 
 static node_t * tree_node_first(tree_t * tree);
 static const node_t * node_next( const node_t * const current );
@@ -744,28 +747,34 @@ void tree_init()
 
 }
 
+static interface_map_t tree_t_map [] =
+{
+	INTERFACE_MAP_ENTRY(tree_t, iid_map_t, map),
+};
+static INTERFACE_IMPL_QUERY(map_t, tree_t, map)
+static INTERFACE_OPS_TYPE(map_t) INTERFACE_IMPL_NAME(map_t, tree_t) = {
+	INTERFACE_IMPL_QUERY_METHOD(map_t, tree_t)
+	INTERFACE_IMPL_METHOD(destroy, tree_destroy)
+	INTERFACE_IMPL_METHOD(walk, tree_walk)
+	INTERFACE_IMPL_METHOD(walk_range, tree_walk_range)
+	INTERFACE_IMPL_METHOD(put, tree_put)
+	INTERFACE_IMPL_METHOD(get, tree_get)
+	INTERFACE_IMPL_METHOD(optimize, tree_optimize)
+	INTERFACE_IMPL_METHOD(remove, tree_remove)
+	INTERFACE_IMPL_METHOD(iterator, tree_iterator)
+	INTERFACE_IMPL_METHOD(size, tree_size)
+};
+
 map_t * tree_new(int (*comp)(map_key k1, map_key k2), treemode mode)
 {
 	tree_init();
 	tree_t * tree = slab_alloc(trees);
-	static struct map_ops tree_ops = {
-		destroy: tree_destroy,
-		walk: tree_walk,
-		walk_range: tree_walk_range,
-		put: tree_put,
-		get: tree_get,
-		optimize: tree_optimize,
-		remove: tree_remove,
-		iterator: tree_iterator,
-		size: tree_size
-	};
-
-	tree->map.ops = &tree_ops;
+	tree->map.ops = &tree_t_map_t;
 	tree->root = 0;
 	tree->mode = mode;
 	tree->comp = (comp) ? comp : map_keycmp;
 
-	return &tree->map;
+	return com_query(tree_t_map, iid_map_t, tree);
 }
 
 map_t * splay_new(int (*comp)(map_key k1, map_key k2))
