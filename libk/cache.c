@@ -104,21 +104,28 @@ static map_data cache_remove( const map_t * map, map_key key )
 	return 0;
 }
 
+static interface_map_t cache_t_map [] =
+{
+	INTERFACE_MAP_ENTRY(cache_t, iid_map_t, map),
+};
+static INTERFACE_IMPL_QUERY(map_t, cache_t, map)
+static INTERFACE_OPS_TYPE(map_t) INTERFACE_IMPL_NAME(map_t, cache_t) = {
+        INTERFACE_IMPL_QUERY_METHOD(map_t, cache_t)
+        INTERFACE_IMPL_METHOD(walk, cache_walk)
+        INTERFACE_IMPL_METHOD(walk_range, cache_walk_range)
+        INTERFACE_IMPL_METHOD(put, cache_put)
+        INTERFACE_IMPL_METHOD(get, cache_get)
+        INTERFACE_IMPL_METHOD(optimize, cache_optimize)
+        INTERFACE_IMPL_METHOD(remove, cache_remove)
+};
+
 map_t * cache_new(int (*comp)(map_key k1, map_key k2))
 {
-	static struct map_ops cache_ops = {
-		walk: cache_walk,
-		walk_range: cache_walk_range,
-		put: cache_put,
-		get: cache_get,
-		optimize: cache_optimize,
-		remove: cache_remove,
-	};
 	cache_t * cache = calloc(1, sizeof(*cache));
-	cache->map.ops = &cache_ops;
+	cache->map.ops = &cache_t_map_t;
 	cache->backing = splay_new(comp);
 
-	return &cache->map;
+	return com_query(cache_t_map, iid_map_t, cache);
 }
 
 

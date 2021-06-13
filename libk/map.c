@@ -23,7 +23,8 @@ typedef int (*prefixp_func)(void * prefix, void * key);
 #define p2i(p) ((intptr_t)p)
 #define i2p(d) ((void *)d)
 
-struct map_ops {
+struct map_t_ops {
+	void * (*query)(map_t *, void*);
 	void (*destroy)( const map_t * map );
 	void (*walk)( const map_t * map, const walk_func func, const void *p );
 	void (*walk_range)( const map_t * map, const walk_func func, const void *p, const map_key from, const map_key to );
@@ -35,9 +36,9 @@ struct map_ops {
 	size_t (*size)(const map_t * map);
 };
 
-typedef struct map_s {
-	struct map_ops * ops;
-} map_t;
+struct map_t {
+	struct map_t_ops * ops;
+};
 
 enum map_eq_test { MAP_LT, MAP_LE, MAP_EQ, MAP_GE, MAP_GT };
 
@@ -380,6 +381,8 @@ map_key map_arraykey1( map_key k )
 
 	return (map_key)key;
 }
+
+char iid_map_t[] = "map_t interface";
 
 map_key map_arraykey2( map_key k1, map_key k2 )
 {
