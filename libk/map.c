@@ -382,7 +382,7 @@ map_key map_arraykey1( map_key k )
 	return (map_key)key;
 }
 
-char iid_map_t[] = "map_t interface";
+const char iid_map_t[] = "map_t interface";
 
 map_key map_arraykey2( map_key k1, map_key k2 )
 {

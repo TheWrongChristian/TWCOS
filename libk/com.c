@@ -4,8 +4,6 @@
 
 #include <stddef.h>
 
-#define PTR_BYTE_ADDRESS(base, offset) (void*)(((char*)base)+offset)
-
 typedef void * (*interface_query_t)(void *, void*);
 
 #define INTERFACE_IMPL_QUERY(iface, container, member) \
@@ -24,7 +22,7 @@ static iface ## _ops container ## _ ## iface
 #define INTERFACE_IMPL_QUERY_NAME(iface, container) container ## _ ## iface ## _ ## query
 
 struct interface_map_t {
-	void * id;
+	iid_t id;
 	int offset;
 };
 
@@ -36,11 +34,31 @@ struct interface_map_t {
 
 #define INTERFACE_MAP_END(container) {0,0} };
 
+typedef const char * const iid_t;
+
+#if 0
+struct query_t {
+	query_t_ops * ops;
+};
+
+struct query_t_ops {
+	void * (*query)(void *, iid_t * iid);
+};
+
+struct anon_test_t {
+	anon_test_t_ops * ops;
+};
+
+struct anon_test_t_ops : query_t_ops {
+	void (*foo)();
+};
+#endif
+
 #endif
 
 exception_def InterfaceNotFoundException = {"InterfaceNotFoundException", &Exception};
 
-void * com_query(interface_map_t * map, void * id, void * base)
+void * com_query(interface_map_t * map, iid_t id, void * base)
 {
 	interface_map_t * next = map;
 	while(next->id) {
@@ -50,3 +68,28 @@ void * com_query(interface_map_t * map, void * id, void * base)
 	}
 	KTHROW(InterfaceNotFoundException, "Interface not found");
 } 
+
+#if 0
+
+static void anon_test_foo(void * i)
+{
+}
+
+typedef struct foo_t foo_t;
+struct foo_t {
+	anon_test_t anon_test;
+};
+
+const iid_t iid_anon_test_t = "";
+
+static interface_map_t foo_t_map [] =
+{
+        INTERFACE_MAP_ENTRY(foo_t, iid_anon_test_t, anon_test),
+};
+static INTERFACE_IMPL_QUERY(anon_test_t, foo_t, anon_test)
+static INTERFACE_OPS_TYPE(anon_test_t) INTERFACE_IMPL_NAME(anon_test_t, foo_t) = {
+        INTERFACE_IMPL_QUERY_METHOD(anon_test_t, foo_t)
+        INTERFACE_IMPL_METHOD(foo, anon_test_foo)
+};
+
+#endif
