@@ -43,6 +43,9 @@ SECTIONS
 	.rodata ALIGN(4K) : AT(ADDR(.rodata) - kernel_offset)
 	{
 		*(.rodata)
+		staticinit_start = .;
+		*(.staticinit)
+		staticinit_end = .;
 	}
 
 

@@ -2,6 +2,15 @@
 #include <stddef.h>
 #include <stdint.h>
 
+#if INTERFACE
+
+#define STATIC_INIT __attribute__((section(".staticinit")))
+typedef void (*staticinit_t)();
+
+#define STATIC_INIT_FUNC(func) static __attribute__((section(".staticinit"))) staticinit_t f ## __LINE__ = func
+
+#endif
+
 #include <setjmp.h>
 
 #include "main.h"
@@ -45,6 +54,16 @@ static void idle()
 	}
 }
 
+static void static_init()
+{
+	extern staticinit_t staticinit_start;
+	extern staticinit_t staticinit_end;
+	for(staticinit_t * staticinit = &staticinit_start; staticinit<&staticinit_end; staticinit++)
+	{
+		(*staticinit)();
+	}
+}
+
 void kernel_main()
 {
 	/* Initialize console interface */
@@ -76,9 +95,7 @@ void kernel_main()
 		pci_scan(pci_probe_devfs);
 #endif
 		kernel_debug("Initialising drivers\n");
-		ide_pciinit();
-		ehci_pciinit();
-		uhci_pciinit();
+		static_init();
 		pci_init(NULL);
 		kernel_debug("Probing devices\n");
 		device_probe_unclaimed();

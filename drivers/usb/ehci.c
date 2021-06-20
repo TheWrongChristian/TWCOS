@@ -716,7 +716,9 @@ void ehci_probe(device_t * device)
 	}
 }
 
-void ehci_pciinit()
+static void ehci_pciinit()
 {
 	device_driver_register(pci_progif_key(0xc, 0x3, 0x20), ehci_probe);
 }
+
+static STATIC_INIT staticinit_t init = ehci_pciinit;
