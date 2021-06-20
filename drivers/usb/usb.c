@@ -7,12 +7,13 @@
 
 enum usbpid_t { usbsetup, usbin, usbout };
 
-struct hcd_ops_t {
-	future_t * (*packet)(usb_endpoint_t * endpoint, usbpid_t pid, void * buf, size_t buflen);
+struct hcd_t_ops {
+	void * (*query)(hcd_t * hcd, iid_t iid);
+	future_t * (*packet)(hcd_t * hcd, usb_endpoint_t * endpoint, usbpid_t pid, void * buf, size_t buflen);
 };
 
 struct hcd_t {
-	hcd_ops_t * ops;
+	hcd_t_ops * ops;
 	/* Enough for 128 ids */
 	uint32_t ids[4];
 };
@@ -33,7 +34,8 @@ struct urb_t {
 #define USB_DEVICE_HIGH_SPEED 1<<2
 #define USB_DEVICE_SUPER_SPEED 1<<3
 
-struct usb_hub_ops_t {
+struct usb_hub_t_ops {
+	void * (*query)(usb_hub_t * hcd, iid_t iid);
 	int (*port_count)(usb_hub_t * hub);
 	void (*reset_port)(usb_hub_t * hub, int port);
 	usb_device_t * (*get_device)(usb_hub_t * hub, int port);
@@ -42,7 +44,7 @@ struct usb_hub_ops_t {
 };
 
 struct usb_hub_t {
-	usb_hub_ops_t * ops;
+	usb_hub_t_ops * ops;
 	usb_device_t * device;
 
 	int portcount;
@@ -59,7 +61,10 @@ struct usb_endpoint_t {
 };
 
 struct usb_device_t {
-	/* Host controller */
+	/* Device manager generic interface */
+	device_t * device;
+
+	/* Host controller to which this device is attached */
 	hcd_t * hcd;
 
 	/* Device address */
@@ -186,7 +191,7 @@ hcd_t * usb_hub_get_hcd(usb_hub_t * hub)
 
 future_t * usb_packet(usb_endpoint_t * endpoint, usbpid_t pid, void * buf, size_t buflen)
 {
-	return endpoint->device->hcd->ops->packet(endpoint, pid, buf, buflen);
+	return endpoint->device->hcd->ops->packet(endpoint->device->hcd, endpoint, pid, buf, buflen);
 }
 
 void usb_test(usb_hub_t * hub)
@@ -231,3 +236,6 @@ void usb_test(usb_hub_t * hub)
 	future_get(f3);
 #endif
 }
+
+char iid_hcd_t[] = "USB Host Controller Device";
+char iid_usb_hub_t[] = "USB Hub";

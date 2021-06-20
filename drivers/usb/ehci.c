@@ -432,6 +432,25 @@ static void ehci_reset(ehci_hcd_t * hcd)
 	}
 }
 
+static interface_map_t ehci_hcd_t_map [] =
+{
+	INTERFACE_MAP_ENTRY(ehci_hcd_t, iid_hcd_t, hcd),
+	INTERFACE_MAP_ENTRY(ehci_hcd_t, iid_usb_hub_t, roothub),
+};
+static INTERFACE_IMPL_QUERY(hcd_t, ehci_hcd_t, hcd)
+static INTERFACE_OPS_TYPE(hcd_t) INTERFACE_IMPL_NAME(hcd_t, ehci_hcd_t) = {
+	INTERFACE_IMPL_QUERY_METHOD(hcd_t, ehci_hcd_t)
+	INTERFACE_IMPL_METHOD(packet, ehci_packet)
+};
+static INTERFACE_IMPL_QUERY(usb_hub_t, ehci_hcd_t, hcd)
+static INTERFACE_OPS_TYPE(usb_hub_t) INTERFACE_IMPL_NAME(usb_hub_t, ehci_hcd_t) = {
+	INTERFACE_IMPL_QUERY_METHOD(usb_hub_t, ehci_hcd_t)
+	INTERFACE_IMPL_METHOD(port_count, ehci_hub_port_count)
+	INTERFACE_IMPL_METHOD(reset_port, ehci_hub_reset_port)
+	INTERFACE_IMPL_METHOD(get_device, ehci_hub_get_device)
+	INTERFACE_IMPL_METHOD(disable_port, ehci_hub_disable_port)
+};
+
 static ehci_hcd_t * ehci_init(void * base, int irq)
 {
 	ehci_hcd_t * hcd = calloc(1, sizeof(*hcd));
@@ -444,8 +463,7 @@ static ehci_hcd_t * ehci_init(void * base, int irq)
 	hcd->framelist = vm_kas_get_aligned(ARCH_PAGE_SIZE, ARCH_PAGE_SIZE);
 	hcd->pending = arraymap_new(0, 64);
 
-	static hcd_ops_t ops = { .packet = ehci_packet };	
-	hcd->hcd.ops = &ops;
+	hcd->hcd.ops = &ehci_hcd_t_hcd_t;
 	bitarray_setall(hcd->hcd.ids, 32*countof(hcd->hcd.ids), 1);
 	bitarray_set(hcd->hcd.ids, 0, 0);
 	vmpage_map(hcd->pframelist, kas, hcd->framelist, 1, 0);
@@ -506,14 +524,7 @@ static ehci_hcd_t * ehci_init(void * base, int irq)
 	}
 #endif
 	hcd->roothub.ports = hcd->ports;
-
-	static usb_hub_ops_t ehci_roothub_ops = {
-		.port_count = ehci_hub_port_count,
-		.reset_port = ehci_hub_reset_port,
-		.get_device = ehci_hub_get_device,
-		.disable_port = ehci_hub_disable_port,
-	};
-	hcd->roothub.ops = &ehci_roothub_ops;
+	hcd->roothub.ops = &ehci_hcd_t_usb_hub_t;
 
 	intr_add(irq, ehci_irq, hcd);
 

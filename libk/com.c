@@ -4,10 +4,10 @@
 
 #include <stddef.h>
 
-typedef void * (*interface_query_t)(void *, void*);
+typedef void * (*interface_query_t)(void *, iid_t iid);
 
 #define INTERFACE_IMPL_QUERY(iface, container, member) \
-void * INTERFACE_IMPL_QUERY_NAME(iface, container)(iface * i, void * id) \
+void * INTERFACE_IMPL_QUERY_NAME(iface, container)(iface * i, iid_t id) \
 { \
 	return com_query(INTERFACE_MAP_NAME(container), id, container_of(i, container, member)); \
 }
@@ -65,6 +65,7 @@ void * com_query(interface_map_t * map, iid_t id, void * base)
 		if (id == next->id) {
 			return PTR_BYTE_ADDRESS(base, next->offset);
 		}
+		next++;
 	}
 	KTHROW(InterfaceNotFoundException, "Interface not found");
 } 
