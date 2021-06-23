@@ -10,7 +10,7 @@ CONFIGURE_OPTIONS=--prefix=$(TOOLS) --target=$(TARGET) --disable-nls
 apt-depend::
 	sudo apt install build-essential libgmp-dev libmpfr-dev libmpc-dev libisl-dev ccache texinfo xorriso mtools
 
-cross:: unpack cross-configure cross-build
+cross:: unpack cross-binutils cross-gcc
 
 download:: gcc-$(GCC_VERSION).tar.xz binutils-$(BINUTILS_VERSION).tar.xz
 
@@ -22,7 +22,7 @@ binutils-$(BINUTILS_VERSION).tar.xz:
 
 unpack:: gcc-$(GCC_VERSION).tar.xz binutils-$(BINUTILS_VERSION).tar.xz
 	tar xJf gcc-$(GCC_VERSION).tar.xz
-	( cd gcc-$(GCC_VERSION) && contrib/download_prerequisites )
+	( cd gcc-$(GCC_VERSION) && ./contrib/download_prerequisites )
 	tar xJf binutils-$(BINUTILS_VERSION).tar.xz
 
 cross-configure-binutils:
@@ -33,7 +33,7 @@ cross-configure-gcc:
 	mkdir -p $(GCC_BUILD)
 	( cd $(GCC_BUILD) && ../gcc-$(GCC_VERSION)/configure $(CONFIGURE_OPTIONS) --disable-libssp --enable-languages=c,c++ --without-headers --disable-libquadmath )
 
-cross-configure: cross-configure-binutils cross-configure-gcc
+cross-binutils: cross-configure-binutils cross-build-binutils
 
 cross-build-binutils:
 	make -C $(BINUTILS_BUILD) all
@@ -45,4 +45,4 @@ cross-build-gcc:
 	make -C $(GCC_BUILD) all-target-libgcc
 	make -C $(GCC_BUILD) install-target-libgcc
 
-cross-build: cross-build-binutils cross-build-gcc
+cross-gcc: cross-configure-gcc cross-build-gcc
