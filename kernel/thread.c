@@ -489,6 +489,7 @@ void thread_gc()
 #if GCPROFILE
 	static timerspec_t gctime = 0;
 	gctime += (timer_uptime(1) - start);
+	kernel_printk("GC time %d (%d%%)\n", (int)gctime, (int)(1000 * gctime / start));
 #endif
 }
 

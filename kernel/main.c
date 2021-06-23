@@ -46,7 +46,7 @@ static void idle()
 	timerspec_t uptime = timer_uptime(0);
 	while(1) {
 		if (thread_preempt()) {
-#if 1
+#if 0
 			thread_gc();
 #endif
 		}
