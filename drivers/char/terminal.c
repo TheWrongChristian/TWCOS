@@ -71,6 +71,7 @@ static unsigned char terminal_getchar(vnode_terminal_t * terminal)
 static void terminal_thread(vnode_terminal_t * terminal)
 {
 	int modifiers = 0;
+	thread_set_name(0, "Terminal");
 	while(1) {
 		MONITOR_AUTOLOCK(terminal->lock) {
 			if(0 == terminal->vnode->ref) {

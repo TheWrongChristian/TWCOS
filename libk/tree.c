@@ -7,7 +7,10 @@ enum treemode { TREE_SPLAY=1, TREE_TREAP, TREE_COUNT };
 
 exception_def OutOfBoundsException = { "OutOfBoundsException", &RuntimeException };
 
-typedef struct node {
+typedef struct tree_t tree_t;
+typedef struct node_t node_t;
+
+struct node_t {
 	map_key key;
 	map_data data;
 
@@ -18,12 +21,12 @@ typedef struct node {
 	int priority;
 
 	/* Nodes connectivity */
-	struct node * parent;
-	struct node * left;
-	struct node * right;
-} node_t;
+	node_t * parent;
+	node_t * left;
+	node_t * right;
+};
 
-typedef struct {
+struct tree_t {
 	map_t map;
 
 	node_t * root;
@@ -31,10 +34,11 @@ typedef struct {
 	int mode;
 
 	int (*comp)(map_key k1, map_key k2);
-} tree_t;
+};
 
 static node_t * tree_node_first(tree_t * tree);
-static node_t * node_next( node_t * current );
+static const node_t * node_next( const node_t * const current );
+#if 0
 static void tree_mark(void * p)
 {
 	tree_t * tree = (tree_t*)p;
@@ -56,6 +60,9 @@ void debug_finalize(void * p)
 
 static slab_type_t nodes[1] = { SLAB_TYPE(sizeof(node_t), node_mark, debug_finalize)};
 static slab_type_t trees[1] = { SLAB_TYPE(sizeof(tree_t), tree_mark, debug_finalize)};
+#endif
+static slab_type_t nodes[1] = { SLAB_TYPE(sizeof(node_t), 0, 0)};
+static slab_type_t trees[1] = { SLAB_TYPE(sizeof(tree_t), 0, 0)};
 
 /*
  * Rotate left:
@@ -155,12 +162,12 @@ static void node_rotate_right( node_t * d )
         assert(NULL == b->parent || b->parent->left == b || b->parent->right == b);
 }
 
-static int node_is_left( node_t * node )
+static int node_is_left( const node_t * const node )
 {
         return (node->parent && node == node->parent->left);
 }
 
-static int node_is_right( node_t * node )
+static int node_is_right( const node_t * const node )
 {
         return (node->parent && node == node->parent->right);
 }
@@ -274,7 +281,7 @@ static node_t * tree_node_new( node_t * parent, map_key key, map_data data )
         return node;
 }
 
-static void tree_destroy( map_t * map )
+static void tree_destroy( const map_t * map )
 {
 }
 
@@ -304,9 +311,9 @@ static node_t * node_prev( node_t * current )
 	return 0;
 }
 
-static node_t * node_next( node_t * current )
+static const node_t * node_next( const node_t * const current )
 {
-	node_t * node = current;
+	const node_t * node = current;
 
 	/* Case 1 - We have a right node, nodes which are before our parent */
 	if (node->right) {
@@ -376,16 +383,16 @@ static node_t * tree_node_last(tree_t * tree)
 	return node;
 }
 
-static void tree_walk_nodes( node_t * start, node_t * end, walk_func func, void * p)
+static void tree_walk_nodes( const node_t * start, const node_t * end, const walk_func func, const void * p)
 {
-	node_t * node = start;
+	const node_t * node = start;
 	while (node) {
 		func(p, node->key, node->data);
 		node = (node == end) ? 0 : node_next(node);
 	}
 }
 
-void tree_walk( map_t * map, walk_func func, void * p )
+void tree_walk( const map_t * map, const walk_func func, const void * p )
 {
         tree_t * tree = container_of(map, tree_t, map);
 	node_t * start = tree_node_first(tree);
@@ -394,12 +401,12 @@ void tree_walk( map_t * map, walk_func func, void * p )
         tree_walk_nodes(start, end, func, p);
 }
 
-static node_t * tree_get_node( tree_t * tree, map_key key, map_eq_test cond );
-void tree_walk_range( map_t * map, walk_func func, void * p, map_key from, map_key to )
+static const node_t * tree_get_node( tree_t * tree, map_key key, map_eq_test cond );
+void tree_walk_range( const map_t * map, walk_func func, const void * p, map_key from, map_key to )
 {
         tree_t * tree = container_of(map, tree_t, map);
-	node_t * start = (from) ? tree_get_node(tree, from, MAP_GE) : tree_node_first(tree);
-	node_t * end = (to) ? tree_get_node(tree, to, MAP_LT) : tree_node_last(tree);
+	const node_t * start = (from) ? tree_get_node(tree, from, MAP_GE) : tree_node_first(tree);
+	const node_t * end = (to) ? tree_get_node(tree, to, MAP_LT) : tree_node_last(tree);
 
         tree_walk_nodes(start, end, func, p);
 }
@@ -467,7 +474,7 @@ static void tree_verify( tree_t * tree, node_t * node )
 	}
 }
 
-static map_data tree_put( map_t * map, map_key key, map_data data )
+static map_data tree_put( const map_t * map, map_key key, map_data data )
 {
         tree_t * tree = container_of(map, tree_t, map);
         node_t * node = tree->root;
@@ -534,7 +541,7 @@ static map_data tree_put( map_t * map, map_key key, map_data data )
 	return 0;
 }
 
-static node_t * tree_get_node( tree_t * tree, map_key key, map_eq_test cond )
+static const node_t * tree_get_node( tree_t * tree, map_key key, map_eq_test cond )
 {
 	node_t * node = tree->root;
 
@@ -594,18 +601,18 @@ static node_t * tree_get_node( tree_t * tree, map_key key, map_eq_test cond )
 
 static map_data tree_get_data( tree_t * tree, map_key key, map_eq_test cond )
 {
-	node_t * node = tree_get_node(tree, key, cond);
+	const node_t * node = tree_get_node(tree, key, cond);
 
 	return (node) ? node->data : 0;
 }
 
-static map_data tree_get(map_t * map, map_key key, map_eq_test cond )
+static map_data tree_get(const map_t * map, map_key key, map_eq_test cond )
 {
         tree_t * tree = container_of(map, tree_t, map);
 	return tree_get_data(tree, key, cond);
 }
 
-static map_data tree_remove( map_t * map, map_key key )
+static map_data tree_remove( const map_t * map, map_key key )
 {
         tree_t * tree = container_of(map, tree_t, map);
         node_t * node = tree->root;
@@ -662,7 +669,7 @@ static map_data tree_remove( map_t * map, map_key key )
 }
 
 
-static iterator_t * tree_iterator( map_t * map)
+static iterator_t * tree_iterator( const map_t * map)
 {
 	return 0;
 }
@@ -717,10 +724,21 @@ static node_t * node_optimize(node_t * root)
 	return node;
 }
 
-static void tree_optimize(map_t * map)
+static void tree_optimize(const map_t * map)
 {
         tree_t * tree = container_of(map, tree_t, map);
 	tree->root = node_optimize(tree->root);
+}
+
+static size_t tree_size(const map_t * map)
+{
+        tree_t * tree = container_of(map, tree_t, map);
+
+	if (tree->root) {
+		return tree->root->count;
+	} else {
+		return 0;
+	}
 }
 
 void tree_init()
@@ -729,27 +747,34 @@ void tree_init()
 
 }
 
+static interface_map_t tree_t_map [] =
+{
+	INTERFACE_MAP_ENTRY(tree_t, iid_map_t, map),
+};
+static INTERFACE_IMPL_QUERY(map_t, tree_t, map)
+static INTERFACE_OPS_TYPE(map_t) INTERFACE_IMPL_NAME(map_t, tree_t) = {
+	INTERFACE_IMPL_QUERY_METHOD(map_t, tree_t)
+	INTERFACE_IMPL_METHOD(destroy, tree_destroy)
+	INTERFACE_IMPL_METHOD(walk, tree_walk)
+	INTERFACE_IMPL_METHOD(walk_range, tree_walk_range)
+	INTERFACE_IMPL_METHOD(put, tree_put)
+	INTERFACE_IMPL_METHOD(get, tree_get)
+	INTERFACE_IMPL_METHOD(optimize, tree_optimize)
+	INTERFACE_IMPL_METHOD(remove, tree_remove)
+	INTERFACE_IMPL_METHOD(iterator, tree_iterator)
+	INTERFACE_IMPL_METHOD(size, tree_size)
+};
+
 map_t * tree_new(int (*comp)(map_key k1, map_key k2), treemode mode)
 {
 	tree_init();
 	tree_t * tree = slab_alloc(trees);
-	static struct map_ops tree_ops = {
-		destroy: tree_destroy,
-		walk: tree_walk,
-		walk_range: tree_walk_range,
-		put: tree_put,
-		get: tree_get,
-		optimize: tree_optimize,
-		remove: tree_remove,
-		iterator: tree_iterator
-	};
-
-	tree->map.ops = &tree_ops;
+	tree->map.ops = &tree_t_map_t;
 	tree->root = 0;
 	tree->mode = mode;
 	tree->comp = (comp) ? comp : map_keycmp;
 
-	return &tree->map;
+	return com_query(tree_t_map, iid_map_t, tree);
 }
 
 map_t * splay_new(int (*comp)(map_key k1, map_key k2))

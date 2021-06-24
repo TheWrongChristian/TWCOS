@@ -57,7 +57,7 @@ output_syscall ()
 	args=$(join_args $(output_syscall_args "$@"))
 	cat <<EOF
 		case $syscall:
-			retval = sys_$name($args);
+			retval = (reg_t)sys_$name($args);
 			break;
 EOF
 }

@@ -62,7 +62,7 @@ map_t * process_files()
 	return process->files;
 }
 
-static void process_duplicate_as_copy_seg(void * p, void * key, void * data)
+static void process_duplicate_as_copy_seg(const void * const p, void * key, void * data)
 {
 	map_t * as = (map_t*)p;
 	segment_t * seg = (segment_t *)data;
@@ -112,6 +112,7 @@ pid_t process_fork()
 
 	/* New address space */
 	new->as = process_duplicate_as(current);
+	vmap_release_asid(new->as);
 
 	/* New heap */
 	if (current->heap) {
@@ -154,16 +155,19 @@ pid_t process_fork()
 		return 0;
 	} else {
 		thread->process = new;
+		char newname[64];
+		snprintf(newname, countof(newname), "%d", new->pid);
+		thread_set_name(thread, strdup(newname));
 		map_putpp(thread->process->threads, thread, thread);
 	}
 
 	return new->pid;
 }
 
-static void process_exit_reparent(void * p, map_key key, void * data)
+static void process_exit_reparent(const void * const p, map_key key, void * data)
 {
 	process_t * current = data;
-	current->parent = p;
+	current->parent = (process_t *)p;
 }
 
 pid_t process_getpid()
@@ -214,9 +218,9 @@ int process_exit(int code)
 	return 0;
 }
 
-static void process_waitpid_getzombie(void * p, map_key key, void * data)
+static void process_waitpid_getzombie(const void * const p, map_key key, void * data)
 {
-	longjmp(p, key);
+	longjmp((void *)p, key);
 }
 
 pid_t process_waitpid(pid_t pid, int * wstatus, int options)
@@ -236,6 +240,7 @@ pid_t process_waitpid(pid_t pid, int * wstatus, int options)
 		} else {
 		}
 #endif
+		size_t childcount = map_size(current->children);
 		do {
 			if (pid>0) {
 				child=pid;
@@ -246,10 +251,10 @@ pid_t process_waitpid(pid_t pid, int * wstatus, int options)
 					map_walkip(current->zombies, process_waitpid_getzombie, env);
 				}
 			}
-			if (0 == child && hang) {
+			if (0 == child && hang && childcount) {
 				monitor_wait(&current->lock);
 			}
-		} while(0 == child && hang);
+		} while(0 == child && hang && childcount);
 
 		if (child) {
 			process_t * process = map_removeip(current->zombies, child);
@@ -267,6 +272,10 @@ pid_t process_waitpid(pid_t pid, int * wstatus, int options)
 
 int process_execve(char * filename, char * argv[], char * envp[])
 {
+	vm_validate_user(filename, 0, USER_VALIDATE_STRZ);
+	vm_validate_user(argv, 0, USER_VALIDATE_STRZ | USER_VALIDATE_ARRAYZ);
+	vm_validate_user(envp, 0, USER_VALIDATE_STRZ | USER_VALIDATE_ARRAYZ);
+
 	vnode_t * f = file_namev(filename);
 	process_t * p = arch_get_thread()->process;
 
@@ -277,15 +286,13 @@ void * process_brk(void * p)
 {
 	process_t * current = process_get();
 	void * brk = ((char*)current->heap->base) + current->heap->size;
-
-	if (p <= brk) {
+	if (p > brk && (char*)p < _kernel_offset) {
+		/* Extend the heap */
+		current->heap->size = (uintptr_t)p - (uintptr_t)current->heap->base;
+		return p;
+	} else {
 		return brk;
 	}
-
-	/* Extend the heap */
-	current->heap->size = (uintptr_t)p - (uintptr_t)current->heap->base;
-
-	return p;
 }
 
 int process_chdir(const char * path)

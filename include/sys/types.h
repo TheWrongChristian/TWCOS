@@ -11,9 +11,9 @@ typedef long suseconds_t;
 typedef unsigned mode_t;
 typedef uintptr_t size_t;
 typedef intptr_t ssize_t;
-typedef const char * const ustring;
-typedef int32_t off_t;
-typedef int64_t off64_t;
+typedef char * ustring;
+typedef uint32_t off_t;
+typedef uint64_t off64_t;
 typedef uint32_t ino_t;
 typedef uint64_t ino64_t;
 

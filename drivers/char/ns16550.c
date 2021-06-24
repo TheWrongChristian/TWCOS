@@ -35,6 +35,8 @@ static void ns16550_control(ns16550_device_t * dev)
 static void ns16550_outq(ns16550_device_t * dev)
 {
 	uint8_t data = fifo_get(dev->outq);
+	while(0 == (isa_inb(dev->baseport+5) & 1<<5)) {
+	}
 	isa_outb(dev->baseport, data);
 }
 
@@ -108,7 +110,7 @@ vnode_t * ns16550_open(int baseport, int irq)
 	ns16550_device_t * dev = 0;
 
 	static vnode_ops_t ops = { .read = ns16550_read, .write = ns16550_write };
-	static fs_t fs = { &ops };
+	static fs_t fs = { .vnodeops = &ops };
 	dev = calloc(1, sizeof(*dev));
 	dev->lock = interrupt_monitor_irq(irq);
 	dev->baseport = baseport;

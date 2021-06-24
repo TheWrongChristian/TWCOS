@@ -4,21 +4,24 @@
 
 #include <stdint.h>
 
-typedef struct vector_s {
-	map_t map;
-	struct vector_table_s * table;
-} vector_t;
-
 #endif
 
 #define VECTOR_TABLE_ENTRIES_LOG2 6
 #define VECTOR_TABLE_ENTRIES (1<<VECTOR_TABLE_ENTRIES_LOG2)
 
-typedef struct vector_table_s {
+typedef struct vector_table_t vector_table_t;
+typedef struct vector_t vector_t;
+
+struct vector_table_t {
 	int level;
 
 	intptr_t d[VECTOR_TABLE_ENTRIES];
-} vector_table_t;
+};
+
+struct vector_t {
+	map_t map;
+	vector_table_t * table;
+};
 
 static slab_type_t vectors[1] = {SLAB_TYPE(sizeof(vector_t), 0, 0)};
 static slab_type_t tables[1] = {SLAB_TYPE(sizeof(vector_table_t), 0, 0)};
@@ -78,7 +81,7 @@ static void vector_checksize(vector_t * v, map_key i)
 	}
 }
 
-static map_data vector_put(map_t * m, map_key i, map_data d)
+static map_data vector_put(const map_t * m, map_key i, map_data d)
 {
 	vector_t * v = container_of(m, vector_t, map);
 	vector_checksize(v, i);
@@ -88,7 +91,7 @@ static map_data vector_put(map_t * m, map_key i, map_data d)
 	return old;
 }
 
-static map_data vector_get(map_t * m, map_key i, map_eq_test cond)
+static map_data vector_get(const map_t * m, map_key i, map_eq_test cond)
 {
 	vector_t * v = container_of(m, vector_t, map);
 	intptr_t * entry = vector_entry_get(v->table, i, 0);
@@ -100,7 +103,7 @@ static map_data vector_get(map_t * m, map_key i, map_eq_test cond)
 	return 0;
 }
 
-static void vector_walk_table(vector_t * v, vector_table_t * t, void * arg, int base, walk_func f)
+static void vector_walk_table(vector_t * v, vector_table_t * t, const void * arg, int base, walk_func f)
 {
 	for(int i=0; i<VECTOR_TABLE_ENTRIES; i++) {
 		if (t->d[i]) {
@@ -113,7 +116,7 @@ static void vector_walk_table(vector_t * v, vector_table_t * t, void * arg, int 
 	}
 }
 
-static void vector_walk(map_t * m, walk_func f, void * arg )
+static void vector_walk(const map_t * m, const walk_func f, const void * arg )
 {
 	vector_t * v = container_of(m, vector_t, map);
 	if (v->table) {
@@ -121,28 +124,30 @@ static void vector_walk(map_t * m, walk_func f, void * arg )
 	}
 }
 
-static void vector_test_walk(void * ignored, map_key i, void * p)
+static void vector_test_walk(const void * const ignored, map_key i, void * p)
 {
 	kernel_printk("v[%d] = %p\n", i, p);
 }
 
+static interface_map_t vector_t_map [] =
+{
+        INTERFACE_MAP_ENTRY(vector_t, iid_map_t, map),
+};
+static INTERFACE_IMPL_QUERY(map_t, vector_t, map)
+static INTERFACE_OPS_TYPE(map_t) INTERFACE_IMPL_NAME(map_t, vector_t) = {
+        INTERFACE_IMPL_QUERY_METHOD(map_t, vector_t)
+        INTERFACE_IMPL_METHOD(walk, vector_walk)
+        INTERFACE_IMPL_METHOD(put, vector_put)
+        INTERFACE_IMPL_METHOD(get, vector_get)
+};      
+
 map_t * vector_new()
 {
 	vector_t * v = slab_calloc(vectors);
-	static struct map_ops vector_ops = {
-                destroy: 0,
-                walk: vector_walk,
-                put: vector_put,
-                get: vector_get,
-                optimize: 0,
-                remove: 0 /* vector_remove */,
-                iterator: 0 /* vector_iterator */
-        };
-
-	v->map.ops = &vector_ops;
+	v->map.ops = &vector_t_map_t;
 	v->table = vector_table_new(0);
 
-	return &v->map;
+	return com_query(vector_t_map, iid_map_t, v);
 }
 
 void vector_test()

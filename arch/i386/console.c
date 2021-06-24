@@ -57,7 +57,8 @@ struct console_framebuffer
 	framebuffer_t * bitmapfb;
 } console[1];
 
-static GCROOT interrupt_monitor_t * keyq_lock;
+static GCROOT thread_t * keythread;
+static GCROOT interrupt_monitor_t keyq_lock[1];
 static uint8_t keyq [256];
 #define keyq_ptr(i) ((i)%sizeof(keyq))
 static int keyhead;
@@ -162,25 +163,30 @@ void console_input(int key)
 
 void keyb_thread()
 {
-	while(1) {
-		uint8_t scancode;
-		INTERRUPT_MONITOR_AUTOLOCK(keyq_lock) {
-			scancode = keyq_get();
-			while(!scancode) {
-				interrupt_monitor_wait(keyq_lock);
+	KTRY {
+		while(1) {
+			thread_set_name(0, "keyb_thread");
+			uint8_t scancode;
+			INTERRUPT_MONITOR_AUTOLOCK(keyq_lock) {
 				scancode = keyq_get();
+				while(!scancode) {
+					interrupt_monitor_wait(keyq_lock);
+					scancode = keyq_get();
+				}
 			}
-		}
-		if (scancode) {
-			const int release = scancode >> 7;
+			if (scancode) {
+				const int release = scancode >> 7;
 
-			const int key = keyq_translate(scancode & 0x7f);
-			if (release) {
-				console_input(-key);
-			} else {
-				console_input(key);
+				const int key = keyq_translate(scancode & 0x7f);
+				if (release) {
+					console_input(-key);
+				} else {
+					console_input(key);
+				}
 			}
 		}
+	} KCATCH(Exception) {
+		exception_panic("Console key thread exception");
 	}
 }
 
@@ -192,7 +198,7 @@ void console_initialize(multiboot_info_t * info)
 
 	console->row = 0;
 	console->column = 0;
-	console->color = make_color(COLOR_LIGHT_GREY, COLOR_BLACK);
+	console->color = make_color(COLOR_GREEN, COLOR_BLACK);
 	if (info->framebuffer_type == MULTIBOOT_FRAMEBUFFER_TYPE_RGB) {
 		psf_font_t * font=(psf_font_t*)drivers_char_font_psf;
 		static framebuffer_t fb[1];
@@ -237,8 +243,6 @@ void console_initialize(multiboot_info_t * info)
 		}
 	}
 
-	keyq_lock = monitor_create();
-
 	input_queue = queue_new(64);
 
 	thread_t * thread = thread_fork();
@@ -247,15 +251,16 @@ void console_initialize(multiboot_info_t * info)
 		thread_set_priority(0, THREAD_INTERRUPT);
 		keyb_thread();
 	} else {
-		static GCROOT thread_t * keythread;
 		keythread = thread;
 	}
 	add_irq(1, keyb_isr);
 }
 
+#if 0
 static void console_setcolor(uint8_t color) {
 	console->color = color;
 }
+#endif
 
 static void console_invalidate(size_t x, size_t y)
 {
@@ -410,7 +415,7 @@ void console_clamp_screen()
 	}
 }
 
-static console_clear_line(int line, int from, int to)
+static void console_clear_line(int line, int from, int to)
 {
 	if (from<0) {
 		from=0;
@@ -485,7 +490,7 @@ static void console_escape_interp(char * sequence)
 		console->row = ARGd(1, 1)-1;
 		break;
 	case 'J':
-		switch(ARGd(0, 1))
+		switch(ARGd(0, 0))
 		{
 		case 0:
 			console_clear_line(console->row, console->column, console->width);
@@ -496,7 +501,7 @@ static void console_escape_interp(char * sequence)
 			break;
 		case 1:
 			console_clear_line(console->row, 0, console->column);
-			for(int y=console->column+1; y<console->height; y++)
+			for(int y=0; y<console->row; y++)
 			{
 				console_clear_line(y, 0, console->width);
 			}

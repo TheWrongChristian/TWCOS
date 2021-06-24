@@ -16,7 +16,7 @@
 // Greeting shell during startup 
 void init_shell() 
 { 
-	clear(); 
+	//clear(); 
 	printf("\n\n\n\n******************"
 		"************************"); 
 	printf("\n\n\n\t****MY SHELL****"); 
@@ -27,7 +27,7 @@ void init_shell()
 	printf("\n\n\nUSER is: @%s", username); 
 	printf("\n"); 
 	sleep(1); 
-	clear(); 
+	//clear(); 
 } 
 
 char * readline(char * prompt)
@@ -66,7 +66,8 @@ int execvp(char * cmd, char ** args)
 {
 	static char * env[]={
 		"HOME=/",
-		"USER=root"
+		"USER=root",
+		NULL,
 	};
 	return execve(cmd, args, env);
 }

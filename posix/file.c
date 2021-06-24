@@ -33,9 +33,11 @@ static file_t * file_get(int fd)
 	return map_getip(process_files(), fd);
 }
 
+#if 0
 static void file_addref(file_t * file) {
 	++file->refs;
 }
+#endif
 
 static void file_release(file_t * file) {
 	--file->refs;
@@ -214,6 +216,9 @@ int file_getdents(int fd, void * buf, size_t bufsize)
 
 		for(int i=0; i<rv;) {
 			if (dirent64->d_ino <= UINT32_MAX && dirent64->d_off <= UINT32_MAX) {
+				if (dirent64->d_off > file->fp) {
+					file->fp = dirent64->d_off;
+				}
 				char type = dirent64->d_type;
 				dirent32->d_ino = dirent64->d_ino;
 				dirent32->d_off = dirent64->d_off;
@@ -229,7 +234,6 @@ int file_getdents(int fd, void * buf, size_t bufsize)
 			dirent32 = (pdirent)(((char*)buf)+i);
 			dirent64 = (pdirent64)(((char*)buf)+i);
 		}
-		file->fp += rv;
 	}
 
 	return rv;

@@ -108,7 +108,7 @@ static void ide_disk_submit( dev_t * dev, buf_op_t * op );
 static void ide_do_op( dev_t * dev, buf_op_t * op );
 static void ide_thread(idechannel_t * channel);
 static void ide_probe_channel(idechannel_t * channel);
-static idecontroller_t * ide_initialize(uintptr_t bar0, uintptr_t bar1, uintptr_t bar2, uintptr_t bar3, uintptr_t bar4);
+static idecontroller_t * ide_initialize(uintptr_t bar0, uintptr_t bar1, uintptr_t bar2, uintptr_t bar3, uintptr_t bar4, uint8_t irq);
 static uint8_t ide_read(idechannel_t * channel, int reg);
 static void ide_write(idechannel_t * channel, int reg, uint8_t value);
 static void ide_write_pio(idechannel_t * channel, void * buf, size_t bufsize);
@@ -180,7 +180,7 @@ static void ide_disk_submit( dev_t * dev, buf_op_t * op )
 	idedevice_t * device = container_of(dev, idedevice_t, dev);
 	INTERRUPT_MONITOR_AUTOLOCK(device->channel->lock) {
 		while(device->channel->op) {
-			interrupt_monitor_wait(device->channel->lock);
+			interrupt_monitor_wait_timeout(device->channel->lock, 1000000);
 		}
 
 		device->channel->op = op;
@@ -219,57 +219,64 @@ static void ide_thread(idechannel_t * channel)
 
 static void ide_probe_channel(idechannel_t * channel)
 {
-	INTERRUPT_MONITOR_AUTOLOCK(channel->lock) {
-		static uint8_t buf[IDE_SECTORSIZE];
-		char devfsname[64];
-		int needthread = 0;
-		snprintf(devfsname, sizeof(devfsname), "disk/ide/%x", channel->base);
-		vnode_t * devfs = devfs_open();
-		for(int i=0; i<2; i++) {
-			idedevice_t * device = channel->devices+i;
-		
-			device->channel = channel;	
-			ide_address(channel, i, 0, 0);
-			uint8_t status = ide_wait(channel, channel->polling);
-			if (0==status) {
-				/* No drive */
-				memset(device, 0, sizeof(*device));
-			} else if (status & (ATA_SR_DRDY|ATA_SR_DRQ)) {
-				ide_drive_identify(channel, i, buf, countof(buf));
-				/* Check for ATAPI device */
-				status = ide_wait(channel, channel->polling);
-				if (0x14 == ide_read(channel, ATA_REG_LBA1) && 0xEB == ide_read(channel, ATA_REG_LBA2)) {
-					static dev_ops_t ide_atapi_ops;
-					/* ATAPI device */
-					device->type = IDE_ATAPI;
-					device->dev.ops = &ide_atapi_ops;
+	int needthread = 0;
+	static uint8_t buf[IDE_SECTORSIZE];
+	char devfsname[64];
+	snprintf(devfsname, sizeof(devfsname), "disk/ide/%x", channel->base);
+	vnode_t * devfs = devfs_open();
+	for(int i=0; i<2; i++) {
+		KTRY {
+			INTERRUPT_MONITOR_AUTOLOCK(channel->lock) {
+				idedevice_t * device = channel->devices+i;
+			
+				device->channel = channel;	
+				ide_address(channel, i, 0, 0);
+				uint8_t status = ide_wait(channel, channel->polling);
+				if (0==status) {
+					/* No drive */
+					memset(device, 0, sizeof(*device));
+				} else if (status & (ATA_SR_DRDY|ATA_SR_DRQ)) {
+					ide_drive_identify(channel, i, buf, countof(buf));
+					/* Check for ATAPI device */
+					status = ide_wait(channel, channel->polling);
+					if (0x14 == ide_read(channel, ATA_REG_LBA1) && 0xEB == ide_read(channel, ATA_REG_LBA2)) {
+						static dev_ops_t ide_atapi_ops;
+						/* ATAPI device */
+						device->type = IDE_ATAPI;
+						device->dev.ops = &ide_atapi_ops;
+					} else {
+						static dev_ops_t ide_disk_ops = { .submit = ide_disk_submit };
+						device->size = ide_field_get(buf, sizeof(buf), ATA_IDENT_MAX_LBA, 4);
+						device->type = IDE_ATA;
+						device->dev.ops = &ide_disk_ops;
+					}
+					vnode_t * vnode = dev_vnode(&device->dev);
+					vnode_t * dir = vnode_newdir_hierarchy(devfs, devfsname);
+					vnode_put_vnode(dir, i ? "slave" : "master", vnode);
+					needthread = 1;
 				} else {
-					static dev_ops_t ide_disk_ops = { .submit = ide_disk_submit };
-					device->size = ide_field_get(buf, sizeof(buf), ATA_IDENT_MAX_LBA, 4);
-					device->type = IDE_ATA;
-					device->dev.ops = &ide_disk_ops;
+					/* Some error */
 				}
-				vnode_t * vnode = dev_vnode(&device->dev);
-				vnode_t * dir = vnode_newdir_hierarchy(devfs, devfsname);
-				vnode_put_vnode(dir, i ? "slave" : "master", vnode);
-				needthread = 1;
-			} else {
-				/* Some error */
 			}
+		} KCATCH(TimeoutException) {
+			/* Ignored */
+		} KCATCH(Exception) {
+			kernel_printk("%s: Exception probing device %d\n", devfsname, i);
 		}
-		if (needthread) {
-			/* Processing thread */
-			thread_t * thread = thread_fork();
-			if (thread) {
-				channel->thread = thread;
-			} else {
-				ide_thread(channel);
-			}
+	}
+	if (needthread) {
+		/* Processing thread */
+		thread_t * thread = thread_fork();
+		if (thread) {
+			channel->thread = thread;
+		} else {
+			thread_set_name(0, "IDE async thread");
+			ide_thread(channel);
 		}
 	}
 }
 
-static idecontroller_t * ide_initialize(uintptr_t bar0, uintptr_t bar1, uintptr_t bar2, uintptr_t bar3, uintptr_t bar4)
+static idecontroller_t * ide_initialize(uintptr_t bar0, uintptr_t bar1, uintptr_t bar2, uintptr_t bar3, uintptr_t bar4, uint8_t irq)
 {
 	idecontroller_t * ide = calloc(1, sizeof(*ide));
 
@@ -292,15 +299,17 @@ static idecontroller_t * ide_initialize(uintptr_t bar0, uintptr_t bar1, uintptr_
 	add_irq(15, ide_intr);
 #endif
 	intr_add(14, ide_intr, ide->channels);
-	intr_add(15, ide_intr, ide->channels);
+	intr_add(15, ide_intr, ide->channels+1);
 
 	KTRY {
+		kernel_printk("Probe channel 0\n");
 		ide_reset(ide->channels);
 		ide_probe_channel(ide->channels);
 	} KCATCH(TimeoutException) {
 	}
 
 	KTRY {
+		kernel_printk("Probe channel 1\n");
 		ide_reset(ide->channels+1);
 		ide_probe_channel(ide->channels+1);
 	} KCATCH(TimeoutException) {
@@ -333,6 +342,7 @@ static uint8_t ide_read(idechannel_t * channel, int reg)
 		result = isa_inb(channel->ctrl+reg-0xc);
 		break;
 	default:
+		kernel_panic("Invalid IDE register: %x\n", reg);
 		break;
 	}
 
@@ -426,36 +436,26 @@ static void ide_delay400(idechannel_t * channel)
 	ide_read(channel, ATA_REG_ALTSTATUS);
 }
 
+static void ide_check_status(idechannel_t * channel, uint8_t status)
+{
+	if (status & ATA_SR_ERR) {
+		uint8_t error = ide_read(channel, ATA_REG_ERROR);
+		KTHROWF(Exception, "%d", error);
+	}
+}
+
 static uint8_t ide_wait(idechannel_t * channel, int polling)
 {
 	uint8_t status = 0;
-#if 1
 	do {
 		status = ide_read(channel, ATA_REG_ALTSTATUS);
 		if (status & 0x80) {
-			if (polling) {
-				thread_yield();
-			} else {
-				interrupt_monitor_wait_timeout(channel->lock, 1000000);
-			}
+			interrupt_monitor_wait_timeout(channel->lock, 1000000);
 		}
 	} while(status & 0x80);
 	status = ide_read(channel, ATA_REG_STATUS);
-#else
-	if ( 1 || channel->polling) {
-		do {
-			int sleeptime=100;
-			status = ide_read(channel, ATA_REG_STATUS);
-			if (status & 0x80) {
-				timer_sleep(sleeptime);
-				if (sleeptime<1000) {
-					sleeptime += (sleeptime/2);
-				}
-			}
-		} while(status & 0x80);
-	} else {
-	}
-#endif
+	ide_check_status(channel, status);
+
 	return status;
 }
 
@@ -471,7 +471,7 @@ static void ide_drive_identify(idechannel_t * channel, int slave, uint8_t * buf,
 	ide_address(channel, slave, 0, 0);
 	ide_command(channel, ATA_CMD_IDENTIFY);
 	assert(IDE_SECTORSIZE<=bufsize);
-	uint8_t status = ide_wait(channel, channel->polling);
+	ide_wait(channel, channel->polling);
 	ide_read_pio(channel, buf, bufsize);
 }
 
@@ -496,7 +496,7 @@ static void ide_drive_transfer_sectors(idechannel_t * channel, int slave, off64_
 		}
 	}
 	for(int i=0; i<count; i++) {
-		uint8_t status = ide_wait(channel, channel->polling);
+		ide_wait(channel, channel->polling);
 
 		if (write) {
 			ide_write_pio(channel, p, IDE_SECTORSIZE);
@@ -507,7 +507,7 @@ static void ide_drive_transfer_sectors(idechannel_t * channel, int slave, off64_
 	}
 	if (write) {
 		ide_command(channel, ATA_CMD_CACHE_FLUSH);
-		uint8_t status = ide_wait(channel, 1);
+		ide_wait(channel, 1);
 	}
 }
 
@@ -529,7 +529,7 @@ static void ide_probe(uint8_t bus, uint8_t slot, uint8_t function)
 		uintptr_t bar3 = pci_bar_base(bus, slot, function, 3);
 		uintptr_t bar4 = pci_bar_base(bus, slot, function, 4);
 
-		idecontroller_t * ide = ide_initialize(bar0, bar1, bar2, bar3, bar4);
+		ide_initialize(bar0, bar1, bar2, bar3, bar4, irq);
 	}
 }
 

@@ -32,7 +32,7 @@ static void cache_remove_node(cache_t * cache, cache_node_t * node)
 	}
 }
 
-static map_data cache_put( map_t * map, map_key key, map_data data )
+static map_data cache_put( const map_t * map, map_key key, map_data data )
 {
 	cache_t * cache = container_of(map, cache_t, map);
 	cache_node_t * node = malloc(sizeof(*node));
@@ -41,10 +41,10 @@ static map_data cache_put( map_t * map, map_key key, map_data data )
 	node->data = data;
 	LIST_APPEND(cache->cold, node);
 
-	return map_put(cache->backing, key, node);
+	return map_put(cache->backing, key, (map_data)node);
 }
 
-static map_data cache_get( map_t * map, map_key key, map_eq_test cond )
+static map_data cache_get( const map_t * map, map_key key, map_eq_test cond )
 {
 	cache_t * cache = container_of(map, cache_t, map);
 	cache_node_t * node = map_getip_cond(cache->backing, key, cond);
@@ -60,25 +60,39 @@ static map_data cache_get( map_t * map, map_key key, map_eq_test cond )
 	return 0;
 }
 
-static void cache_walk( map_t * map, walk_func func, void * p )
+typedef struct {
+	walk_func func;
+	const void * const p;
+} cache_walk_t;
+
+static void cache_walk_wrap( const void * const p, map_key key, map_data data)
 {
-	cache_t * cache = container_of(map, cache_t, map);
-	map_walk(cache->backing, func, p);
+	const cache_walk_t * wrapper = p;
+	cache_node_t * node = (void*)data;
+	wrapper->func(wrapper->p, node->key, node->data);
 }
 
-static void cache_walk_range( map_t * map, walk_func func, void * p, map_key from, map_key to )
+static void cache_walk( const map_t * map, walk_func func, const void * const p )
 {
+	cache_walk_t wrapper = { .func = func, .p = p };
 	cache_t * cache = container_of(map, cache_t, map);
-	map_walk_range(cache->backing, func, p, from, to);
+	map_walk(cache->backing, cache_walk_wrap, &wrapper);
 }
 
-static void cache_optimize(map_t * map)
+static void cache_walk_range( const map_t * map, walk_func func, const void * const p, map_key from, map_key to )
+{
+	cache_walk_t wrapper = { .func = func, .p = p };
+	cache_t * cache = container_of(map, cache_t, map);
+	map_walk_range(cache->backing, cache_walk_wrap, &wrapper, from, to);
+}
+
+static void cache_optimize(const map_t * map)
 {
 	cache_t * cache = container_of(map, cache_t, map);
 	map_optimize(cache->backing);
 }
 
-static map_data cache_remove( map_t * map, map_key key )
+static map_data cache_remove( const map_t * map, map_key key )
 {
 	cache_t * cache = container_of(map, cache_t, map);
 	cache_node_t * node = map_removeip(cache->backing, key);
@@ -90,27 +104,34 @@ static map_data cache_remove( map_t * map, map_key key )
 	return 0;
 }
 
+static interface_map_t cache_t_map [] =
+{
+	INTERFACE_MAP_ENTRY(cache_t, iid_map_t, map),
+};
+static INTERFACE_IMPL_QUERY(map_t, cache_t, map)
+static INTERFACE_OPS_TYPE(map_t) INTERFACE_IMPL_NAME(map_t, cache_t) = {
+        INTERFACE_IMPL_QUERY_METHOD(map_t, cache_t)
+        INTERFACE_IMPL_METHOD(walk, cache_walk)
+        INTERFACE_IMPL_METHOD(walk_range, cache_walk_range)
+        INTERFACE_IMPL_METHOD(put, cache_put)
+        INTERFACE_IMPL_METHOD(get, cache_get)
+        INTERFACE_IMPL_METHOD(optimize, cache_optimize)
+        INTERFACE_IMPL_METHOD(remove, cache_remove)
+};
+
 map_t * cache_new(int (*comp)(map_key k1, map_key k2))
 {
-	static struct map_ops cache_ops = {
-		walk: cache_walk,
-		walk_range: cache_walk_range,
-		put: cache_put,
-		get: cache_get,
-		optimize: cache_optimize,
-		remove: cache_remove,
-	};
 	cache_t * cache = calloc(1, sizeof(*cache));
-	cache->map.ops = &cache_ops;
+	cache->map.ops = &cache_t_map_t;
 	cache->backing = splay_new(comp);
 
-	return &cache->map;
+	return com_query(cache_t_map, iid_map_t, cache);
 }
 
 
 void cache_test()
 {
-	map_t * cache = cache_new(strcmp);
+	map_t * cache = cache_new(map_strcmp);
 
 	map_test(cache, 0);
 }

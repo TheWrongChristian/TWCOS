@@ -154,7 +154,7 @@ void pipe_test()
 			"A ", "message ", "in a ", "bottle"
 		};
 		for(int i=0; i<countof(messages); i++) {
-			size_t s = pipe_write(p, messages[i], strlen(messages[i]));
+			pipe_write(p, messages[i], strlen(messages[i]));
 			//thread_yield();
 		}
 		pipe_close(p);

@@ -4,6 +4,8 @@
 #include <stdint.h>
 #include <stdarg.h>
 #include <stddef.h>
+#include <stdatomic.h>
+#include <stdnoreturn.h>
 
 struct arch_trap_frame_t
 {
@@ -112,17 +114,19 @@ void set_page_dir(page_t pgdir)
 static int cli_level = 0;
 void sti()
 {
-	if (0 == --cli_level && 0 == inirq) {
+	if(!cli_level) {
+		kernel_printk("cli_level is zero!\n");
+		kernel_backtrace(logger_error);
+	}
+	if (0 == --cli_level) {
 		asm volatile("sti");
 	}
 }
 
 void cli()
 {
-	extern uint32_t i386_eflags();
-	if (0==cli_level++) {
-		asm volatile("cli");
-	}
+	asm volatile("cli");
+	cli_level++;
 }
 
 void hlt()
@@ -143,13 +147,13 @@ void reset()
 	hlt();
 }
 
-void invlpg(void* m)
+void invlpg(const void* const m)
 {
 	/* Clobber memory to avoid optimizer re-ordering access before invlpg, which may cause nasty bugs. */
 	asm volatile ( "invlpg (%0)" : : "b"(m) : "memory" );
 }
 
-extern uint16_t idt[256][4];
+static uint16_t idt[256][4];
 
 #include "isr_labels_extern.h"
 void * isr_labels[] = {
@@ -443,7 +447,7 @@ void arch_thread_init(thread_t * thread)
 #endif
 }
 
-void arch_panic(const char * fmt, va_list ap)
+noreturn void arch_panic(const char * fmt, va_list ap)
 {
 	cli();
 	stream_vprintf(console_stream(), fmt, ap);
@@ -462,6 +466,14 @@ void i386_isr(uint32_t num, arch_trap_frame_t * state)
 	isr_t isr = itable[num] ? itable[num] : unhandled_isr;
 
 	isr(num, state);
+
+	/* Do any post-return processing */
+	intr_beforereturn();
+
+	/* For return to usermode, do any processing such as delivering signals */
+	if (state->cs == 0x1b) {
+		intr_beforereturntouser();
+	}
 }
 
 thread_t * arch_get_thread()
@@ -476,6 +488,7 @@ thread_t * arch_get_thread()
 
 int arch_thread_fork(thread_t * dest)
 {
+	assert(!cli_level);
 	/* Allocate the stack */
 	thread_t * source = arch_get_thread();
 	/* Top level copy */
@@ -596,30 +609,18 @@ int arch_atomic_postinc(int * p)
 	return i;
 }
 
-int arch_spin_trylock(spin_t * p)
+void arch_pause()
+{
+	asm volatile("pause");
+}
+
+void arch_interrupt_block()
 {
 	cli();
-	if (*p) {
-		sti();
-		return 0;
-	}
-	*p=1;
-	return *p;
 }
 
-void arch_spin_lock(spin_t * p)
+void arch_interrupt_unblock()
 {
-	while(1) {
-		if (arch_spin_trylock(p)) {
-			return;
-		}
-	}
-}
-
-void arch_spin_unlock(spin_t * p)
-{
-	int ints = (*p>1);
-	*p = 0;
 	sti();
 }
 

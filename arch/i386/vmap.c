@@ -16,7 +16,8 @@ extern uint32_t pt_00000000[1024];
 static __attribute__((section(".aligned"))) pte_t pgdirs[ASID_COUNT][1024];
 static __attribute__((section(".aligned"))) pte_t pgktbl[1024];
 
-#define VMAP_PAGE(add) ((page_t)(add)-(_kernel_offset-_kernel_offset_bootstrap) >> ARCH_PAGE_SIZE_LOG2)
+#define KERNEL_OFFSET (_kernel_offset-_kernel_offset_bootstrap)
+#define VMAP_PAGE(add) (page_t)((((intptr_t)add)-(KERNEL_OFFSET)) >> ARCH_PAGE_SIZE_LOG2)
 
 /*
  * Page dirs are at the top of the address space
@@ -33,7 +34,7 @@ static void vmap_pgtbl_init(int ptid)
 {
 	ptrdiff_t poffset = (uint32_t)(_bootstrap_nextalloc - _bootstrap_end) >> ARCH_PAGE_SIZE_LOG2;
 	pte_t * pgtbl=pgtbls[ptid];
-	pte_t * pgdir=pgdirs+ptid;
+	pte_t * pgdir=pgdirs[ptid];
 	for(int i=0; i<poffset; i+=1024) {
 		if (pgdir[i>>(ARCH_PAGE_SIZE_LOG2-2)]) {
 			for(int j=0; j<1024; j++) {
@@ -92,11 +93,11 @@ static pte_t * vmap_get_pgtable(asid vid)
 	return pgtbls[ptid];
 }
 
-static mutex_t lock[] = {0};
+static interrupt_monitor_t lock[] = {0};
 
 void vmap_set_asid(asid vid)
 {
-	MUTEX_AUTOLOCK(lock) {
+	INTERRUPT_MONITOR_AUTOLOCK(lock) {
 		int ptid = vmap_get_ptid(vid);
 
 		set_page_dir(VMAP_PAGE(pgdirs[ptid]));
@@ -105,20 +106,21 @@ void vmap_set_asid(asid vid)
 
 void vmap_release_asid(asid vid)
 {
-	MUTEX_AUTOLOCK(lock) {
+	INTERRUPT_MONITOR_AUTOLOCK(lock) {
 		int ptid = vmap_probe_ptid(vid);
 
 		if (ptid>=0) {
 			asids[ptid].vid = 0;
+			asids[ptid].seq = 0;
 		}
 	}
 }
 
-page_t vmap_get_page(asid vid, void * vaddress)
+page_t vmap_get_page(const asid vid, const void * vaddress)
 {
 	uint32_t pte = 0;
 
-	MUTEX_AUTOLOCK(lock) {
+	INTERRUPT_MONITOR_AUTOLOCK(lock) {
 		page_t vpage = (uint32_t)vaddress >> ARCH_PAGE_SIZE_LOG2;
 		pte_t * pgtbl = vmap_get_pgtable(vid);
 		pte = pgtbl[vpage];
@@ -130,11 +132,11 @@ page_t vmap_get_page(asid vid, void * vaddress)
 	return 0;
 }
 
-static pte_t vmap_get_pte(asid vid, void * vaddress)
+static pte_t vmap_get_pte(const asid vid, const void * vaddress)
 {
 	pte_t pte = 0;
 
-	MUTEX_AUTOLOCK(lock) {
+	INTERRUPT_MONITOR_AUTOLOCK(lock) {
 		int ptid = vmap_probe_ptid(vid);
 		if (ptid>=0) {
 			page_t vpage = (uint32_t)vaddress >> ARCH_PAGE_SIZE_LOG2;
@@ -152,9 +154,9 @@ static pte_t vmap_get_pte(asid vid, void * vaddress)
 	return pte;
 }
 
-static void vmap_set_pte(asid vid, void * vaddress, pte_t pte)
+static void vmap_set_pte(asid vid, const void * vaddress, pte_t pte)
 {
-	MUTEX_AUTOLOCK(lock) {
+	INTERRUPT_MONITOR_AUTOLOCK(lock) {
 		int ptid = vmap_get_ptid(vid);
 		page_t vpage = (uint32_t)vaddress >> ARCH_PAGE_SIZE_LOG2;
 		pte_t * pgtbl = pgtbls[ptid];
@@ -186,7 +188,7 @@ static void vmap_set_pte(asid vid, void * vaddress, pte_t pte)
 	}
 }
 
-void vmap_map(asid vid, void * vaddress, page_t page, int rw, int user)
+void vmap_map(const asid vid, const void * vaddress, page_t page, int rw, int user)
 {
 	assert(page);
 
@@ -199,38 +201,41 @@ void vmap_map(asid vid, void * vaddress, page_t page, int rw, int user)
 		pte |= 0x4;
 	}
 	vmap_set_pte(vid, vaddress, pte);
-
+#if 0
 	kernel_printk("[%x,%p] -> %d %s%s\n", (int)vid, vaddress, (int)page, user ? "u" : "", rw ? "rw" : "ro");
+#endif
 }
 
-void vmap_mapn(asid vid, int n, void * vaddress, page_t page, int rw, int user)
+void vmap_mapn(const asid vid, int n, const void * vaddress, page_t page, int rw, int user)
 {
 	int i = 0;
-	char * vp = vaddress;
+	const char * vp = vaddress;
 
 	for(i=0; i<n; i++, vp += ARCH_PAGE_SIZE) {
 		vmap_map(vid, vp, page+i, rw, user);
 	}
 }
 
-int vmap_ismapped(asid vid, void * vaddress)
+int vmap_ismapped(const asid vid, const void * vaddress)
 {
 	return vmap_get_pte(vid, vaddress) & 0x1;
 }
 
-int vmap_iswriteable(asid vid, void * vaddress)
+int vmap_iswriteable(const asid vid, const void * vaddress)
 {
 	return 0x3 == (vmap_get_pte(vid, vaddress) & 0x3);
 }
 
-int vmap_isuser(asid vid, void * vaddress)
+int vmap_isuser(const asid vid, const void * vaddress)
 {
 	return 0x5 == (vmap_get_pte(vid, vaddress) & 0x5);
 }
 
-void vmap_unmap(asid vid, void * vaddress)
+void vmap_unmap(const asid vid, const void * vaddress)
 {
-	vmap_set_pte(vid, vaddress, 0);
+	if (vmap_probe_ptid(vid)>=0) {
+		vmap_set_pte(vid, vaddress, 0);
+	}
 }
 
 extern char code_start[];

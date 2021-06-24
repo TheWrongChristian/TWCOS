@@ -127,7 +127,7 @@ static void uhci_status_check(uhci_q * q, future_t * future)
 	/* FIXME: cleanup pending */
 }
 
-static void uhci_walk_pending(void * p, void * key, void * data)
+static void uhci_walk_pending(const void * const p, void * key, void * data)
 {
 #if 0
 	uhci_hcd_t * hcd = p;
@@ -140,20 +140,27 @@ static void uhci_walk_pending(void * p, void * key, void * data)
 static void uhci_async_processor(uhci_hcd_t * hcd)
 {
 	while(1) {
-		INTERRUPT_MONITOR_AUTOLOCK(hcd->lock) {
-			while(0 == hcd->status) {
-				interrupt_monitor_wait(hcd->lock);
+		KTRY {
+			INTERRUPT_MONITOR_AUTOLOCK(hcd->lock) {
+				while(0 == hcd->status) {
+	#if 0
+					TRACE();
+					interrupt_monitor_wait_timeout(hcd->lock, 10000000);
+	#else
+					interrupt_monitor_wait(hcd->lock);
+	#endif
+				}
+
+				/* Process any pending frames */
+				TRACE();
+				map_walkpp(hcd->pending, uhci_walk_pending, hcd);
+				hcd->status = 0;
 			}
-
-			/* FIXME: Handle any errors */
-
-			/* Process any pending frames */
-			map_walkpp(hcd->pending, uhci_walk_pending, hcd);
-			hcd->status = 0;
+		} KCATCH(TimeoutException) {
+			INTERRUPT_MONITOR_AUTOLOCK(hcd->lock) {
+				map_walkpp(hcd->pending, uhci_walk_pending, hcd);
+			}
 		}
-#if 0
-		timer_sleep(100000);
-#endif
 	}
 }
 
@@ -456,6 +463,7 @@ hcd_t * uhci_reset(int iobase, int irq)
 #if 1
 	thread_t * thread = thread_fork();
 	if (0==thread) {
+		thread_set_name(0, "UHCI async processor");
 		uhci_async_processor(hcd);
 	} else {
 		hcd->thread = thread;
@@ -615,22 +623,29 @@ static future_t * uhci_packet(hcd_t * hcd, usbpid_t pid, usb_endpoint_t * endpoi
 		uhci_q * nextq = q->vheadlink.q;
 		uhci_q_headlink(req, q->vheadlink.q, 0);
 
+		TRACE();
 		uhci_q * tail = q->velementlink.q;
 		while(tail) {
+			TRACE();
 			uhci_q * tempq = tail;
 			if (tail->vheadlink.q != nextq) {
+				TRACE();
 				tail = tail->vheadlink.q;
 			} else {
+				TRACE();
 				tail = 0;
 			}
 			if (le32(1)==tempq->elementlink) {
 				/* Queue has been processed */
+				TRACE();
 				uhci_q_elementlink(q, tail, 0);
 			}
 		}
 		if (tail) {
+			TRACE();
 			uhci_q_headlink(tail, req, 0);
 		} else {
+			TRACE();
 			uhci_q_elementlink(q, req, 0);
 		}
 
@@ -638,6 +653,7 @@ static future_t * uhci_packet(hcd_t * hcd, usbpid_t pid, usb_endpoint_t * endpoi
 		map_putpp(uhci_hcd->pending, req, future);
 	}
 
+	TRACE();
 	return future;
 }
 
@@ -646,8 +662,10 @@ void uhci_probe(uint8_t bus, uint8_t slot, uint8_t function)
 	uintptr_t bar4 = pci_bar_base(bus, slot, function, 4);
 	int irq = pci_irq(bus, slot, function);
 	static GCROOT hcd_t * hcd;
+	TRACE();
 	hcd = uhci_reset(bar4, irq);
 	if (hcd) {
+		TRACE();
 		usb_test(hcd);
 	}
 }

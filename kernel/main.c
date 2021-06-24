@@ -20,26 +20,25 @@
 
 static void idle() {
 	thread_set_priority(0, THREAD_IDLE);
+	thread_set_name(0, "Idle");
+	timerspec_t uptime = timer_uptime(0);
 	while(1) {
 		if (thread_preempt()) {
-#if 0
+#if 1
 			thread_gc();
 #endif
+		}
+		timerspec_t newuptime = timer_uptime(0);
+		if (newuptime-uptime > 1000000) {
+			kernel_printk("Stats\n");
+			kernel_printk("GC stats: %d, %d, %d\n", (int)gc_stats.inuse, (int)gc_stats.peak, (int)gc_stats.total);
+			uptime = newuptime;
+			thread_update_accts();
 		}
 		arch_idle();
 	}
 }
 
-static void run_init() {
-	kernel_printk("In process %d\n", arch_get_thread()->process->pid);
-	while(1) {
-#if 0
-		kernel_printk("init sleeping for 10 seconds\n");
-#endif
-		timer_sleep(10000000);
-	}
-}
- 
 void kernel_main() {
 	/* Initialize console interface */
 	arch_init();
@@ -51,17 +50,23 @@ void kernel_main() {
 	KTRY {
 		/* Initialize subsystems */
 		thread_init();
+		kernel_debug("Initialising memory allocation\n");
 		slab_init();
+		kernel_debug("Initialising page cache\n");
 		page_cache_init();
+		kernel_debug("Initialising processes\n");
 		process_init();
+		kernel_debug("Initialising timer\n");
+		timer_init();
+		kernel_debug("Initialising uart\n");
 		ns16550_init();
-		timer_init(arch_timer_ops());
+		kernel_debug("Initialising devfs\n");
 		pci_scan(pci_probe_devfs);
+		kernel_debug("Initialising ide\n");
 		ide_pciscan();
+		kernel_debug("Initialising uhci\n");
 		uhci_pciscan();
-		cache_test();
-		utf8_test();
-		pipe_test();
+		kernel_debug("Initialising done\n");
 #if 0
 		vnode_t * root = tarfs_test();
 		vfs_test(root);
@@ -100,22 +105,61 @@ void kernel_main() {
 			fatfs_test(dev_static(modules[1], modulesizes[1]));
 		}
 #endif
+	} KCATCH(Throwable) {
+		exception_panic("Error in initialization\n");
+	}
+
+	KTRY {
 		if (initrd) {
 			process_t * p = process_get();
 			p->root = p->cwd = tarfs_open(dev_static(initrd, initrdsize));
-			char * buf = arena_alloc(NULL, 1024);
+			struct dirent64 * buf = arena_alloc(NULL, 1024);
 			int read = vfs_getdents(p->root, 0, buf, 1024);
+			assert(read>=0);
 			vnode_t * devfs = file_namev("/devfs");
 			if (devfs) {
 				vfs_mount(devfs, devfs_open());
 			}
 		}
+	} KCATCH(Throwable) {
+		kernel_printk("Error mounting initrd\n");
+	}
 
-		vnode_t * hda = file_namev("/devfs/disk/ide/1f0/master");
-		if (hda) {
-			fatfs_test(hda);
+	KTRY {
+		vnode_t * fatfs = file_namev("/fatfs");
+		if (fatfs) {
+			vnode_t * hda = file_namev("/devfs/disk/ide/1f0/master");
+			if (hda) {
+				vfs_mount(fatfs, fatfs_open(hda));
+			}
 		}
+	} KCATCH(Throwable) {
+		kernel_printk("Error mounting FATFS\n");
+	}
 
+	KTRY {
+		vnode_t * uart = file_namev("/devfs/char/uart/1016");
+		if (uart) {
+			stream_t * stream = vnode_stream(uart);
+			kernel_startlogging(stream);
+		}
+	} KCATCH(Throwable) {
+		kernel_printk("Error opening serial port\n");
+	}
+
+	KTRY {
+		list_test();
+#if 0
+		sync_test();
+#endif
+		cache_test();
+		utf8_test();
+		pipe_test();
+	} KCATCH(Throwable) {
+		exception_panic("Error in testing\n");
+	}
+
+	KTRY {
 		/* Create process 1 - init */
 		if (0 == process_fork()) {
 			/* Open stdin/stdout/stderr */
@@ -132,7 +176,7 @@ void kernel_main() {
 			/* testshell_run(); */
 		}
 	} KCATCH(Throwable) {
-		kernel_panic("Error in initialization: %s\n", exception_message());
+		exception_panic("Error starting init\n");
 	}
 
 	idle();

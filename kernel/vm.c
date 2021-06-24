@@ -48,6 +48,11 @@
 #define SEGMENT_U 0x8
 #define SEGMENT_P 0x10
 
+#define USER_VALIDATE_WRITE (1<<0)
+#define USER_VALIDATE_STRZ (1<<1)
+#define USER_VALIDATE_ARRAY (1<<2)
+#define USER_VALIDATE_ARRAYZ (1<<3)
+
 enum object_type_e { OBJECT_DIRECT, OBJECT_ANON, OBJECT_VNODE };
 
 struct vmobject_ops_t {
@@ -107,8 +112,8 @@ struct segment_anonymous_s {
 
 void vmpage_mark(void * p)
 {
-	vmpage_t * vmpage = p;
 #if 0
+	vmpage_t * vmpage = p;
 	if (vmpage->flags & VMPAGE_MANAGED) {
 		page_gc_mark(vmpage->page);
 	}
@@ -146,17 +151,20 @@ static void vm_invalid_pointer(void * p, int write, int user, int present)
 	/* kernel_panic("Invalid pointer: %p\n", p); */
 }
 
-segment_t * vm_get_segment(map_t * as, void * p)
+segment_t * vm_get_segment(map_t * as, const void * p)
 {
-	/* Check for kernel address space */
 	segment_t * seg = map_getpp_cond(as, p, MAP_LE);
 
-	return seg;
+	if (seg && (char*)p - (char*)seg->base <= seg->size) { 
+		return seg;
+	} else {
+		return 0;
+	}
 }
 
 static mutex_t kaslock = {0};
 
-static int vm_resolve_address(void * p, address_info_t * info)
+static int vm_resolve_address(const void * p, address_info_t * info)
 {
 	segment_t * seg = 0;
 	map_t * as = kas;
@@ -175,8 +183,12 @@ static int vm_resolve_address(void * p, address_info_t * info)
 		info->as = as;
 		info->seg = seg;
 		info->offset = (char*)p - (char*)seg->base;
+		assert(info->offset>=0);
 
-		return 1;
+		if (info->offset<seg->size) {
+			/* Must be within the segment to be valid */
+			return 1;
+		}
 	}
 
 	return 0;
@@ -194,6 +206,52 @@ void vm_kas_remove(segment_t * seg)
 	MUTEX_AUTOLOCK(&kaslock) {
 		assert(seg == map_removepp(kas, seg->base));
 		vm_segment_unmap(kas, seg);
+	}
+}
+
+void vm_validate_user(void * p, size_t size, uint32_t flags)
+{
+	address_info_t info[1];
+
+	if (vm_resolve_address(p, info)) {
+		int write = flags & USER_VALIDATE_WRITE;
+		int strz = flags & USER_VALIDATE_STRZ;
+		int array = flags & USER_VALIDATE_ARRAY;
+		int arrayz = flags & USER_VALIDATE_ARRAYZ;
+		segment_t * seg = info->seg;
+		off64_t offset = info->offset;
+		map_t * as = info->as;
+
+		/* Note, an empty user address space is treated specially */
+		if (kas == as && map_size(arch_get_thread()->process->as)) {
+			/* A kernel address space pointer */
+			KTHROWF(InvalidPointerException, "Invalid user pointer: %p", p);
+		}
+
+		if (info->offset + size >= seg->size) {
+			/* Extends beyond the segment */
+			KTHROWF(InvalidPointerException, "Invalid user pointer: %p", p);
+		}
+
+		if (write && (seg->perms & SEGMENT_W)) {
+			/* No permission to write */
+			KTHROWF(InvalidPointerException, "Invalid user write pointer: %p", p);
+		}
+
+		if (array) {
+			void ** array = p;
+			for(int i=0; i<size/sizeof(void*); i++) {
+				vm_validate_user(array[i], 0, flags & (USER_VALIDATE_WRITE | USER_VALIDATE_STRZ));
+			}
+		} else if (arrayz) {
+			void ** array = p;
+			size_t segleft = seg->size - offset;
+			for(int i=0; i<segleft/sizeof(void*) && array[i]; i++) {
+				vm_validate_user(array[i], 0, flags & (USER_VALIDATE_WRITE | USER_VALIDATE_STRZ));
+			}
+		}
+	} else {
+		KTHROWF(InvalidPointerException, "Invalid user pointer: %p", p);
 	}
 }
 
@@ -329,6 +387,7 @@ void vmobject_release(vmobject_t * object)
 	/* Do nothing if not defined */
 }
 
+#if 0
 static void vm_as_release_walk(void * p, void * key, void * data)
 {
 	segment_t * seg = (segment_t *)data;
@@ -339,6 +398,7 @@ static void vm_as_release_walk(void * p, void * key, void * data)
 	}
 	vmobject_release(seg->clean);
 }
+#endif
 
 /*
  * Zero filled memory
@@ -388,7 +448,7 @@ static vmpage_t * vm_anon_put_page(vmobject_t * object, off64_t offset, vmpage_t
 	return map_putip(anon->pages, offset >> ARCH_PAGE_SIZE_LOG2, vmpage);
 }
 
-static void vm_anon_release_walk(void * p, map_key key, void * data)
+static void vm_anon_release_walk(const void * const p, map_key key, void * data)
 {
 	vmpage_release(data);
 }
@@ -399,7 +459,7 @@ static void vm_anon_release(vmobject_t * object)
 	map_walkip(anon->pages, vm_anon_release_walk, anon);
 }
 
-static void vm_object_anon_copy_walk(void * p, map_key key, void * data)
+static void vm_object_anon_copy_walk(const void * const p, map_key key, void * data)
 {
 	vmobject_anon_t * anon = (vmobject_anon_t *)p;
 	vmpage_t * vmpage = (vmpage_t *)data;
@@ -463,7 +523,7 @@ static vmpage_t * vm_heap_get_page(vmobject_t * object, off64_t offset)
 	return 0;
 }
 
-static vmobject_t * vm_heap_put_page(vmobject_t * object, off64_t offset, vmpage_t * vmpage)
+static vmpage_t * vm_heap_put_page(vmobject_t * object, off64_t offset, vmpage_t * vmpage)
 {
 	vmobject_heap_t * heap = container_of(object, vmobject_heap_t, vmobject);
 	int pageno = offset >> ARCH_PAGE_SIZE_LOG2;
@@ -697,7 +757,6 @@ vmpage_t * vm_page_get(const void * p)
 	if (vm_resolve_address(p, info)) {
 		segment_t * seg = info->seg;
 		off64_t offset = info->offset;
-		map_t * as = info->as;
 
 		vmpage_t * vmpage = vmobject_get_page(seg->dirty, offset);
 		if (!vmpage) {
@@ -772,14 +831,15 @@ void vm_kas_start(void * p)
 
 void * vm_kas_get_aligned( size_t size, size_t align )
 {
-	static int lock[1];
+	static spin_t lock[1];
+	uintptr_t p;
 
-	spin_lock(lock);
-	uintptr_t p = (uintptr_t)kas_next;
-	p += (align-1);
-	p &= ~(align-1);
-	kas_next = (void*)(p + size);
-	spin_unlock(lock);
+	SPIN_AUTOLOCK(lock) {
+		p = (uintptr_t)kas_next;
+		p += (align-1);
+		p &= ~(align-1);
+		kas_next = (void*)(p + size);
+	}
 
 	return (void*)p;
 }

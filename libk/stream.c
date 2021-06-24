@@ -52,7 +52,7 @@ static void stream_putint(stream_t * stream, int base, int i)
 	}
 }
 
-static void stream_putstr(stream_t * stream, const char * s)
+void stream_putstr(stream_t * stream, const char * s)
 {
 	char c;
 	while((c = *s++)) {
@@ -186,6 +186,39 @@ stream_t * null_stream()
 	snull.chars = 0;
 
 	return &snull.stream;
+}
+
+typedef struct stream_vnode_t {
+	stream_t stream;
+	vnode_t * vnode;
+	off64_t offset;
+} stream_vnode_t;
+
+static void vnode_putc(stream_t * stream, char c)
+{
+	stream_vnode_t * svnode = container_of(stream, stream_vnode_t, stream);
+	vnode_write(svnode->vnode, svnode->offset, &c, 1);
+	svnode->offset++;
+}
+
+static long vnode_tell(stream_t * stream)
+{
+	stream_vnode_t * svnode = container_of(stream, stream_vnode_t, stream);
+	return svnode->offset;
+}
+
+static stream_ops_t stream_vnode_ops = {
+	putc: vnode_putc,
+	tell: vnode_tell
+};
+
+stream_t * vnode_stream(vnode_t * vnode)
+{
+	stream_vnode_t * stream = calloc(1, sizeof(*stream));
+	stream->stream.ops = &stream_vnode_ops;
+	stream->vnode = vnode;
+
+	return &stream->stream;
 }
 
 #if INTERFACE
