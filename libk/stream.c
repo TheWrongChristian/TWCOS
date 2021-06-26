@@ -8,7 +8,7 @@ static void stream_putc(stream_t * stream, char c)
 	stream->ops->putc(stream, c);
 }
 
-static int stream_tell(stream_t * stream)
+static long stream_tell(stream_t * stream)
 {
 	return stream->ops->tell(stream);
 }
@@ -18,38 +18,126 @@ static int stream_tell(stream_t * stream)
 #endif
 
 static char * digits = "0123456789abcdef";
-static void stream_putuint(stream_t * stream, int base, uint32_t i)
+
+struct fmt_opts {
+	uint8_t flags;
+	int8_t width;
+	int8_t precision;
+	int8_t length;
+};
+
+#define FMT_FLAG_LEFT (1<<0)
+#define FMT_FLAG_PLUS (1<<1)
+#define FMT_FLAG_SPACE (1<<2)
+#define FMT_FLAG_HASH (1<<3)
+#define FMT_FLAG_ZERO (1<<4)
+
+static void stream_putuint64(stream_t * stream, struct fmt_opts * opts, int base, uint64_t i)
 {
-	if (i<base) {
-		stream_putc(stream, digits[i]);
-	} else {
-		stream_putuint(stream, base, i / base);
-		stream_putc(stream, digits[i%base]);
+	if (opts->flags & FMT_FLAG_PLUS) {
+		stream_putc(stream, '+');
+	} else if (opts->flags & FMT_FLAG_SPACE) {
+		stream_putc(stream, ' ');
 	}
+	char buf[32];
+	char * pc = buf + countof(buf)-1;
+	*pc = 0;
+	do {
+		pc--;
+		*pc = digits[i % base];
+		i /= base;
+	} while(i);
+	stream_putstr(stream, pc);
 }
 
-static void stream_putulong(stream_t * stream, int base, uint64_t i)
-{
-	if (i<base) {
-		stream_putc(stream, digits[i]);
-	} else {
-		stream_putulong(stream, base, i / base);
-		stream_putc(stream, digits[i%base]);
-	}
-}
-
-static void stream_putint(stream_t * stream, int base, int i)
+static void stream_putint64(stream_t * stream, struct fmt_opts * opts, int base, int64_t i)
 {
 	if (i<0) {
 		stream_putc(stream, '-');
 		i = -i;
+		opts->flags &= ~(FMT_FLAG_PLUS | FMT_FLAG_SPACE);
 	}
-	if (i<base) {
-		stream_putc(stream, digits[i]);
+	stream_putuint64(stream, opts, base, i);
+}
+
+static void stream_getwidthprecision(struct fmt_opts * opts, va_list * ap)
+{
+	if (opts->width<0) {
+		/* Consume a width argument */
+		opts->width = va_arg(*ap, int);
+	}
+	if (opts->precision<0) {
+		/* Consume a precision argument */
+		opts->precision = va_arg(*ap, int);
+	}
+}
+
+static void stream_putuint(stream_t * stream, struct fmt_opts * opts, int base, va_list * ap)
+{
+	stream_getwidthprecision(opts, ap);
+
+	uint64_t val;
+#if 0
+	switch(opts->length) {
+	case sizeof(char):
+		val = va_arg(*ap, unsigned int);
+		break;
+	case sizeof(uint16_t):
+		val = va_arg(*ap, unsigned int);
+		break;
+	case sizeof(uint32_t):
+		val = va_arg(*ap, uint32_t);
+		break;
+	case sizeof(uint64_t):
+		val = va_arg(*ap, uint64_t);
+		break;
+	default:
+		val = 0;
+		break;
+	}
+#endif
+	if (opts->length == sizeof(unsigned long)) {
+		val = va_arg(*ap, unsigned long);
+	} else if (opts->length == sizeof(unsigned long long)) {
+		val = va_arg(*ap, unsigned long long);
 	} else {
-		stream_putint(stream, base, i / base);
-		stream_putc(stream, digits[i%base]);
+		val = va_arg(*ap, unsigned int);
 	}
+	stream_putuint64(stream, opts, base, val);
+}
+
+static void stream_putint(stream_t * stream, struct fmt_opts * opts, int base, va_list * ap)
+{
+	stream_getwidthprecision(opts, ap);
+
+	int64_t val;
+#if 0
+	switch(opts->length) {
+	case sizeof(char):
+		val = va_arg(*ap, int);
+		break;
+	case sizeof(int16_t):
+		val = va_arg(*ap, int);
+		break;
+	case sizeof(int32_t):
+		val = va_arg(*ap, int32_t);
+		break;
+	case sizeof(int64_t):
+		val = va_arg(*ap, int64_t);
+		break;
+	default:
+		val = 0;
+		break;
+	}
+#endif
+	if (opts->length == sizeof(long)) {
+		val = va_arg(*ap, long);
+	} else if (opts->length == sizeof(long long)) {
+		val = va_arg(*ap, long long);
+	} else {
+		val = va_arg(*ap, int);
+	}
+	stream_putint64(stream, opts, base, val);
 }
 
 void stream_putstr(stream_t * stream, const char * s)
@@ -60,39 +148,100 @@ void stream_putstr(stream_t * stream, const char * s)
 	}
 }
 
-static void stream_putptr(stream_t * stream, const void * p)
+static void stream_putptr(stream_t * stream, void * p)
 {
+	struct fmt_opts opts[1] = {0};
 	stream_putstr(stream, "0x");
-	stream_putulong(stream, 16, (unsigned int)p);
+	stream_putuint64(stream, opts, 16, (uintptr_t)p);
 }
 
-struct fmt_opts {
-	int rjustify;
-	int pad0;
-	int longint;
-	int alternate;
-};
-
-#if 0
-static void parse_fmt_opts( struct fmt_opts * opts, const char * s )
+static const char * parse_fmt_int(const char * s, int8_t * pval)
 {
-	opts->rjustify = opts->pad0 = opts->longint = opts->alternate = 0;
-	switch(*s++) {
-	case '#':
-		opts->alternate = 1;
-		break;
-	case '0':
-		while(*s >= '0' && *s <= '9') {
-			opts->pad0 *= 10;
-			opts->pad0 += (*s - '0');
-			s++;
-		};
-		break;	
-	case '-':
-		break;	
+	int8_t val=0;
+	while(*s >= '0' && *s <= '9') {
+		val *= 10;
+		val += (*s - '0');
+		s++;
+	};
+	*pval = val;
+	return s;
+}
+
+static const char * parse_fmt_flags(struct fmt_opts * opts, const char * s )
+{
+	while(1) {
+		switch(*s) {
+		case '-':
+			opts->flags |= FMT_FLAG_LEFT;
+			break;
+		case '+':
+			opts->flags |= FMT_FLAG_PLUS;
+			break;
+		case ' ':
+			opts->flags |= FMT_FLAG_SPACE;
+			break;
+		case '#':
+			opts->flags |= FMT_FLAG_HASH;
+			break;
+		case '0':
+			opts->flags |= FMT_FLAG_ZERO;
+			break;
+		default:
+			return s;
+		}
+		s++;
 	}
 }
-#endif
+
+static const char * parse_fmt_opts( struct fmt_opts * opts, const char * s )
+{
+	s = parse_fmt_flags(opts, s);
+
+	/* Width */
+	if (isdigit(*s)) {
+		s = parse_fmt_int(s, &opts->width);
+	} else if ('*' == *s) {
+		opts->width = -1;
+	} else {
+		opts->width = 0;
+	}
+
+	/* Precision */
+	if ('.' == *s) {
+		s++;
+		if (isdigit(*s)) {
+			s = parse_fmt_int(s, &opts->precision);
+		} else if ('*' == *s) {
+			opts->precision = -1;
+			s++;
+		}
+	}
+
+	/* Length */	
+	opts->length = sizeof(int);
+	if ('l' == *s) {
+		s++;
+		if ('l' == *s) {
+			s++;
+			opts->length = sizeof(long long);
+		} else {
+			opts->length = sizeof(long);
+		}
+	} else if ('h' == *s) {
+		s++;
+		if ('h' == *s) {
+			s++;
+			opts->length = sizeof(char);
+		} else {
+			opts->length = sizeof(short);
+		}
+	} else if ('z' == *s) {
+		s++;
+		opts->length = sizeof(size_t);
+	}
+
+	return s;
+}
 
 int stream_vprintf(stream_t * stream, const char * fmt, va_list ap)
 {
@@ -101,28 +250,30 @@ int stream_vprintf(stream_t * stream, const char * fmt, va_list ap)
 
 	while((c=*fmt++)) {
 		if ('%' == c) {
+			struct fmt_opts opts[1] = {0};
+			fmt = parse_fmt_opts(opts, fmt);
 			switch(c = *fmt++) {
 			case '%':
 				stream_putc(stream, '%');
 				break;
 			case 'c':
-				stream_putc(stream, va_arg(ap, int));
+				stream_putc(stream, va_arg(ap, char));
 				break;
 			case 'd':
 			case 'i':
-				stream_putint(stream, 10, va_arg(ap, int));
+				stream_putint(stream, opts, 10, &ap);
 				break;
 			case 'o':
-				stream_putuint(stream, 8, va_arg(ap, int));
+				stream_putuint(stream, opts, 8, &ap);
 				break;
 			case 'x':
-				stream_putuint(stream, 16, va_arg(ap, int));
+				stream_putuint(stream, opts, 16, &ap);
 				break;
 			case 'p':
-				stream_putptr(stream, va_arg(ap, const void *));
+				stream_putptr(stream, va_arg(ap, void *));
 				break;
 			case 's':
-				stream_putstr(stream, va_arg(ap, const char *));
+				stream_putstr(stream, va_arg(ap, char *));
 				break;
 			case 'n':
 				*(va_arg(ap, int *)) = stream_tell(stream) - start;
@@ -176,8 +327,8 @@ static long null_tell(stream_t * stream)
 }
 
 static stream_ops_t null_ops = {
-	putc: null_putc,
-	tell: null_tell
+	.putc = null_putc,
+	.tell = null_tell
 };
 
 stream_t * null_stream()
@@ -208,8 +359,8 @@ static long vnode_tell(stream_t * stream)
 }
 
 static stream_ops_t stream_vnode_ops = {
-	putc: vnode_putc,
-	tell: vnode_tell
+	.putc = vnode_putc,
+	.tell = vnode_tell
 };
 
 stream_t * vnode_stream(vnode_t * vnode)
