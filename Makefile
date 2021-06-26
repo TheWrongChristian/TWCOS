@@ -2,6 +2,7 @@ all::
 
 .PHONY: userlibs
 .PHONY: clean
+.PHONY: rebuild
 .PHONY: all
 .PHONY: includes
 
@@ -57,6 +58,9 @@ boot.iso: grub.cfg $(KERNEL) $(INITRD_TAR) $(TEST_FAT)
 
 clean::
 	rm -rf $(OBJS) $(SRCS_C:.c=.h) boot.iso
+
+rebuild::
+	rm -rf $(OBJS)
 
 .gdbinit:
 	echo target remote localhost:1234 | tee .gdbinit
