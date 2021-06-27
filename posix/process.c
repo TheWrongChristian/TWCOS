@@ -182,7 +182,7 @@ pid_t process_getpid()
 	return 0;
 }
 
-int process_exit(int code)
+noreturn int process_exit(int code)
 {
 	process_t * current = process_get();
 	process_t * init = container_getprocess(current->container, 1);
@@ -213,9 +213,8 @@ int process_exit(int code)
 	current->as = 0;
 
 	thread_exit(0);
-
 	// Not reached
-	return 0;
+	kernel_panic("process_exit returning!");
 }
 
 static void process_waitpid_getzombie(const void * const p, map_key key, void * data)
