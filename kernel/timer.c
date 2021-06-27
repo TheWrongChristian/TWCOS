@@ -137,7 +137,7 @@ static void timer_expire()
 	}
 }
 
-static void timer_expire_thread()
+static void * timer_expire_thread(void * ignored)
 {
 	thread_set_name(0, "Timer");
 	while(1) {
@@ -160,6 +160,7 @@ static void timer_expire_thread()
 			}
 		}
 	}
+	return NULL;
 }
 
 void timer_set(timer_event_t * timer, timerspec_t usec, void (*cb)(void * p), void * p)
@@ -324,10 +325,7 @@ void timer_init()
 #endif
 	timers->lock = arch_timer_init();
 
-	timers->thread = thread_fork();
-	if (0 == timers->thread) {
-		timer_expire_thread();
-	}
+	timers->thread = thread_spawn(timer_expire_thread, NULL);
 
 	/* Uptime tracking timer - update uptime at least every 1 second */
 	timer_set(uptime_timer, 1000000, timer_uptime_cb, 0);

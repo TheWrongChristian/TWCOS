@@ -89,6 +89,8 @@ enum tpriority {
 #define barrier() asm volatile("": : :"memory")
 #endif
 
+typedef void * (*thread_func_t)(void * arg);
+
 #endif
 
 int preempt;
@@ -362,6 +364,23 @@ static void thread_track(thread_t * thread, int add)
 			}
 		}
 	}
+}
+
+/**
+ * Spawn a new thread
+ * \arg f Function into which the new thread will run
+ * \arg arg Argument to new thread
+ * \return thread pointer to the new thread
+ */
+thread_t * thread_spawn(thread_func_t f, void * arg)
+{
+	thread_t * thread = thread_fork();
+	if (thread) {
+		return thread;
+	}
+	/* Child thread */
+	void * retval = f(arg);
+	thread_exit(retval);
 }
 
 /**
