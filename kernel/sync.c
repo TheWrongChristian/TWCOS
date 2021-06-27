@@ -378,7 +378,9 @@ INLINE_FLATTEN void interrupt_monitor_enter(interrupt_monitor_t * monitor)
 		if (0 == (attempts & 0xffff)) {
 			/* Try to detect deadlock */
 			map_t * visited = treap_new(NULL);
-			if (interrupt_monitor_deadlock_visit_thread(visited, arch_get_thread())) {
+			if (monitor->owner == arch_get_thread()) {
+				kernel_panic("Re-entering interrupt_monitor_t");
+			} else if (interrupt_monitor_deadlock_visit_thread(visited, arch_get_thread())) {
 				thread_yield();
 			}
 		}
