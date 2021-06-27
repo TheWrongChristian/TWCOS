@@ -696,8 +696,10 @@ void uhci_probe(device_t * device)
 	}
 }
 
-static void uhci_pciinit()
+void uhci_pciinit()
 {
         device_driver_register(pci_progif_key(0xc, 0x3, 0), uhci_probe);
 }
-static STATIC_INIT staticinit_t init = uhci_pciinit;
+#if 0
+STATIC_INIT staticinit_t uhci_pciinit_func = uhci_pciinit;
+#endif

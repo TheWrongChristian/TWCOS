@@ -522,13 +522,13 @@ static void ide_probe_compat(device_t * device)
 	ide_initialize(bar0, bar1, bar2, bar3, bar4, 0x15);
 }
 
-static void ide_pciinit()
+void ide_pciinit()
 {
 	device_driver_register(pci_progif_key(1, 1, 0x80), ide_probe_compat);
 }
-static STATIC_INIT staticinit_t init = ide_pciinit;
 
 #if 0
+STATIC_INIT staticinit_t ide_pciinit_func = ide_pciinit;
 static void ide_probe(uint8_t bus, uint8_t slot, uint8_t function)
 {
 	if (1==pci_class(bus, slot, function) && 1==pci_subclass(bus, slot, function)) {

@@ -4,7 +4,7 @@
 
 #if INTERFACE
 
-#define STATIC_INIT __attribute__((section(".staticinit")))
+#define STATIC_INIT __attribute__((section(".staticinit"))) __attribute__((used))
 typedef void (*staticinit_t)();
 
 #define STATIC_INIT_FUNC(func) static __attribute__((section(".staticinit"))) staticinit_t f ## __LINE__ = func
@@ -96,6 +96,9 @@ void kernel_main()
 #endif
 		kernel_debug("Initialising drivers\n");
 		static_init();
+		uhci_pciinit();
+		ehci_pciinit();
+		ide_pciinit();
 		pci_init(NULL);
 		kernel_debug("Probing devices\n");
 		device_probe_unclaimed();
