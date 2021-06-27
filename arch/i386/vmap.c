@@ -189,10 +189,15 @@ static void vmap_set_pte(asid vid, const void * vaddress, pte_t pte)
 			}
 			/* Clean directory */
 			memset(pgtbl + (vpage&~0x3ff), 0, ARCH_PAGE_SIZE);
+			newpgtbl = 0;
 		}
 		pgtbl[vpage] = pte;
 		/* FIXME: Only need this if vid is current or kernel as */
 		invlpg(vaddress);
+	}
+	if (newpgtbl) {
+		/* Don't leak if a new page table is unused */
+		page_free(newpgtbl);
 	}
 }
 
