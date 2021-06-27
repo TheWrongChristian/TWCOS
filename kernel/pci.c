@@ -160,7 +160,7 @@ void pci_probe_print(pci_device_t * pcidev)
 {
 	uint8_t type = pci_headertype(pcidev) & 0x7f;
 
-	kernel_printk("PCI %d, %d, %d - %x:%x\n",
+	kernel_printk("PCI %u, %u, %u - %x:%x\n",
 		pcidev->bus, pcidev->slot, pcidev->function,
 		pci_vendorid(pcidev), 
 		pci_deviceid(pcidev));
@@ -217,17 +217,17 @@ static device_type_t pci_type = 0;
 
 char * pci_progif_key(uint8_t class, uint8_t subclass, uint8_t progif)
 {
-	return pci_device_key("%d:progif:%d:%d:%d", pci_type, class, subclass, progif);
+	return pci_device_key("%x:progif:%x:%x:%x", pci_type, 9, class, subclass, progif);
 }
 
 char * pci_class_key(uint8_t class, uint8_t subclass)
 {
-	return pci_device_key("%d:class:%d:%d", pci_type, class, subclass);
+	return pci_device_key("%x:class:%x:%x", pci_type, class, subclass);
 }
 
 char * pci_deviceid_key(uint16_t vendorid, uint16_t deviceid)
 {
-	return pci_device_key("%d:vendor:%d:%d", pci_type, vendorid, deviceid);
+	return pci_device_key("%x:vendor:%x:%x", pci_type, vendorid, deviceid);
 }
 
 static char * pci_device_progif_key(device_t * device)
