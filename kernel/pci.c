@@ -217,7 +217,7 @@ static device_type_t pci_type = 0;
 
 char * pci_progif_key(uint8_t class, uint8_t subclass, uint8_t progif)
 {
-	return pci_device_key("%x:progif:%x:%x:%x", pci_type, 9, class, subclass, progif);
+	return pci_device_key("%x:progif:%x:%x:%x", pci_type, class, subclass, progif);
 }
 
 char * pci_class_key(uint8_t class, uint8_t subclass)
