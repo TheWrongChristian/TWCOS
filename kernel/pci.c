@@ -32,33 +32,34 @@ static uint16_t pci_config_short(pci_device_t * pcidev, uint8_t offset)
 	return (reg >> (8*(offset & 0x3))) & 0xFFFF;
 }
 
-uint16_t pci_vendorid(pci_device_t * pcidev)
+static uint16_t pci_vendorid(pci_device_t * pcidev)
 {
 	return pci_config_short(pcidev, 0);
 }
 
-uint16_t pci_deviceid(pci_device_t * pcidev)
+static uint16_t pci_deviceid(pci_device_t * pcidev)
 {
 	return pci_config_short(pcidev, 2);
 }
 
-uint16_t pci_command(pci_device_t * pcidev)
+static uint16_t pci_command(pci_device_t * pcidev)
 {
 	return pci_config_short(pcidev, 4);
 }
 
-uint16_t pci_status(pci_device_t * pcidev)
+static uint16_t pci_status(pci_device_t * pcidev)
 {
 	return pci_config_short(pcidev, 6);
 }
 
-uint8_t pci_headertype(pci_device_t * pcidev)
+static uint8_t pci_headertype(pci_device_t * pcidev)
 {
 	return pci_config_byte(pcidev, 0xe);
 }
 
-void * pci_bar_map(pci_device_t * pcidev, uint8_t bar)
+void * pci_bar_map(device_t * device, uint8_t bar)
 {
+	pci_device_t * pcidev = container_of(device, pci_device_t, device);
 	uint32_t reg = pci_config_read(pcidev->bus, pcidev->slot, pcidev->function, 0x10 + bar*4);
 
 	if (reg & 1) {
@@ -116,17 +117,17 @@ uint32_t pci_bar_size(device_t * device, uint8_t bar)
 	return size;
 }
 
-uint8_t pci_class(pci_device_t * pcidev)
+static uint8_t pci_class(pci_device_t * pcidev)
 {
         return pci_config_byte(pcidev, 0xb);
 }
 
-uint8_t pci_subclass(pci_device_t * pcidev)
+static uint8_t pci_subclass(pci_device_t * pcidev)
 {
         return pci_config_byte(pcidev, 0xa);
 }
 
-uint8_t pci_progif(pci_device_t * pcidev)
+static uint8_t pci_progif(pci_device_t * pcidev)
 {
         return pci_config_byte(pcidev, 0x9);
 }
@@ -137,7 +138,7 @@ uint8_t pci_irq(device_t * device)
         return pci_config_byte(pcidev, 0x3c);
 }
 
-uint8_t pci_secondary_bus(pci_device_t * pcidev)
+static uint8_t pci_secondary_bus(pci_device_t * pcidev)
 {
 	return pci_config_byte(pcidev, 0x19);
 }
