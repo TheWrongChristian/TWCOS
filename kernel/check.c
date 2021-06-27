@@ -69,7 +69,7 @@ void check_int_bounds(int i, int low, int high, const char * error)
 void check_ptr_bounds(void * p, void * low, void * high, const char * error)
 {
 	if ((char*)p<(char*)low || (char*)p>=(char*)high) {
-		KTHROWF(PtrBoundsException, "%s: %d", error, p);
+		KTHROWF(PtrBoundsException, "%s: %p", error, p);
 	}
 }
 
