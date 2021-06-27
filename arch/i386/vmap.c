@@ -156,6 +156,7 @@ static pte_t vmap_get_pte(const asid vid, const void * vaddress)
 
 static void vmap_set_pte(asid vid, const void * vaddress, pte_t pte)
 {
+	int needpgtbl = 0;
 	INTERRUPT_MONITOR_AUTOLOCK(lock) {
 		int ptid = vmap_get_ptid(vid);
 		page_t vpage = (uint32_t)vaddress >> ARCH_PAGE_SIZE_LOG2;
@@ -163,22 +164,29 @@ static void vmap_set_pte(asid vid, const void * vaddress, pte_t pte)
 		int pgdirnum = vpage >> 10;
 
 		if (0 == (pgdirs[ptid][pgdirnum] & 1)){
-			/* No page table, create a new one */
-			ptrdiff_t koffset = (uint32_t)(_bootstrap_nextalloc - _bootstrap_end);
+			needpgtbl = 1;
+		}
+	}
+	page_t newpgtbl = (needpgtbl) ? page_alloc(0) : 0;
+	INTERRUPT_MONITOR_AUTOLOCK(lock) {
+		int ptid = vmap_get_ptid(vid);
+		page_t vpage = (uint32_t)vaddress >> ARCH_PAGE_SIZE_LOG2;
+		pte_t * pgtbl = pgtbls[ptid];
+		int pgdirnum = vpage >> 10;
 
-			/* page_alloc might end up needing lock */
-			page_t page = page_alloc(0);
+		if (newpgtbl && 0 == (pgdirs[ptid][pgdirnum] & 1)){
+			/* No page table, install a new one */
+			ptrdiff_t koffset = (uint32_t)(_bootstrap_nextalloc - _bootstrap_end);
 
 			if (((uintptr_t)vaddress)<koffset) {
 				/* User mapping, just this ASID */
-				pgdirs[ptid][pgdirnum] = (page << ARCH_PAGE_SIZE_LOG2) | 7;
+				pgdirs[ptid][pgdirnum] = (newpgtbl << ARCH_PAGE_SIZE_LOG2) | 7;
 			} else {
 				/* Kernel mapping, reflect across all ASID */
 				for(int i=0; i<ASID_COUNT; i++) {
-					pgdirs[i][pgdirnum] = (page << ARCH_PAGE_SIZE_LOG2) | 3;
+					pgdirs[i][pgdirnum] = (newpgtbl << ARCH_PAGE_SIZE_LOG2) | 3;
 				}
 			}
-
 			/* Clean directory */
 			memset(pgtbl + (vpage&~0x3ff), 0, ARCH_PAGE_SIZE);
 		}
