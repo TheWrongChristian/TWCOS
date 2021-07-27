@@ -1,5 +1,5 @@
-GCC_VERSION=9.3.0
-BINUTILS_VERSION=2.34
+GCC_VERSION=11.1.0
+BINUTILS_VERSION=2.36.1
 MIRROR=http://www.mirrorservice.org/sites/sourceware.org/pub/
 GCC_DOWNLOAD=$(MIRROR)/gcc/releases/gcc-$(GCC_VERSION)/gcc-$(GCC_VERSION).tar.xz
 BINUTILS_DOWNLOAD=$(MIRROR)/binutils/releases/binutils-$(BINUTILS_VERSION).tar.xz
