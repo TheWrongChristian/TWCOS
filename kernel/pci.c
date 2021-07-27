@@ -202,7 +202,7 @@ static char * pci_device_key( char * fmt, ...)
 
 	va_start(ap, fmt);
 
-	char * key;
+	char * key = 0;
 	ARENA_AUTOSTATE(NULL) {
 		char * tkey = tmalloc(128);
 		vsnprintf(tkey, 128, fmt, ap);

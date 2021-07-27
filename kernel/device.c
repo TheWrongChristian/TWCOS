@@ -8,7 +8,7 @@ struct device_ops_t
 	void (*enumerate)(device_t * device);
 };
 
-typedef int device_type_t;
+typedef unsigned int device_type_t;
 
 typedef void (*device_probe_t)(device_t * device);
 
@@ -46,7 +46,7 @@ device_type_t device_type(char * type)
 		}
 
 		device_type = map_getpi(types, type);
-		if (0 == type) {
+		if (0 == device_type) {
 			device_type = ++next;
 			map_putpi(types, type, device_type);
 		}
