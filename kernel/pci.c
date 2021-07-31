@@ -214,21 +214,29 @@ static char * pci_device_key( char * fmt, ...)
 	return key;
 }
 
-static device_type_t pci_type = 0;
+static device_type_t pci_type()
+{
+	static device_type_t type = 0;
+	if (0 == type) {
+		type = device_type("bus/pci");
+	}
+
+	return type;
+}
 
 char * pci_progif_key(uint8_t class, uint8_t subclass, uint8_t progif)
 {
-	return pci_device_key("%x:progif:%x:%x:%x", pci_type, class, subclass, progif);
+	return pci_device_key("%x:progif:%x:%x:%x", pci_type(), class, subclass, progif);
 }
 
 char * pci_class_key(uint8_t class, uint8_t subclass)
 {
-	return pci_device_key("%x:class:%x:%x", pci_type, class, subclass);
+	return pci_device_key("%x:class:%x:%x", pci_type(), class, subclass);
 }
 
 char * pci_deviceid_key(uint16_t vendorid, uint16_t deviceid)
 {
-	return pci_device_key("%x:vendor:%x:%x", pci_type, vendorid, deviceid);
+	return pci_device_key("%x:vendor:%x:%x", pci_type(), vendorid, deviceid);
 }
 
 static char * pci_device_progif_key(device_t * device)
@@ -262,7 +270,7 @@ static void pci_probe_function(device_t * parent, pci_device_t * pcidevtmp)
 	device_t * device = &pcidev->device;
 
 	/* Link into the device tree */
-	device_init(device, pci_ops, pci_type, parent);
+	device_init(device, pci_ops, pci_type(), parent);
 
 	/* Queue the device for driver probing */
 	device_queue(device, pci_device_deviceid_key(device), pci_device_class_key(device), pci_device_progif_key(device), NULL);
@@ -317,7 +325,6 @@ static void pci_scan(device_t * parent)
 
 void pci_init(device_t * parent)
 {
-	pci_type = device_type("bus/pci");
 	device_driver_register(pci_class_key(6, 4), pci_bus_enumerate);
 	pci_scan_root(parent);
 }
