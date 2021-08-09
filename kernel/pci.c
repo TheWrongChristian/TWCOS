@@ -272,6 +272,9 @@ static void pci_probe_function(device_t * parent, pci_device_t * pcidevtmp)
 	/* Link into the device tree */
 	device_init(device, pci_ops, pci_type(), parent);
 
+	/* Put into devfs */
+	pci_probe_devfs(pcidev);
+
 	/* Queue the device for driver probing */
 	device_queue(device, pci_device_deviceid_key(device), pci_device_class_key(device), pci_device_progif_key(device), NULL);
 }
@@ -325,6 +328,8 @@ static void pci_scan(device_t * parent)
 
 void pci_init(device_t * parent)
 {
+#if 0
 	device_driver_register(pci_class_key(6, 4), pci_bus_enumerate);
+#endif
 	pci_scan_root(parent);
 }

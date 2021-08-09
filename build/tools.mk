@@ -23,7 +23,7 @@ debug-config:
 	echo 'COPTS=-g -DDEBUG' > $(TOP)/build/copts.mk
 
 prod-config:
-	echo 'COPTS=-g -O3 -fno-inline-functions' > $(TOP)/build/copts.mk
+	echo 'COPTS=-g -O3 -fno-inline -fno-inline-functions-called-once' > $(TOP)/build/copts.mk
 
 KOPTS:=-ffreestanding
 UOPTS:=-I$(TOP)/user/pdclib/include -I$(TOP)/user/pdclib/platform/twcos/include
