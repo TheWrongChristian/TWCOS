@@ -8,7 +8,7 @@ struct device_ops_t
 	void (*enumerate)(device_t * device);
 };
 
-typedef unsigned int device_type_t;
+typedef int device_type_t;
 
 typedef void (*device_probe_t)(device_t * device);
 

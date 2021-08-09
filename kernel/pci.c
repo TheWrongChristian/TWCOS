@@ -157,8 +157,10 @@ void pci_probe_devfs(pci_device_t * pcidev)
 	vnode_newdir_hierarchy(devfs, path);
 }
 
-void pci_probe_print(pci_device_t * pcidev)
+#if 0
+void pci_probe_print(device_t * device)
 {
+	pci_device_t * pcidev = container_of(device, pci_device_t, device);
 	uint8_t type = pci_headertype(pcidev) & 0x7f;
 
 	kernel_printk("PCI %u, %u, %u - %x:%x\n",
@@ -169,24 +171,22 @@ void pci_probe_print(pci_device_t * pcidev)
 		int bar;
 
 		for(bar = 0; bar<6; bar++) {
-			uint32_t size = pci_bar_size(pcidev, bar);
+			uint32_t size = pci_bar_size(device, bar);
 			if (size) {
-				uint32_t base = pci_bar_base(pcidev, bar);
+				uint32_t base = pci_bar_base(device, bar);
 				kernel_printk("  Base address: %p (%x) %s\n", base, size, "" );
 			}
 		}
 	}
 }
-
+#endif
 
 static void pci_scanbus(device_t * parent, pci_device_t * pcidev);
-static int pci_bus_enumerate(device_t * device)
+static void pci_bus_enumerate(device_t * device)
 {
 	pci_device_t * pcidev = container_of(device, pci_device_t, device);
 	pci_device_t pcibus2[1] = {{.bus=pci_secondary_bus(pcidev), .slot=0, .function=0}};
 	pci_scanbus(device, pcibus2);
-
-	return 1;
 }
 
 static void pci_device_enumerate(device_t * device)

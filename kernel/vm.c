@@ -144,7 +144,10 @@ static void vm_invalid_pointer(void * p, int write, int user, int present)
 	dump_alloc_audit(p);
 #endif
 	if (!user) {
-		KTHROWF(InvalidPointerException, "Invalid pointer: %p", p);
+		char * level = (user) ? "user" : "kernel";
+		char * what = (write) ? "write" : "read";
+		char * mapped = (present) ? "mapped" : "unmapped";
+		KTHROWF(InvalidPointerException, "Invalid pointer: %s %s at %s %p", level, what, mapped, p);
 	} else {
 		process_exit(2);
 	}

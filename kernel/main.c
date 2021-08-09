@@ -80,6 +80,7 @@ void kernel_main()
 		thread_init();
 		kernel_debug("Initialising memory allocation\n");
 		slab_init();
+		printf_test();
 		kernel_debug("Initialising device manager\n");
 		device_manager_init();
 		kernel_debug("Initialising page cache\n");
@@ -188,6 +189,7 @@ void kernel_main()
 		bits_test();
 		packet_test();
 		list_test();
+		printf_test();
 #if 0
 		sync_test();
 		cache_test();

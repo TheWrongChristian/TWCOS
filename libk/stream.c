@@ -21,10 +21,12 @@ static char * digits = "0123456789abcdef";
 
 struct fmt_opts {
 	va_list ap;
-	uint8_t flags;
+	uint32_t flags;
 	int8_t width;
+	int8_t base;
 	int8_t precision;
-	int8_t length;
+	int8_t size;
+	
 };
 
 #define FMT_FLAG_LEFT (1<<0)
@@ -32,8 +34,20 @@ struct fmt_opts {
 #define FMT_FLAG_SPACE (1<<2)
 #define FMT_FLAG_HASH (1<<3)
 #define FMT_FLAG_ZERO (1<<4)
+#define FMT_FLAG_UINT (1<<5)
+#define FMT_FLAG_INT (1<<6)
+#define FMT_FLAG_FLOAT (1<<7)
+#define FMT_FLAG_PERCENT (1<<8)
+#define FMT_FLAG_CHAR (1<<9)
+#define FMT_FLAG_STR (1<<10)
+#define FMT_FLAG_WRITTEN (1<<11)
+#define FMT_FLAG_L (1<<12)
+#define FMT_FLAG_LL (1<<13)
+#define FMT_FLAG_H (1<<14)
+#define FMT_FLAG_HH (1<<15)
+#define FMT_FLAG_Z (1<<16)
 
-static void stream_putuint64(stream_t * stream, struct fmt_opts * opts, int base, uint64_t i)
+static void stream_putuint64(stream_t * stream, struct fmt_opts * opts, uint64_t i)
 {
 	if (opts->flags & FMT_FLAG_PLUS) {
 		stream_putc(stream, '+');
@@ -45,61 +59,97 @@ static void stream_putuint64(stream_t * stream, struct fmt_opts * opts, int base
 	*pc = 0;
 	do {
 		pc--;
-		*pc = digits[i % base];
-		i /= base;
+		*pc = digits[i % opts->base];
+		i /= opts->base;
 	} while(i);
 	stream_putstr(stream, pc);
 }
 
-static void stream_putint64(stream_t * stream, struct fmt_opts * opts, int base, int64_t i)
+static void stream_putint64(stream_t * stream, struct fmt_opts * opts, int64_t i)
 {
 	if (i<0) {
 		stream_putc(stream, '-');
 		i = -i;
 		opts->flags &= ~(FMT_FLAG_PLUS | FMT_FLAG_SPACE);
 	}
-	stream_putuint64(stream, opts, base, i);
+	stream_putuint64(stream, opts, i);
 }
 
-static void stream_putuint(stream_t * stream, struct fmt_opts * opts, int base)
+#if 0
+static void stream_putuint(stream_t * stream, struct fmt_opts * opts)
 {
 	uint64_t val;
-	if (opts->length == sizeof(unsigned long)) {
+	if (opts->flags & FMT_FLAG_L) {
+		val = (uint64_t)(unsigned long)va_arg(opts->ap, unsigned long);
+	} else if (opts->flags & FMT_FLAG_LL) {
+		val = (uint64_t)(unsigned long)va_arg(opts->ap, unsigned long long);
+	} else if (opts->flags & FMT_FLAG_H) {
+		val = (uint64_t)(unsigned short)va_arg(opts->ap, unsigned int);
+	} else if (opts->flags & FMT_FLAG_HH) {
+		val = (uint64_t)(unsigned char)va_arg(opts->ap, unsigned int);
+	} else {
+		val = (uint64_t)(unsigned int)va_arg(opts->ap, unsigned int);
+	}
+	stream_putuint64(stream, opts, val);
+}
+
+static void stream_putint(stream_t * stream, struct fmt_opts * opts)
+{
+	int64_t val;
+	if (opts->flags & FMT_FLAG_L) {
+		val = (int64_t)(long)va_arg(opts->ap, long);
+	} else if (opts->flags & FMT_FLAG_LL) {
+		val = (int64_t)(long long)va_arg(opts->ap, long long);
+	} else if (opts->flags & FMT_FLAG_H) {
+		val = (int64_t)(short)va_arg(opts->ap, int);
+	} else if (opts->flags & FMT_FLAG_HH) {
+		val = (int64_t)(signed char)va_arg(opts->ap, int);
+	} else {
+		val = (int64_t)(int)va_arg(opts->ap, int);
+	}
+	stream_putint64(stream, opts, val);
+}
+#else
+static void stream_putuint(stream_t * stream, struct fmt_opts * opts)
+{
+	uint64_t val;
+	if (opts->flags & FMT_FLAG_L) {
 		val = va_arg(opts->ap, unsigned long);
-	} else if (opts->length == sizeof(unsigned long long)) {
+	} else if (opts->flags & FMT_FLAG_LL) {
 		val = va_arg(opts->ap, unsigned long long);
+	} else if (opts->flags & FMT_FLAG_H) {
+		val = (unsigned short)va_arg(opts->ap, unsigned int);
+	} else if (opts->flags & FMT_FLAG_HH) {
+		val = (unsigned char)va_arg(opts->ap, unsigned int);
 	} else {
 		val = va_arg(opts->ap, unsigned int);
 	}
-	stream_putuint64(stream, opts, base, val);
+	stream_putuint64(stream, opts, val);
 }
 
-static void stream_putint(stream_t * stream, struct fmt_opts * opts, int base)
+static void stream_putint(stream_t * stream, struct fmt_opts * opts)
 {
 	int64_t val;
-	if (opts->length == sizeof(long)) {
+	if (opts->flags & FMT_FLAG_L) {
 		val = va_arg(opts->ap, long);
-	} else if (opts->length == sizeof(long long)) {
+	} else if (opts->flags & FMT_FLAG_LL) {
 		val = va_arg(opts->ap, long long);
+	} else if (opts->flags & FMT_FLAG_H) {
+		val = (short)va_arg(opts->ap, int);
+	} else if (opts->flags & FMT_FLAG_HH) {
+		val = (signed char)va_arg(opts->ap, int);
 	} else {
 		val = va_arg(opts->ap, int);
 	}
-	stream_putint64(stream, opts, base, val);
+	stream_putint64(stream, opts, val);
 }
-
+#endif
 void stream_putstr(stream_t * stream, const char * s)
 {
 	char c;
 	while((c = *s++)) {
 		stream_putc(stream, c);
 	}
-}
-
-static void stream_putptr(stream_t * stream, void * p)
-{
-	struct fmt_opts opts[1] = {0};
-	stream_putstr(stream, "0x");
-	stream_putuint64(stream, opts, 16, (uintptr_t)p);
 }
 
 static const char * parse_fmt_int(const char * s, int8_t * pval)
@@ -165,29 +215,65 @@ static const char * parse_fmt_opts( struct fmt_opts * opts, const char * s )
 	}
 
 	/* Length */	
-	opts->length = sizeof(int);
 	if ('l' == *s) {
 		s++;
 		if ('l' == *s) {
 			s++;
-			opts->length = sizeof(long long);
+			opts->flags |= FMT_FLAG_LL;
 		} else {
-			opts->length = sizeof(long);
+			opts->flags |= FMT_FLAG_L;
 		}
 	} else if ('h' == *s) {
 		s++;
 		if ('h' == *s) {
 			s++;
-			opts->length = sizeof(char);
+			opts->flags |= FMT_FLAG_HH;
 		} else {
-			opts->length = sizeof(short);
+			opts->flags |= FMT_FLAG_H;
 		}
 	} else if ('z' == *s) {
 		s++;
-		opts->length = sizeof(size_t);
+		opts->flags |= FMT_FLAG_Z;
+	}
+
+	switch(*s++) {
+	case '%':
+		opts->flags |= FMT_FLAG_PERCENT;
+		break;
+	case 'c':
+		opts->flags |= FMT_FLAG_CHAR;
+		break;
+	case 'd':
+	case 'i':
+		opts->flags |= FMT_FLAG_INT;
+		opts->base = 10;
+		break;
+	case 'o':
+		opts->flags |= FMT_FLAG_UINT;
+		opts->base = 8;
+		break;
+	case 'x':
+		opts->flags |= FMT_FLAG_UINT;
+		opts->base = 16;
+		break;
+	case 'p':
+		opts->flags |= FMT_FLAG_UINT | FMT_FLAG_HASH;
+		opts->base = 16;
+		break;
+	case 's':
+		opts->flags |= FMT_FLAG_STR;
+		break;
+	case 'n':
+		opts->flags |= FMT_FLAG_WRITTEN;
+		break;
 	}
 
 	return s;
+}
+
+static void * stream_getptr(struct fmt_opts * opts)
+{
+	return va_arg(opts->ap, void *);
 }
 
 int stream_vprintf(stream_t * stream, const char * fmt, va_list ap)
@@ -196,44 +282,32 @@ int stream_vprintf(stream_t * stream, const char * fmt, va_list ap)
 	char c;
 	struct fmt_opts opts[1] = {0};
 
-	opts->ap = ap;
+	va_copy(opts->ap, ap);
 	while((c=*fmt++)) {
 		if ('%' == c) {
 			fmt = parse_fmt_opts(opts, fmt);
-			switch(c = *fmt++) {
-			case '%':
-				stream_putc(stream, '%');
-				break;
-			case 'c':
-				stream_putc(stream, va_arg(opts->ap, char));
-				break;
-			case 'd':
-			case 'i':
-				stream_putint(stream, opts, 10);
-				break;
-			case 'o':
-				stream_putuint(stream, opts, 8);
-				break;
-			case 'x':
-				stream_putuint(stream, opts, 16);
-				break;
-			case 'p':
-				stream_putptr(stream, va_arg(opts->ap, void *));
-				break;
-			case 's':
-				stream_putstr(stream, va_arg(opts->ap, char *));
-				break;
-			case 'n':
-				*(va_arg(opts->ap, int *)) = stream_tell(stream) - start;
-				break;
-			default:
+			if (opts->flags & FMT_FLAG_INT) {
+				stream_putint(stream, opts);
+			} else if (opts->flags & FMT_FLAG_UINT) {
+				stream_putuint(stream, opts);
+			} else if (opts->flags & FMT_FLAG_STR) {
+				char * s = stream_getptr(opts);
+				stream_putstr(stream, s);
+			} else if (opts->flags & FMT_FLAG_CHAR) {
+				char c = va_arg(opts->ap, char);
 				stream_putc(stream, c);
-				break;
+			} else if (opts->flags & FMT_FLAG_PERCENT) {
+				stream_putc(stream, '%');
+			} else if (opts->flags & FMT_FLAG_WRITTEN) {
+				int * p = stream_getptr(opts);
+				*p = stream_tell(stream) - start;
 			}
+			opts->flags = opts->size = 0;
 		} else {
 			stream_putc(stream, c);
 		}
 	}
+	va_end(opts->ap);
 
 	return stream_tell(stream) - start;
 }
@@ -316,6 +390,27 @@ stream_t * vnode_stream(vnode_t * vnode)
 	stream->vnode = vnode;
 
 	return &stream->stream;
+}
+
+static char * vprintf_test(char * fmt, ...)
+{
+	static char buf[128];
+
+	va_list ap;
+	va_start(ap, fmt);
+	vsnprintf(buf, countof(buf), fmt, ap);
+	va_end(ap);
+
+	return buf;
+}
+
+char * printf_test()
+{
+	const uint8_t a=1;
+	const uint8_t b=10;
+	const uint8_t c=3;
+	const uint8_t d=4;
+	return vprintf_test("%hhx:progif:%hhx:%hhx:%hhx", a, b, c, d);
 }
 
 #if INTERFACE
