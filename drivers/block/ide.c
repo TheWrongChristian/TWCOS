@@ -190,13 +190,19 @@ static void ide_disk_submit( dev_t * dev, buf_op_t * op )
 static void ide_do_op( dev_t * dev, buf_op_t * op )
 {
 	MONITOR_AUTOLOCK(op->lock) {
-		idedevice_t * device = container_of(dev, idedevice_t, dev);
-		off64_t sector = op->offset >> IDE_SECTORSIZE_LOG2;
+		KTRY {
+			idedevice_t * device = container_of(dev, idedevice_t, dev);
+			off64_t sector = op->offset >> IDE_SECTORSIZE_LOG2;
 
-		ide_drive_transfer_sectors(device->channel, device->drive, sector, op->write, op->p, op->size);
+			ide_drive_transfer_sectors(device->channel, device->drive, sector, op->write, op->p, op->size);
 
-		op->status = DEV_BUF_OP_COMPLETE;
-		monitor_broadcast(op->lock);
+			op->status = DEV_BUF_OP_COMPLETE;
+			monitor_broadcast(op->lock);
+		} KCATCH(Exception) {
+			/* Propagate to requesting thread */
+			op->status = DEV_BUF_OP_FAILED;
+			op->cause = exception_get_cause();
+		}
 	}
 }
 

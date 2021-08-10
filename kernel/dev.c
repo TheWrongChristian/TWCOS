@@ -20,6 +20,7 @@ enum dev_op_status { DEV_BUF_OP_SUBMITTED = 0, DEV_BUF_OP_COMPLETE, DEV_BUF_OP_T
 struct buf_op_t {
 	dev_t * dev;
 	dev_op_status status;
+	exception_cause * cause;
 	int write;
 	void * p;
 	off64_t offset;
@@ -49,12 +50,8 @@ dev_op_status dev_op_wait( buf_op_t * op )
 		}
 	}
 
-	if (op->status != DEV_BUF_OP_COMPLETE) {
-		if (op->status == DEV_BUF_OP_TIMEDOUT) {
-			KTHROW(DeviceTimeoutException, "device operation timeout");
-		} else {
-			KTHROW(DeviceException, "device operation exception");
-		}
+	if (op->status != DEV_BUF_OP_COMPLETE && op->cause) {
+		exception_throw_cause(op->cause);
 	}
 
 	return op->status;
