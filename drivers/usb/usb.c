@@ -93,6 +93,9 @@ struct usb_device_t {
 
 	/* Topology */
 	usb_hub_t * hub;
+
+	/* Configuration */
+	usb_configuration_descriptor_t * configuration;
 };
 
 struct usb_device_descriptor_t {
@@ -111,6 +114,7 @@ struct usb_device_descriptor_t {
 struct usb_configuration_descriptor_t {
 	usb_device_descriptor_t * device;
 	int totallength;
+	int configuration;
 	int numinterfaces;
 	usb_interface_descriptor_t ** interfaces;
 };
@@ -232,6 +236,7 @@ static usb_configuration_descriptor_t * usb_parse_configuration_descriptor(usb_d
 	static packet_def_t usbconfigurationdescriptor[]={PACKET_DEF(usbconfigurationdescriptorfields)};
 	usb_configuration_descriptor_t * configuration = calloc(1, sizeof(*configuration));
 	configuration->device = device;
+	configuration->configuration = packet_get(usbconfigurationdescriptor, packet, 5);
 	configuration->totallength = packet_get(usbconfigurationdescriptor, packet, 2);
 	configuration->numinterfaces = packet_get(usbconfigurationdescriptor, packet, 3);
 	configuration->interfaces = calloc(configuration->numinterfaces, sizeof(*configuration->interfaces));
@@ -411,23 +416,7 @@ static void usb_initialize_device(usb_device_t * device)
 		f1 = usb_submit(request);
 		future_get(f1);
 		device->dev = address;
-#if 0
-		f1 = usb_packet(endpoint, usbsetup, setaddress, countof(setaddress));
-		f2 = usb_packet(endpoint, usbin, 0, 0);
-		device->dev = address;
-		future_get(f1);
-		future_get(f2);
 
-		uint8_t * buf = malloc(response[0]);
-		config[6] = response[0];
-		f1 = usb_packet(endpoint, usbsetup, config, countof(config));
-		f2 = usb_packet(endpoint, usbin, buf, response[0]);
-		future_get(f1);
-		future_get(f2);
-
-		f3 = usb_packet(endpoint, usbout, 0, 0);
-		future_get(f3);
-#endif
 		uint8_t * buf = malloc(response[0]);
 		getdevice[6] = response[0];
 		usb_control_request(device, getdevice, countof(getdevice), buf, response[0], request);
@@ -439,24 +428,19 @@ static void usb_initialize_device(usb_device_t * device)
 		usb_control_request(device, getdescriptor, countof(getdescriptor), config, getdescriptor[6], request);
 		f1 = usb_submit(request);
 		future_get(f1);
-#if 0
-		f1 = usb_packet(endpoint, usbsetup, getdescriptor, countof(getdescriptor));
-		f2 = usb_packet(endpoint, usbin, config, getdescriptor[6]);
-		future_get(f1);
-		future_get(f2);
-		usb_configuration_descriptor_t * configuration = usb_parse_configuration_descriptor_packet(0, config, getdescriptor[6]);
-		getdescriptor[6] = configuration->totallength;
-		f1 = usb_packet(endpoint, usbsetup, getdescriptor, countof(getdescriptor));
-		f2 = usb_packet(endpoint, usbin, config, getdescriptor[6]);
-		future_get(f1);
-		future_get(f2);
-#endif
+
 		usb_configuration_descriptor_t * configuration = usb_parse_configuration_descriptor_packet(0, config, getdescriptor[6]);
 		getdescriptor[6] = configuration->totallength;
 		usb_control_request(device, getdescriptor, countof(getdescriptor), config, getdescriptor[6], request);
 		f1 = usb_submit(request);
 		future_get(f1);
 		configuration = usb_parse_configuration_descriptor_packet(0, config, getdescriptor[6]);
+
+		uint8_t setconfig[] = {0x00, 0x9, configuration->configuration, 0x0, 0x0, 0x0, 0x0, 0x0};
+		usb_control_request(device, setaddress, countof(setaddress), 0, 0, request);
+		f1 = usb_submit(request);
+		future_get(f1);
+		device->configuration = configuration;
 	}
 }
 
