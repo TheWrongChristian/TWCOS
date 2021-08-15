@@ -160,7 +160,6 @@ static void vmap_set_pte(asid vid, const void * vaddress, pte_t pte)
 	INTERRUPT_MONITOR_AUTOLOCK(lock) {
 		int ptid = vmap_get_ptid(vid);
 		page_t vpage = (uint32_t)vaddress >> ARCH_PAGE_SIZE_LOG2;
-		pte_t * pgtbl = pgtbls[ptid];
 		int pgdirnum = vpage >> 10;
 
 		if (0 == (pgdirs[ptid][pgdirnum] & 1)){
