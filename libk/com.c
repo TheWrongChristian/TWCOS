@@ -7,7 +7,7 @@
 typedef void * (*interface_query_t)(void *, iid_t iid);
 
 #define INTERFACE_IMPL_QUERY(iface, container, member) \
-void * INTERFACE_IMPL_QUERY_NAME(iface, container)(iface * i, iid_t id) \
+void * INTERFACE_IMPL_QUERY_NAME(iface, container)(void * i, iid_t id) \
 { \
 	return com_query(INTERFACE_MAP_NAME(container), id, container_of(i, container, member)); \
 }

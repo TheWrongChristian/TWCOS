@@ -24,7 +24,7 @@ typedef int (*prefixp_func)(void * prefix, void * key);
 #define i2p(d) ((void *)d)
 
 struct map_t_ops {
-	void * (*query)(map_t *, void*);
+	void * (*query)(void *, iid_t i);
 	void (*destroy)( const map_t * map );
 	void (*walk)( const map_t * map, const walk_func func, const void *p );
 	void (*walk_range)( const map_t * map, const walk_func func, const void *p, const map_key from, const map_key to );
