@@ -76,6 +76,10 @@ static uint32_t packet_get32(volatile uint8_t * packet, int offset)
 
 INLINE_FLATTEN void packet_set(packet_def_t * packet_def, volatile uint8_t * packet, int field, uint32_t value)
 {
+	if (field<0) {
+		field += packet_def->fieldcount;
+	}
+
 	if (!packet_def->packetsize) {
 		packet_init(packet_def);
 	}
@@ -108,6 +112,10 @@ INLINE_FLATTEN void packet_set(packet_def_t * packet_def, volatile uint8_t * pac
 
 INLINE_FLATTEN uint32_t packet_get(packet_def_t * packet_def, volatile uint8_t * packet, int field)
 {
+	if (field<0) {
+		field += packet_def->fieldcount;
+	}
+
 	if (!packet_def->packetsize) {
 		packet_init(packet_def);
 	}
