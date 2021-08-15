@@ -383,6 +383,7 @@ static void uhci_hub_disable_port(usb_hub_t * hub, int port)
 }
 
 
+static future_t * uhci_submit(hcd_t * hcd, usb_request_t * request);
 static interface_map_t uhci_hcd_t_map [] =
 {
         INTERFACE_MAP_ENTRY(uhci_hcd_t, iid_hcd_t, hcd),
@@ -391,7 +392,7 @@ static interface_map_t uhci_hcd_t_map [] =
 static INTERFACE_IMPL_QUERY(hcd_t, uhci_hcd_t, hcd)
 static INTERFACE_OPS_TYPE(hcd_t) INTERFACE_IMPL_NAME(hcd_t, uhci_hcd_t) = {
 	INTERFACE_IMPL_QUERY_METHOD(hcd_t, uhci_hcd_t)
-	INTERFACE_IMPL_METHOD(packet, uhci_packet)
+	INTERFACE_IMPL_METHOD(submit, uhci_submit)
 };
 static INTERFACE_IMPL_QUERY(usb_hub_t, uhci_hcd_t, hcd)
 static INTERFACE_OPS_TYPE(usb_hub_t) INTERFACE_IMPL_NAME(usb_hub_t, uhci_hcd_t) = {
@@ -511,49 +512,42 @@ static uhci_hcd_t * uhci_reset(int iobase, int irq)
 	return hcd;
 }
 
-static uhci_q * uhci_td_chain(usbpid_t pid, usb_endpoint_t * endpoint, void * buf, size_t buflen)
+static void uhci_td_chain(uhci_td ** phead, uhci_td ** ptail, usbpid_t pid, usb_endpoint_t * endpoint, void * buf, size_t buflen)
 {
 	char * cp = buf;
 	if (buf) {
 		/* Check for crossing non-contiguous page boundaries */
 		if (uhci_pa(cp + buflen)-uhci_pa(buf) != buflen) {
 			/* FIXME: exception */
-			return NULL;
+			return;
 		}
 	}
 
-	int togglebit;
-	switch(pid) {
-	case usbin:
-		togglebit = 1;
-		break;
-	case usbout:
-		togglebit = 2;
-		break;
-	case usbsetup:
-		togglebit = 3;
-		break;
-	default:
-		kernel_panic("");
-		break;
-	}
-
 	ssize_t maxlen = (endpoint->device->flags & USB_DEVICE_LOW_SPEED) ? 8 : 64;
-	uhci_td * head = 0;
-	uhci_td * tail = 0;
+	uhci_td * head = *phead;
+	uhci_td * tail = *ptail;
 	do {
 		uhci_td * td = uhci_td_get();
 
 		uint32_t flags = bitset(0, 26, 1, (endpoint->device->flags & USB_DEVICE_LOW_SPEED) ? 1 : 0);
 		flags = bitset(flags, 28, 2, 3);
-		flags = bitset(flags, 24, 1, (buflen<=maxlen));
+		flags = bitset(flags, 24, 1, (buf>0) ? 0 : 1 );
 		flags = bitset(flags, 23, 8, 0x80);
+
+		int toggle;
+		if (usbsetup == pid) {
+			endpoint->toggle = toggle = 0;
+		} else if (buf || endpoint->endp) {
+			toggle = endpoint->toggle;
+		} else {
+			endpoint->toggle = toggle = 1;
+		}
+		endpoint->toggle ^= 1;
 
 		uint32_t address = bitset(0, 31, 11, (buflen>maxlen) ? maxlen-1 : buflen-1);
 		address = bitset(address, 18, 4, endpoint->endp);
 		address = bitset(address, 14, 7, endpoint->device->dev);
-		address = bitset(address, 19, 1, (togglebit & endpoint->toggle) ? 1 : 0);
-		endpoint->toggle ^= togglebit;
+		address = bitset(address, 19, 1, toggle);
 
 		switch(pid) {
 		case usbsetup:
@@ -592,6 +586,25 @@ static uhci_q * uhci_td_chain(usbpid_t pid, usb_endpoint_t * endpoint, void * bu
 		}
 	} while(buflen>0);
 
+	*phead = head;
+	*ptail = tail;
+}
+
+static uhci_q * uhci_q_chain(usb_request_t * request)
+{
+	uhci_td * head = 0;
+	uhci_td * tail = 0;
+	if (request->control) {
+		uhci_td_chain(&head, &tail, usbsetup, request->endpoint, request->control, request->controllen);
+		uhci_td_chain(&head, &tail, usbin, request->endpoint, request->buffer, request->bufferlen);
+		if (request->buffer) {
+			uhci_td_chain(&head, &tail, usbout, request->endpoint, 0, 0);
+		}
+	} else {
+		int in = request->endpoint->in;
+		uhci_td_chain(&head, &tail, (in) ? usbin : usbout, request->endpoint, request->buffer, request->bufferlen);
+		uhci_td_chain(&head, &tail, (in) ? usbout : usbin, request->endpoint, 0, 0);
+	}
 	uhci_q * q = uhci_q_get();
 	uhci_q_elementlink(q, 0, head);
 
@@ -622,25 +635,26 @@ static void uhci_q_remove(uhci_hcd_t * hcd, uhci_q * req)
 
 static void uhci_cleanup_packet(void * p)
 {
-	uhci_q * req = p;
-	assert(req->elementlink == le32(1));
-	uhci_hcd_t * uhci_hcd = req->hcd;
+	uhci_q * qh = p;
+	assert(qh->elementlink == le32(1));
+	uhci_hcd_t * uhci_hcd = qh->hcd;
 
 	INTERRUPT_MONITOR_AUTOLOCK(uhci_hcd->lock) {
-		uhci_q_remove(uhci_hcd, req);
-		map_removepp(uhci_hcd->pending, req);
+		uhci_q_remove(uhci_hcd, qh);
+		map_removepp(uhci_hcd->pending, qh);
 	}
 
-	uhci_q_free(req);
+	uhci_q_free(qh);
 }
 
-static future_t * uhci_packet(hcd_t * hcd, usb_endpoint_t * endpoint, usbpid_t pid, void * buf, size_t buflen)
+static future_t * uhci_submit(hcd_t * hcd, usb_request_t * request)
 {
-	uhci_q * req = uhci_td_chain(pid, endpoint, buf, buflen);
-	future_t * future = future_create(uhci_cleanup_packet, req);
+	usb_endpoint_t * endpoint = request->endpoint;
+	uhci_q * qh = uhci_q_chain(request);
+	future_t * future = future_create(uhci_cleanup_packet, qh);
 	enum uhci_queue queue;
 
-	if (usbsetup == pid) {
+	if (request->control) {
 		queue = controlq;
 	} else if (endpoint->periodic) {
 		for(queue=periodicq1; queue<maxq; queue++) {
@@ -657,7 +671,7 @@ static future_t * uhci_packet(hcd_t * hcd, usb_endpoint_t * endpoint, usbpid_t p
 	INTERRUPT_MONITOR_AUTOLOCK(uhci_hcd->lock) {
 		uhci_q * q = uhci_hcd->queues[queue];
 		uhci_q * nextq = q->vheadlink.q;
-		uhci_q_headlink(req, q->vheadlink.q, 0);
+		uhci_q_headlink(qh, q->vheadlink.q, 0);
 
 		uhci_q * tail = q->velementlink.q;
 		while(tail) {
@@ -673,13 +687,13 @@ static future_t * uhci_packet(hcd_t * hcd, usb_endpoint_t * endpoint, usbpid_t p
 			}
 		}
 		if (tail) {
-			uhci_q_headlink(tail, req, 0);
+			uhci_q_headlink(tail, qh, 0);
 		} else {
-			uhci_q_elementlink(q, req, 0);
+			uhci_q_elementlink(q, qh, 0);
 		}
 
-		req->hcd = uhci_hcd;
-		map_putpp(uhci_hcd->pending, req, future);
+		qh->hcd = uhci_hcd;
+		map_putpp(uhci_hcd->pending, qh, future);
 	}
 
 	return future;

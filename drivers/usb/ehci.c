@@ -93,7 +93,7 @@ struct ehci_hcd_t {
 	hcd_t hcd;
 	usb_hub_t roothub;
 	int nports;
-	usb_device_t * ports;
+	usb_device_t ** ports;
 	void * base;
 
 	/* Operational registers */
@@ -334,7 +334,11 @@ void ehci_submit_request(urb_t * urb)
 	}
 }
 
-static future_t * ehci_packet(usb_endpoint_t * endpoint, usbpid_t pid, void * buf, size_t buflen);
+static future_t * ehci_packet(hcd_t * hcd, usb_endpoint_t * endpoint, usbpid_t pid, void * buf, size_t buflen);
+static future_t * ehci_submit(hcd_t * hcd, usb_request_t * request)
+{
+	return 0;
+}
 
 /* EHCI root hub */
 static int ehci_hub_port_count(usb_hub_t * hub)
@@ -440,7 +444,7 @@ static interface_map_t ehci_hcd_t_map [] =
 static INTERFACE_IMPL_QUERY(hcd_t, ehci_hcd_t, hcd)
 static INTERFACE_OPS_TYPE(hcd_t) INTERFACE_IMPL_NAME(hcd_t, ehci_hcd_t) = {
 	INTERFACE_IMPL_QUERY_METHOD(hcd_t, ehci_hcd_t)
-	INTERFACE_IMPL_METHOD(packet, ehci_packet)
+	INTERFACE_IMPL_METHOD(submit, ehci_submit)
 };
 static INTERFACE_IMPL_QUERY(usb_hub_t, ehci_hcd_t, hcd)
 static INTERFACE_OPS_TYPE(usb_hub_t) INTERFACE_IMPL_NAME(usb_hub_t, ehci_hcd_t) = {
@@ -654,7 +658,7 @@ static void ehci_cleanup_packet(void * p)
 	ehci_q_free(req);
 }
 
-static future_t * ehci_packet(usb_endpoint_t * endpoint, usbpid_t pid, void * buf, size_t buflen)
+static future_t * ehci_packet(hcd_t * hcd, usb_endpoint_t * endpoint, usbpid_t pid, void * buf, size_t buflen)
 {
 	ehci_q * req = ehci_td_chain(pid, endpoint, buf, buflen);
 	future_t * future = future_create(ehci_cleanup_packet, req);
