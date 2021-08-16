@@ -326,15 +326,6 @@ uint32_t ehci_pa(void * p)
 	return ((vmap_get_page(kas, p) << ARCH_PAGE_SIZE_LOG2) | ARCH_PTRI_OFFSET(p));
 }
 
-void ehci_submit_request(urb_t * urb)
-{
-	ehci_hcd_t * hcd = container_of(urb->hcd, ehci_hcd_t, hcd);
-
-	INTERRUPT_MONITOR_AUTOLOCK(hcd->lock) {
-	}
-}
-
-static future_t * ehci_packet(hcd_t * hcd, usb_endpoint_t * endpoint, usbpid_t pid, void * buf, size_t buflen);
 static future_t * ehci_submit(hcd_t * hcd, usb_request_t * request)
 {
 	return 0;
@@ -537,6 +528,7 @@ static ehci_hcd_t * ehci_init(void * base, int irq)
 
 static ehci_q * ehci_td_chain(usbpid_t pid, usb_endpoint_t * endpoint, void * buf, size_t buflen)
 {
+#if 0
 	char * cp = buf;
 	if (buf) {
 		/* Check for crossing non-contiguous page boundaries */
@@ -615,11 +607,8 @@ static ehci_q * ehci_td_chain(usbpid_t pid, usb_endpoint_t * endpoint, void * bu
 			}
 		}
 	} while(buflen>0);
-
-	ehci_q * q = ehci_q_get();
-	ehci_q_elementlink(q, 0, head);
-
-	return q;
+#endif
+	return 0;
 }
 
 static void ehci_q_remove(ehci_hcd_t * hcd, ehci_q * req)

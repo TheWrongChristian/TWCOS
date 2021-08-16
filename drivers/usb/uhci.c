@@ -90,6 +90,7 @@ enum uhci_queue {
 };
 
 struct uhci_hcd_t {
+	device_t device;
 	hcd_t hcd;
 	usb_hub_t roothub;
 	usb_device_t * ports[2];
@@ -337,16 +338,6 @@ uint32_t uhci_pa(void * p)
 	return ((vmap_get_page(kas, p) << ARCH_PAGE_SIZE_LOG2) | ARCH_PTRI_OFFSET(p));
 }
 
-void uhci_submit_request(urb_t * urb)
-{
-	uhci_hcd_t * hcd = container_of(urb->hcd, uhci_hcd_t, hcd);
-
-	INTERRUPT_MONITOR_AUTOLOCK(hcd->lock) {
-	}
-}
-
-static future_t * uhci_packet(hcd_t * hcd, usb_endpoint_t * endpoint, usbpid_t pid, void * buf, size_t buflen);
-
 static int uhci_hub_port_count(usb_hub_t * hub)
 {
 	uhci_hcd_t * hcd = container_of(hub, uhci_hcd_t, roothub);
@@ -387,14 +378,20 @@ static future_t * uhci_submit(hcd_t * hcd, usb_request_t * request);
 static interface_map_t uhci_hcd_t_map [] =
 {
         INTERFACE_MAP_ENTRY(uhci_hcd_t, iid_hcd_t, hcd),
+        INTERFACE_MAP_ENTRY(uhci_hcd_t, iid_device_t, device),
         INTERFACE_MAP_ENTRY(uhci_hcd_t, iid_usb_hub_t, roothub),
+};
+static INTERFACE_IMPL_QUERY(device_t, uhci_hcd_t, device)
+static INTERFACE_OPS_TYPE(device_t) INTERFACE_IMPL_NAME(device_t, uhci_hcd_t) = {
+	INTERFACE_IMPL_QUERY_METHOD(device_t, uhci_hcd_t)
+	INTERFACE_IMPL_METHOD(enumerate, 0)
 };
 static INTERFACE_IMPL_QUERY(hcd_t, uhci_hcd_t, hcd)
 static INTERFACE_OPS_TYPE(hcd_t) INTERFACE_IMPL_NAME(hcd_t, uhci_hcd_t) = {
 	INTERFACE_IMPL_QUERY_METHOD(hcd_t, uhci_hcd_t)
 	INTERFACE_IMPL_METHOD(submit, uhci_submit)
 };
-static INTERFACE_IMPL_QUERY(usb_hub_t, uhci_hcd_t, hcd)
+static INTERFACE_IMPL_QUERY(usb_hub_t, uhci_hcd_t, roothub)
 static INTERFACE_OPS_TYPE(usb_hub_t) INTERFACE_IMPL_NAME(usb_hub_t, uhci_hcd_t) = {
 	INTERFACE_IMPL_QUERY_METHOD(usb_hub_t, uhci_hcd_t)
 	INTERFACE_IMPL_METHOD(port_count, uhci_hub_port_count)
@@ -403,7 +400,7 @@ static INTERFACE_OPS_TYPE(usb_hub_t) INTERFACE_IMPL_NAME(usb_hub_t, uhci_hcd_t) 
 	INTERFACE_IMPL_METHOD(disable_port, uhci_hub_disable_port)
 };
 
-static uhci_hcd_t * uhci_reset(int iobase, int irq)
+static uhci_hcd_t * uhci_reset(device_t * device, int iobase, int irq)
 {
 	/* Global reset 5 times with 10ms each */
 	for(int i=0; i<5; i++) {
@@ -433,6 +430,8 @@ static uhci_hcd_t * uhci_reset(int iobase, int irq)
 	}
 
 	uhci_hcd_t * hcd = calloc(1, sizeof(*hcd));
+	hcd->device.ops = &uhci_hcd_t_device_t;
+	device_init(&hcd->device, device);
 	hcd->iobase = iobase;
 	hcd->lock = interrupt_monitor_irq(irq);
 	hcd->pframelist = vmpage_calloc(CORE_SUB4G);
@@ -497,18 +496,11 @@ static uhci_hcd_t * uhci_reset(int iobase, int irq)
 	}
 #endif
 	hcd->roothub.ports = hcd->ports;
-#if 0
-	static usb_hub_ops_t uhci_roothub_ops = {
-		.port_count = uhci_hub_port_count,
-		.reset_port = uhci_hub_reset_port,
-		.get_device = uhci_hub_get_device,
-		.disable_port = uhci_hub_disable_port,
-	};
-#endif
 	hcd->roothub.ops = &uhci_hcd_t_usb_hub_t;
 
 	intr_add(irq, uhci_irq, hcd);
 
+	device_queue(&hcd->device, usb_class_key(9, 0), 0);
 	return hcd;
 }
 
@@ -535,9 +527,10 @@ static void uhci_td_chain(uhci_td ** phead, uhci_td ** ptail, usbpid_t pid, usb_
 		flags = bitset(flags, 23, 8, 0x80);
 
 		int toggle;
+		int endp = (endpoint->descriptor) ? endpoint->descriptor->endpoint : 0;
 		if (usbsetup == pid) {
-			endpoint->toggle = toggle = 0;
-		} else if (buf || endpoint->endp) {
+			endp = endpoint->toggle = toggle = 0;
+		} else if (buf || endp) {
 			toggle = endpoint->toggle;
 		} else {
 			endpoint->toggle = toggle = 1;
@@ -545,7 +538,7 @@ static void uhci_td_chain(uhci_td ** phead, uhci_td ** ptail, usbpid_t pid, usb_
 		endpoint->toggle ^= 1;
 
 		uint32_t address = bitset(0, 31, 11, (buflen>maxlen) ? maxlen-1 : buflen-1);
-		address = bitset(address, 18, 4, endpoint->endp);
+		address = bitset(address, 18, 4, endp);
 		address = bitset(address, 14, 7, endpoint->device->dev);
 		address = bitset(address, 19, 1, toggle);
 
@@ -601,7 +594,7 @@ static uhci_q * uhci_q_chain(usb_request_t * request)
 			uhci_td_chain(&head, &tail, usbout, request->endpoint, 0, 0);
 		}
 	} else {
-		int in = request->endpoint->in;
+		int in = request->endpoint->descriptor->endpoint & 0x80;
 		uhci_td_chain(&head, &tail, (in) ? usbin : usbout, request->endpoint, request->buffer, request->bufferlen);
 		uhci_td_chain(&head, &tail, (in) ? usbout : usbin, request->endpoint, 0, 0);
 	}
@@ -703,10 +696,12 @@ void uhci_probe(device_t * device)
 {
 	uintptr_t bar4 = pci_bar_base(device, 4);
 	int irq = pci_irq(device);
-	static GCROOT uhci_hcd_t * hcd;
-	hcd = uhci_reset(bar4, irq);
+	uhci_hcd_t * hcd;
+	hcd = uhci_reset(device, bar4, irq);
 	if (hcd) {
+#if 0
 		usb_test(com_query(uhci_hcd_t_map, iid_usb_hub_t, hcd));
+#endif
 	}
 }
 

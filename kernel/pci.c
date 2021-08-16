@@ -194,25 +194,7 @@ static void pci_device_enumerate(device_t * device)
 	pci_device_t * pcidev = container_of(device, pci_device_t, device);
 }
 
-static device_ops_t pci_ops[1] = {{.enumerate=pci_device_enumerate}};
-
-static char * pci_device_key( char * fmt, ...)
-{
-	va_list ap;
-
-	va_start(ap, fmt);
-
-	char * key = 0;
-	ARENA_AUTOSTATE(NULL) {
-		char * tkey = tmalloc(128);
-		vsnprintf(tkey, 128, fmt, ap);
-		key = strdup(tkey);
-	}
-
-	va_end(ap);
-
-	return key;
-}
+static device_t_ops pci_ops[1] = {{.enumerate=pci_device_enumerate}};
 
 static device_type_t pci_type()
 {
@@ -226,17 +208,17 @@ static device_type_t pci_type()
 
 char * pci_progif_key(uint8_t class, uint8_t subclass, uint8_t progif)
 {
-	return pci_device_key("%x:progif:%x:%x:%x", pci_type(), class, subclass, progif);
+	return device_key("%x:progif:%x:%x:%x", pci_type(), class, subclass, progif);
 }
 
 char * pci_class_key(uint8_t class, uint8_t subclass)
 {
-	return pci_device_key("%x:class:%x:%x", pci_type(), class, subclass);
+	return device_key("%x:class:%x:%x", pci_type(), class, subclass);
 }
 
 char * pci_deviceid_key(uint16_t vendorid, uint16_t deviceid)
 {
-	return pci_device_key("%x:vendor:%x:%x", pci_type(), vendorid, deviceid);
+	return device_key("%x:vendor:%x:%x", pci_type(), vendorid, deviceid);
 }
 
 static char * pci_device_progif_key(device_t * device)
@@ -270,7 +252,7 @@ static void pci_probe_function(device_t * parent, pci_device_t * pcidevtmp)
 	device_t * device = &pcidev->device;
 
 	/* Link into the device tree */
-	device_init(device, pci_ops, pci_type(), parent);
+	device_init(device, parent);
 
 	/* Put into devfs */
 	pci_probe_devfs(pcidev);

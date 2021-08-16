@@ -31,24 +31,13 @@ struct hcd_t {
 	uint32_t ids[4];
 };
 
-struct urb_t {
-	hcd_t * hcd;
-	usbpid_t pid;
-	int device;
-	int endpoint;
-	int direction;
-	int flags;
-	void * buffer;
-	size_t bufferlen;
-};
-
 #define USB_DEVICE_LOW_SPEED 1<<0
 #define USB_DEVICE_FULL_SPEED 1<<1
 #define USB_DEVICE_HIGH_SPEED 1<<2
 #define USB_DEVICE_SUPER_SPEED 1<<3
 
 struct usb_hub_t_ops {
-	void * (*query)(void * hcd, iid_t iid);
+	void * (*query)(void * hub, iid_t iid);
 	int (*port_count)(usb_hub_t * hub);
 	void (*reset_port)(usb_hub_t * hub, int port);
 	usb_device_t * (*get_device)(usb_hub_t * hub, int port);
@@ -69,9 +58,10 @@ struct usb_port_t {
 
 struct usb_endpoint_t {
 	usb_device_t * device;
-	uint8_t endp;
-	int in;
 	int toggle;
+
+	/* Endpoint information */
+	usb_endpoint_descriptor_t * descriptor;
 
 	/* Periodic information */
 	int periodic;
@@ -370,16 +360,31 @@ usb_device_t * usb_hub_get_device(usb_hub_t * hub, int port)
 	return hub->ports[port];
 }
 
-#if 0
-static future_t * usb_packet_response(usb_endpoint_t * endpoint, usbpid_t pid, void * packet, size_t packetlen, void * response, size_t responselen)
+static device_type_t usb_type()
 {
-	future_t * f1 = usb_packet(endpoint, usbsetup, packet, packetlen);
-	future_t * f2 = usb_packet(endpoint, usbin, response, responselen);
-	future_chain(f2, f1);
+	static device_type_t type = 0;
+	if (0 == type) {
+		type = device_type("bus/usb");
+	}
 
-	return f2;
+	return type;
 }
-#endif
+
+static void usb_bulk_request(usb_endpoint_t * endpoint, void * buffer, size_t bufferlen, usb_request_t * request)
+{
+	request->endpoint = endpoint;
+	request->buffer = buffer;
+	request->bufferlen = bufferlen;
+	request->control = 0;
+}
+
+static void usb_interrupt_request(usb_endpoint_t * endpoint, void * buffer, size_t bufferlen, usb_request_t * request)
+{
+	request->endpoint = endpoint;
+	request->buffer = buffer;
+	request->bufferlen = bufferlen;
+	request->control = 0;
+}
 
 static void usb_control_request(usb_device_t * device, uint8_t * control, int controllen, uint8_t * buffer, int bufferlen, usb_request_t * request)
 {
@@ -388,6 +393,11 @@ static void usb_control_request(usb_device_t * device, uint8_t * control, int co
 	request->controllen = controllen;
 	request->buffer = buffer;
 	request->bufferlen = bufferlen;
+}
+
+static usb_device_t * usb_device(device_t * device)
+{
+	return container_of(device, usb_device_t, device);
 }
 
 static void usb_initialize_device(usb_device_t * device)
@@ -441,10 +451,12 @@ static void usb_initialize_device(usb_device_t * device)
 		f1 = usb_submit(request);
 		future_get(f1);
 		device->configuration = configuration;
+
+		/* Register the device with the device manager */
 	}
 }
 
-void usb_hub_enumerate(usb_hub_t * hub)
+static void usb_hub_enumerate(usb_hub_t * hub)
 {
 	int portcount = usb_hub_port_count(hub);
 
@@ -458,6 +470,11 @@ void usb_hub_enumerate(usb_hub_t * hub)
 		}
 		hub->ports[i]=device;
 	}
+}
+
+void usb_hub_device_enumerate(device_t * device)
+{
+	usb_hub_enumerate(device->ops->query(device, iid_usb_hub_t));
 }
 
 hcd_t * usb_hub_get_hcd(usb_hub_t * hub)
@@ -476,12 +493,6 @@ hcd_t * usb_hub_get_hcd(usb_hub_t * hub)
 	return 0;
 }
 
-#if 0
-future_t * usb_packet(usb_endpoint_t * endpoint, usbpid_t pid, void * buf, size_t buflen)
-{
-	return endpoint->device->hcd->ops->packet(endpoint->device->hcd, endpoint, pid, buf, buflen);
-}
-#endif
 future_t * usb_submit(usb_request_t * request)
 {
 	return request->endpoint->device->hcd->ops->submit(request->endpoint->device->hcd, request);
@@ -490,48 +501,21 @@ future_t * usb_submit(usb_request_t * request)
 void usb_test(usb_hub_t * hub)
 {
 	usb_hub_enumerate(hub);
-#if 0
-	uint8_t config[] = {0x80, 0x6, 0x0, 0x1, 0x0, 0x0, 0x8, 0x0};
-	uint8_t response[] = {0, 0, 0, 0, 0, 0, 0, 0};
-	usb_device_t dev[] = {{0, USB_DEVICE_LOW_SPEED, 0}};
-	usb_endpoint_t endpoint[] = {{.device=&dev[0]}};
+}
 
-	TRACE();
-	future_t * f1 = usb_packet(usbsetup, endpoint, config, countof(config));
-	future_t * f2 = usb_packet(usbin, endpoint, response, countof(response));
-	future_get(f1);
-	future_get(f2);
+char * usb_class_key(int class, int subclass)
+{
+	return device_key("usb:class:%x:%x", class, subclass);
+}
 
-	TRACE();
-	future_t * f3 = hcd_submit(hcd, usbout, endpoint, 0, 0);
-	future_get(f3);
+char * usb_product_key(int vendor, int product)
+{
+	return device_key("usb:product:%x:%x", vendor, product);
+}
 
-	TRACE();
-	static uint8_t setaddress[] = {0x00, 0x5, 0x1, 0x0, 0x0, 0x0, 0x0, 0x0};
-	f1 = hcd_submit(hcd, usbsetup, endpoint, setaddress, countof(setaddress));
-	f2 = hcd_submit(hcd, usbin, endpoint, 0, 0);
-	dev->dev = 1;
-
-	TRACE();
-	future_get(f1);
-	future_get(f2);
-
-	TRACE();
-	f3 = hcd_submit(hcd, usbout, endpoint, 0, 0);
-	future_get(f3);
-
-	TRACE();
-	uint8_t * buf = malloc(response[0]);
-	config[6] = response[0];
-	f1 = hcd_submit(hcd, usbsetup, endpoint, config, countof(config));
-	f2 = hcd_submit(hcd, usbin, endpoint, buf, response[0]);
-	future_get(f1);
-	future_get(f2);
-
-	TRACE();
-	f3 = hcd_submit(hcd, usbout, endpoint, 0, 0);
-	future_get(f3);
-#endif
+void usb_init()
+{
+	device_driver_register(usb_class_key(9, 0), usb_hub_device_enumerate);
 }
 
 char iid_hcd_t[] = "USB Host Controller Device";

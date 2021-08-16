@@ -97,6 +97,7 @@ void kernel_main()
 #endif
 		kernel_debug("Initialising drivers\n");
 		static_init();
+		usb_init();
 		uhci_pciinit();
 		ehci_pciinit();
 		ide_pciinit();

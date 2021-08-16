@@ -3,8 +3,9 @@
 
 #if INTERFACE
 
-struct device_ops_t
+struct device_t_ops
 {
+	void * (*query)(void *, iid_t i);
 	void (*enumerate)(device_t * device);
 };
 
@@ -14,9 +15,9 @@ typedef void (*device_probe_t)(device_t * device);
 
 struct device_t
 {
-	device_ops_t * ops;
+	device_t_ops * ops;
 
-	device_type_t type;
+	// device_type_t type;
 	device_t * parent;
 	map_t * children;
 };
@@ -60,10 +61,8 @@ void device_enumerate(device_t * device)
 	device->ops->enumerate(device);
 }
 
-void device_init(device_t * device, device_ops_t * ops, device_type_t type, device_t * parent)
+void device_init(device_t * device, device_t * parent)
 {
-	device->ops = ops;
-	device->type = type;
 	device->children = treap_new(0);
 	device->parent = parent;
 
@@ -158,3 +157,24 @@ void device_driver_register(char * key, device_probe_t probe)
 		map_putpp(probeset, probe, probe);
 	}
 }
+
+char * device_key( char * fmt, ...)
+{
+	va_list ap;
+
+	va_start(ap, fmt);
+
+	char * key = 0;
+	ARENA_AUTOSTATE(NULL) {
+		char * tkey = tmalloc(128);
+		vsnprintf(tkey, 128, fmt, ap);
+		key = strdup(tkey);
+	}
+
+	va_end(ap);
+
+	return key;
+}
+
+
+char iid_device_t[] = "Generic Device";
