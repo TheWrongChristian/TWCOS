@@ -141,6 +141,7 @@ static void uhci_walk_pending(const void * const p, void * key, void * data)
 
 static void uhci_async_processor(uhci_hcd_t * hcd)
 {
+	thread_set_name(0, "UHCI async processor");
 	while(1) {
 		KTRY {
 			INTERRUPT_MONITOR_AUTOLOCK(hcd->lock) {
@@ -486,15 +487,7 @@ static uhci_hcd_t * uhci_reset(device_t * device, int iobase, int irq)
 	/* Start the schedule */
 	isa_outw(hcd->iobase+UHCI_USBCMD, UHCI_USBCMD_CF | UHCI_USBCMD_RS);
 
-#if 1
-	thread_t * thread = thread_fork();
-	if (0==thread) {
-		thread_set_name(0, "UHCI async processor");
-		uhci_async_processor(hcd);
-	} else {
-		hcd->thread = thread;
-	}
-#endif
+	hcd->thread = thread_spawn(uhci_async_processor, hcd);
 	hcd->roothub.ports = hcd->ports;
 	hcd->roothub.ops = &uhci_hcd_t_usb_hub_t;
 
