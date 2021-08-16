@@ -494,6 +494,10 @@ static uhci_hcd_t * uhci_reset(device_t * device, int iobase, int irq)
 	intr_add(irq, uhci_irq, hcd);
 
 	device_queue(&hcd->device, usb_class_key(9, 0), 0);
+	vnode_t * devfs = devfs_open();
+	char devfsname[64];
+	snprintf(devfsname, sizeof(devfsname), "bus/usb/%x", hcd->iobase);
+	vnode_t * dir = vnode_newdir_hierarchy(devfs, devfsname);
 	return hcd;
 }
 
