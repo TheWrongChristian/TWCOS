@@ -572,7 +572,7 @@ static void usb_hub_enumerate(usb_hub_t * hub)
 	}
 }
 
-void usb_hub_device_enumerate(device_t * device)
+void usb_hub_device_probe(device_t * device)
 {
 	if (device->ops) {
 		usb_hub_enumerate(device->ops->query(device, iid_usb_hub_t));
@@ -679,7 +679,7 @@ void usb_hid_device_probe(device_t * device)
 
 void usb_init()
 {
-	device_driver_register(usb_class_key(9, 0), usb_hub_device_enumerate);
+	device_driver_register(usb_class_key(9, 0), usb_hub_device_probe);
 	device_driver_register(usb_class_key(3, 1), usb_hid_device_probe);
 }
 
