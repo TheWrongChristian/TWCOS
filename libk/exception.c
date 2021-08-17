@@ -305,6 +305,7 @@ noreturn void exception_vpanic(const char * fmt, va_list ap)
 			stream_printf(console_stream(), "%d: %p\n", i, cause->backtrace[i]);
 		}
 		stream_printf(console_stream(), "%s:%d\n", cause->file, cause->line);
+		stream_printf(console_stream(), "%s\n", cause->message);
 	}
 	kernel_vpanic(fmt, ap);
 }
