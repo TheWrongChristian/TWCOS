@@ -206,6 +206,7 @@ static void uhci_reset_port(uhci_hcd_t * hcd, int port)
 
 		if (status & UHCI_PORTSTS_PED) {
 			usb_device_t * device = calloc(1, sizeof(*device));
+			device_init(&device->device, &hcd->device);
 			if (status & UHCI_PORTSTS_LSD) {
 				device->flags |= USB_DEVICE_LOW_SPEED;
 			}
@@ -524,7 +525,7 @@ static void uhci_td_chain(uhci_td ** phead, uhci_td ** ptail, usbpid_t pid, usb_
 		flags = bitset(flags, 23, 8, 0x80);
 
 		int toggle;
-		int endp = (endpoint->descriptor) ? endpoint->descriptor->endpoint : 0;
+		int endp = (endpoint->descriptor) ? endpoint->descriptor->endpoint & 0xf : 0;
 		if (usbsetup == pid) {
 			endp = endpoint->toggle = toggle = 0;
 		} else if (buf || endp) {
@@ -648,7 +649,7 @@ static future_t * uhci_submit(hcd_t * hcd, usb_request_t * request)
 		queue = controlq;
 	} else if (endpoint->periodic) {
 		for(queue=periodicq1; queue<maxq; queue++) {
-			if ((1<<(queue-periodicq1))<endpoint->periodic) {
+			if ((1<<(queue-periodicq1))>endpoint->periodic) {
 				queue--;
 				break;
 			}

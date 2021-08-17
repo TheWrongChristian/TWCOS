@@ -69,7 +69,7 @@ struct usb_endpoint_t {
 
 struct usb_device_t {
 	/* Device manager generic interface */
-	device_t * device;
+	device_t device;
 
 	/* Host controller to which this device is attached */
 	hcd_t * hcd;
@@ -103,6 +103,7 @@ struct usb_device_descriptor_t {
 };
 struct usb_configuration_descriptor_t {
 	usb_device_descriptor_t * device;
+	usb_hid_descriptor_t * hid;
 	int totallength;
 	int configuration;
 	int numinterfaces;
@@ -117,6 +118,11 @@ struct usb_interface_descriptor_t {
 	int numendpoints;
 	usb_endpoint_descriptor_t ** endpoints;
 };
+struct usb_hid_descriptor_t {
+	usb_configuration_descriptor_t * configuration;
+	int descriptortype;
+	int descriptorlength;
+};
 struct usb_endpoint_descriptor_t {
 	usb_interface_descriptor_t * interface;
 	uint8_t endpoint;
@@ -125,9 +131,12 @@ struct usb_endpoint_descriptor_t {
 	int interval;
 };
 
+typedef void (*usb_interrupt_callback_t)(usb_endpoint_t * endpoint, void * arg, void * buffer, int bufferlen);
+
 #endif
 
-
+exception_def UsbException = {"UsbException", &Exception};
+exception_def UsbDisconnectException = {"UsbDisconnectException", &UsbException};
 
 static packet_field_t usbdescriptorfields[] = {
 	/** bLength */
@@ -147,16 +156,77 @@ static uint32_t usb_descriptor_type(uint8_t * packet, int packetlen)
 	return packet_get(usbdescriptor, packet, 1);
 }
 
-#if 0
-static packet_field_t usbsetupfields[] = {
-	PACKET_LEFIELD(1),
-	PACKET_LEFIELD(1),
-	PACKET_LEFIELD(2),
-	PACKET_LEFIELD(2),
-	PACKET_LEFIELD(2),
-};
-static packet_def_t usbsetup[]={PACKET_DEF(usbsetupfields)};
-#endif
+static void usb_setup_request(uint8_t * setup, int requesttype, int request, int value, int index, int length)
+{
+	static packet_field_t usbsetupfields[] = {
+		PACKET_LEFIELD(1),
+		PACKET_LEFIELD(1),
+		PACKET_LEFIELD(2),
+		PACKET_LEFIELD(2),
+		PACKET_LEFIELD(2),
+	};
+	static packet_def_t usbsetup[]={PACKET_DEF(usbsetupfields)};
+	packet_set(usbsetup, setup, 0, requesttype);
+	packet_set(usbsetup, setup, 1, request);
+	packet_set(usbsetup, setup, 2, value);
+	packet_set(usbsetup, setup, 3, index);
+	packet_set(usbsetup, setup, 4, length);
+}
+
+static void usb_control_request(usb_device_t * device, uint8_t * control, int controllen, uint8_t * buffer, int bufferlen, usb_request_t * request);
+static uint8_t * usb_get_descriptor(usb_device_t * device, int type, int index, int length)
+{
+	uint8_t setup[8];
+	uint8_t * buffer = calloc(1, length);
+	usb_request_t request[1];
+	usb_setup_request(setup, 0x80, 6, (type<<8) | index, 0, length);
+	usb_control_request(device, setup, countof(setup), buffer, length, request);
+	future_t * f1 = usb_submit(request);
+	future_get(f1);
+	return buffer;
+}
+
+static void usb_set_address(usb_device_t * device, int address)
+{
+	uint8_t setup[8];
+	usb_request_t request[1];
+	usb_setup_request(setup, 0, 5, address, 0, 0);
+	usb_control_request(device, setup, countof(setup), 0, 0, request);
+	future_t * f1 = usb_submit(request);
+	future_get(f1);
+}
+
+static void usb_set_configuration(usb_device_t * device, int configuration)
+{
+	uint8_t setup[8];
+	usb_request_t request[1];
+	usb_setup_request(setup, 0, 9, configuration, 0, 0);
+	usb_control_request(device, setup, countof(setup), 0, 0, request);
+	future_t * f1 = usb_submit(request);
+	future_get(f1);
+}
+
+static void usb_set_idle(usb_device_t * device)
+{
+	uint8_t setup[8];
+	usb_request_t request[1];
+	usb_setup_request(setup, 0x21, 0xa, 0, 0, 0);
+	usb_control_request(device, setup, countof(setup), 0, 0, request);
+	future_t * f1 = usb_submit(request);
+	future_get(f1);
+}
+
+static void usb_set_feature(usb_device_t * device, int feature, int interface, int endpoint)
+{
+	uint8_t setup[8];
+	usb_request_t request[1];
+	int address = (interface) ? 1 : (endpoint) ? 2 : 0;
+	int index = (interface) ? interface : (endpoint) ? endpoint : 0;
+	usb_setup_request(setup, address, 3, index, 0, 0);
+	usb_control_request(device, setup, countof(setup), 0, 0, request);
+	future_t * f1 = usb_submit(request);
+	future_get(f1);
+}
 
 usb_device_descriptor_t * usb_parse_device_descriptor(uint8_t * packet, int packetlen)
 {
@@ -232,6 +302,33 @@ static usb_configuration_descriptor_t * usb_parse_configuration_descriptor(usb_d
 	configuration->interfaces = calloc(configuration->numinterfaces, sizeof(*configuration->interfaces));
 
 	return configuration;
+}
+
+static usb_hid_descriptor_t * usb_parse_hid_descriptor(usb_configuration_descriptor_t * configuration, uint8_t * packet, int packetlen)
+{
+	static packet_field_t usbhiddescriptorfields[] = {
+		/** bLength */
+		PACKET_LEFIELD(1),
+		/** bDescriptorType */
+		PACKET_LEFIELD(1),
+		/** bcdHID */
+		PACKET_LEFIELD(2),
+		/** bCountryCode */
+		PACKET_LEFIELD(1),
+		/** bNumDescriptors */
+		PACKET_LEFIELD(1),
+		/** bDescriptorType */
+		PACKET_LEFIELD(1),
+		/** wDescriptorLength */
+		PACKET_LEFIELD(2),
+	};
+	static packet_def_t usbhiddescriptor[]={PACKET_DEF(usbhiddescriptorfields)};
+	usb_hid_descriptor_t * hid = calloc(1, sizeof(*hid));
+	hid->configuration = configuration;
+	hid->descriptortype = packet_get(usbhiddescriptor, packet, 5);
+	hid->descriptorlength = packet_get(usbhiddescriptor, packet, 6);
+
+	return hid;
 }
 
 static usb_interface_descriptor_t * usb_parse_interface_descriptor(usb_configuration_descriptor_t * configuration, uint8_t * packet, int packetlen)
@@ -329,6 +426,10 @@ usb_configuration_descriptor_t * usb_parse_configuration_descriptor_packet(usb_d
 			endpoint = usb_parse_endpoint_descriptor(interface, next, remaining);
 			interface->endpoints[nextendpoint++] = endpoint;
 			break;
+		case 33:
+			check_not_null(configuration, "");
+			configuration->hid = usb_parse_hid_descriptor(configuration, next, remaining);
+			break;
 		}
 		next += descriptorlen;
 		remaining -= descriptorlen;
@@ -404,12 +505,7 @@ static void usb_initialize_device(usb_device_t * device)
 {
 	/* Setup the control endpoint */
 	device->controlep->device = device;
-	uint8_t getdevice[] = {0x80, 0x6, 0x0, 0x1, 0x0, 0x0, 0x8, 0x0};
-	uint8_t response[] = {0, 0, 0, 0, 0, 0, 0, 0};
-	usb_request_t request[1];
-	usb_control_request(device, getdevice, countof(getdevice), response, countof(response), request);
-	future_t * f1 = usb_submit(request);
-	future_get(f1);
+	uint8_t * response = usb_get_descriptor(device, 1, 0, 8);
 
 	/* Allocate an address for the new device */
 	int address=0;
@@ -421,38 +517,25 @@ static void usb_initialize_device(usb_device_t * device)
 		}
 	}
 	if (address) {
-		uint8_t setaddress[] = {0x00, 0x5, address, 0x0, 0x0, 0x0, 0x0, 0x0};
-		usb_control_request(device, setaddress, countof(setaddress), 0, 0, request);
-		f1 = usb_submit(request);
-		future_get(f1);
+		usb_set_address(device, address);
 		device->dev = address;
-
-		uint8_t * buf = malloc(response[0]);
-		getdevice[6] = response[0];
-		usb_control_request(device, getdevice, countof(getdevice), buf, response[0], request);
-		f1 = usb_submit(request);
-		future_get(f1);
-
-		uint8_t getdescriptor[] = {0x80, 0x6, 0, 2, 0, 0, 0x9, 0};
-		uint8_t config[64] = {0};
-		usb_control_request(device, getdescriptor, countof(getdescriptor), config, getdescriptor[6], request);
-		f1 = usb_submit(request);
-		future_get(f1);
-
-		usb_configuration_descriptor_t * configuration = usb_parse_configuration_descriptor_packet(0, config, getdescriptor[6]);
-		getdescriptor[6] = configuration->totallength;
-		usb_control_request(device, getdescriptor, countof(getdescriptor), config, getdescriptor[6], request);
-		f1 = usb_submit(request);
-		future_get(f1);
-		configuration = usb_parse_configuration_descriptor_packet(0, config, getdescriptor[6]);
-
-		uint8_t setconfig[] = {0x00, 0x9, configuration->configuration, 0x0, 0x0, 0x0, 0x0, 0x0};
-		usb_control_request(device, setaddress, countof(setaddress), 0, 0, request);
-		f1 = usb_submit(request);
-		future_get(f1);
+		uint8_t * buf = usb_get_descriptor(device, 1, 0, response[0]);
+		buf = usb_get_descriptor(device, 2, 0, 9);
+		usb_configuration_descriptor_t * configuration = usb_parse_configuration_descriptor_packet(0, buf, 9);
+		buf = usb_get_descriptor(device, 2, 0, configuration->totallength);
+		configuration = usb_parse_configuration_descriptor_packet(0, buf, configuration->totallength);
 		device->configuration = configuration;
 
+		usb_set_configuration(device, configuration->configuration);
+
 		/* Register the device with the device manager */
+#if 0
+		device_queue(device->device, usb_product_key(device->class, device->subclass), 0);
+#endif
+		for(int i=0; i<configuration->numinterfaces; i++) {
+			usb_interface_descriptor_t * interface = device->configuration->interfaces[i];
+			device_queue(&device->device, usb_class_key(interface->class, interface->subclass), 0);
+		}
 	}
 }
 
@@ -474,7 +557,9 @@ static void usb_hub_enumerate(usb_hub_t * hub)
 
 void usb_hub_device_enumerate(device_t * device)
 {
-	usb_hub_enumerate(device->ops->query(device, iid_usb_hub_t));
+	if (device->ops) {
+		usb_hub_enumerate(device->ops->query(device, iid_usb_hub_t));
+	}
 }
 
 hcd_t * usb_hub_get_hcd(usb_hub_t * hub)
@@ -498,6 +583,42 @@ future_t * usb_submit(usb_request_t * request)
 	return request->endpoint->device->hcd->ops->submit(request->endpoint->device->hcd, request);
 }
 
+typedef struct usb_interrupt_thread_t {
+	usb_endpoint_t * endpoint;
+	usb_interrupt_callback_t callback;
+	void * arg;
+} usb_interrupt_thread_t;
+
+static void * usb_interrupt_thread(void * threadarg)
+{
+	const usb_interrupt_thread_t * args = threadarg;
+	usb_endpoint_t * endpoint = args->endpoint;
+	usb_request_t request[1];
+	const int bufferlen = endpoint->descriptor->maxpacketsize;
+	void * buffer = calloc(1, bufferlen);
+	usb_interrupt_request(endpoint, buffer, bufferlen, request);
+	while(1) {
+		KTRY {
+			future_t * future = usb_submit(request);
+
+			if (0 == future_get(future)) {
+				args->callback(endpoint, args->arg, buffer, bufferlen);
+			}
+		} KCATCH(UsbDisconnectException) {
+		} KCATCH(UsbException) {
+		} KCATCH(Exception) {
+		}
+	}
+
+	return 0;
+}
+
+thread_t * usb_interrupt(usb_endpoint_t * endpoint, void * arg, usb_interrupt_callback_t callback)
+{
+	usb_interrupt_thread_t args = {endpoint, callback, arg};
+	return thread_spawn(usb_interrupt_thread, mclone(&args));
+}
+
 void usb_test(usb_hub_t * hub)
 {
 	usb_hub_enumerate(hub);
@@ -513,9 +634,26 @@ char * usb_product_key(int vendor, int product)
 	return device_key("usb:product:%x:%x", vendor, product);
 }
 
+static void usb_hid_interrupt(usb_endpoint_t * endpoint, void * arg, void * buffer, int bufferlen)
+{
+	kernel_debug("%p[%d]\n", buffer, bufferlen);
+}
+
+void usb_hid_device_probe(device_t * device)
+{
+	usb_device_t * usbdevice = usb_device(device);
+	usb_endpoint_descriptor_t * descriptor = usbdevice->configuration->interfaces[0]->endpoints[0];
+	usb_endpoint_t endpoint[1] = {{usbdevice, 0, descriptor, descriptor->interval}};
+
+	uint8_t * hid = usb_get_descriptor(usbdevice, usbdevice->configuration->hid->descriptortype, 0, usbdevice->configuration->hid->descriptorlength);
+	usb_set_idle(usbdevice);	
+	usb_interrupt(mclone(endpoint), 0, usb_hid_interrupt);
+}
+
 void usb_init()
 {
 	device_driver_register(usb_class_key(9, 0), usb_hub_device_enumerate);
+	device_driver_register(usb_class_key(3, 1), usb_hid_device_probe);
 }
 
 char iid_hcd_t[] = "USB Host Controller Device";
