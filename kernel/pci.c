@@ -182,19 +182,19 @@ void pci_probe_print(device_t * device)
 #endif
 
 static void pci_scanbus(device_t * parent, pci_device_t * pcidev);
-static void pci_bus_enumerate(device_t * device)
+static void pci_bus_probe(device_t * device)
 {
 	pci_device_t * pcidev = container_of(device, pci_device_t, device);
 	pci_device_t pcibus2[1] = {{.bus=pci_secondary_bus(pcidev), .slot=0, .function=0}};
 	pci_scanbus(device, pcibus2);
 }
 
-static void pci_device_enumerate(device_t * device)
+static void pci_device_probe(device_t * device)
 {
 	pci_device_t * pcidev = container_of(device, pci_device_t, device);
 }
 
-static device_t_ops pci_ops[1] = {{.enumerate=pci_device_enumerate}};
+static device_t_ops pci_ops[1] = {{.probe=pci_device_probe}};
 
 static device_type_t pci_type()
 {
@@ -311,7 +311,7 @@ static void pci_scan(device_t * parent)
 void pci_init(device_t * parent)
 {
 #if 0
-	device_driver_register(pci_class_key(6, 4), pci_bus_enumerate);
+	device_driver_register(pci_class_key(6, 4), pci_bus_probe);
 #endif
 	pci_scan_root(parent);
 }

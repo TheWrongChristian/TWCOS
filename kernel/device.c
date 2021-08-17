@@ -6,7 +6,7 @@
 struct device_t_ops
 {
 	void * (*query)(void *, iid_t i);
-	void (*enumerate)(device_t * device);
+	void (*probe)(device_t * device);
 };
 
 typedef int device_type_t;
@@ -56,9 +56,9 @@ device_type_t device_type(char * type)
 	return device_type;
 }
 
-void device_enumerate(device_t * device)
+void device_probe(device_t * device)
 {
-	device->ops->enumerate(device);
+	device->ops->probe(device);
 }
 
 void device_init(device_t * device, device_t * parent)

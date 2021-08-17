@@ -392,7 +392,7 @@ static interface_map_t uhci_hcd_t_map [] =
 static INTERFACE_IMPL_QUERY(device_t, uhci_hcd_t, device)
 static INTERFACE_OPS_TYPE(device_t) INTERFACE_IMPL_NAME(device_t, uhci_hcd_t) = {
 	INTERFACE_IMPL_QUERY_METHOD(device_t, uhci_hcd_t)
-	INTERFACE_IMPL_METHOD(enumerate, 0)
+	INTERFACE_IMPL_METHOD(probe, 0)
 };
 static INTERFACE_IMPL_QUERY(hcd_t, uhci_hcd_t, hcd)
 static INTERFACE_OPS_TYPE(hcd_t) INTERFACE_IMPL_NAME(hcd_t, uhci_hcd_t) = {
