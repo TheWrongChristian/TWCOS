@@ -608,6 +608,8 @@ typedef struct usb_interrupt_thread_t {
 
 static void * usb_interrupt_thread(void * threadarg)
 {
+	thread_set_name(0, "USB interrupt thread");
+	thread_set_priority(0, THREAD_INTERRUPT);
 	const usb_interrupt_thread_t * args = threadarg;
 	usb_endpoint_t * endpoint = args->endpoint;
 	usb_request_t request[1];
@@ -658,7 +660,7 @@ static void usb_hid_interrupt(usb_endpoint_t * endpoint, void * arg, void * buff
 {
 	uint8_t * p = buffer;
 
-	kernel_debug("Report: %hhx %hhx %hhx %hhx\n", p[0], p[1], p[2], p[3]);
+	kernel_debug("Report: %hhx %hhd %hhd %hhd\n", p[0], p[1], p[2], p[3]);
 }
 
 void usb_hid_device_probe(device_t * device)
