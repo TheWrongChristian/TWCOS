@@ -117,7 +117,15 @@ static void uhci_status_check(uhci_q * q, future_t * future)
 			return;
 		} else if (status) {
 			/* Check for errors */
-			future_set(future, status);
+			exception_cause * cause;
+			if (status & 0x8) {
+				cause = exception_create(&UsbStallException, __FILE__, __LINE__, "STALL - UHCI status: %x", status);
+			} else if (status & 0x40) {
+				cause = exception_create(&UsbNakException, __FILE__, __LINE__, "NAK - UHCI status: %x", status);
+			} else {
+				cause = exception_create(&UsbException, __FILE__, __LINE__, "UHCI status: %x", status);
+			}
+			future_cancel(future, cause);
 			return;
 		}
 		td = td->vlink.td;
@@ -125,8 +133,6 @@ static void uhci_status_check(uhci_q * q, future_t * future)
 
 	/* By here, we've checked all the status as successful. */
 	future_set(future, 0);
-
-	/* FIXME: cleanup pending */
 }
 
 static void uhci_walk_pending(const void * const p, void * key, void * data)
@@ -502,7 +508,32 @@ static uhci_hcd_t * uhci_reset(device_t * device, int iobase, int irq)
 	return hcd;
 }
 
-static void uhci_td_chain(uhci_td ** phead, uhci_td ** ptail, usbpid_t pid, usb_endpoint_t * endpoint, void * buf, size_t buflen)
+static void uhci_td_dump(uhci_td * td)
+{
+	uint32_t flags = le32(td->flags);
+	uint32_t address = le32(td->address);
+	kernel_printk(
+		"TD: %s speed, %s on complete\n"
+		"  : status %x, transferred %x\n"
+		"  : device %x, endpoint %x\n"
+		"  : max length %x, toggle %x\n"
+		, bitget(flags, 26, 1) ? "low" : "high", bitget(flags, 24, 1) ? "interrupt on complete" : "no interrupt"
+		, bitget(flags, 23, 8), bitget(flags, 10, 11)
+		, bitget(address, 14, 7), bitget(address, 18, 4)
+		, bitget(address, 31, 10), bitget(address, 19, 1)
+	);
+}
+
+static void uhci_q_dump(uhci_q * qh)
+{
+	uhci_td * td = qh->velementlink.td;
+	while(td) {
+		uhci_td_dump(td);
+		td = td->vlink.td;
+	}
+}
+
+static void uhci_td_chain(uhci_td ** phead, uhci_td ** ptail, int interrupt, usbpid_t pid, usb_endpoint_t * endpoint, void * buf, size_t buflen)
 {
 	char * cp = buf;
 	if (buf) {
@@ -517,11 +548,12 @@ static void uhci_td_chain(uhci_td ** phead, uhci_td ** ptail, usbpid_t pid, usb_
 	uhci_td * head = *phead;
 	uhci_td * tail = *ptail;
 	do {
+		int ioc = interrupt & (buflen<=maxlen);
 		uhci_td * td = uhci_td_get();
 
 		uint32_t flags = bitset(0, 26, 1, (endpoint->device->flags & USB_DEVICE_LOW_SPEED) ? 1 : 0);
 		flags = bitset(flags, 28, 2, 3);
-		flags = bitset(flags, 24, 1, (buf>0) ? 0 : 1 );
+		flags = bitset(flags, 24, 1, ioc );
 		flags = bitset(flags, 23, 8, 0x80);
 
 		int toggle;
@@ -586,15 +618,19 @@ static uhci_q * uhci_q_chain(usb_request_t * request)
 	uhci_td * head = 0;
 	uhci_td * tail = 0;
 	if (request->control) {
-		uhci_td_chain(&head, &tail, usbsetup, request->endpoint, request->control, request->controllen);
-		uhci_td_chain(&head, &tail, usbin, request->endpoint, request->buffer, request->bufferlen);
+		uhci_td_chain(&head, &tail, 0, usbsetup, request->endpoint, request->control, request->controllen);
 		if (request->buffer) {
-			uhci_td_chain(&head, &tail, usbout, request->endpoint, 0, 0);
+			uhci_td_chain(&head, &tail, 0, usbin, request->endpoint, request->buffer, request->bufferlen);
+			uhci_td_chain(&head, &tail, 1, usbout, request->endpoint, 0, 0);
+		} else {
+			uhci_td_chain(&head, &tail, 1, usbin, request->endpoint, 0, 0);
 		}
 	} else {
 		int in = request->endpoint->descriptor->endpoint & 0x80;
-		uhci_td_chain(&head, &tail, (in) ? usbin : usbout, request->endpoint, request->buffer, request->bufferlen);
+		uhci_td_chain(&head, &tail, 1, (in) ? usbin : usbout, request->endpoint, request->buffer, request->bufferlen);
+#if 0
 		uhci_td_chain(&head, &tail, (in) ? usbout : usbin, request->endpoint, 0, 0);
+#endif
 	}
 	uhci_q * q = uhci_q_get();
 	uhci_q_elementlink(q, 0, head);
@@ -627,7 +663,12 @@ static void uhci_q_remove(uhci_hcd_t * hcd, uhci_q * req)
 static void uhci_cleanup_packet(void * p)
 {
 	uhci_q * qh = p;
-	assert(qh->elementlink == le32(1));
+#ifdef DEBUG
+	if(qh->elementlink != le32(1)) {
+		kernel_wait("UHCI: Cleaning up incomplete QH");
+		uhci_q_dump(qh);
+	}
+#endif
 	uhci_hcd_t * uhci_hcd = qh->hcd;
 
 	INTERRUPT_MONITOR_AUTOLOCK(uhci_hcd->lock) {

@@ -137,6 +137,8 @@ typedef void (*usb_interrupt_callback_t)(usb_endpoint_t * endpoint, void * arg, 
 
 exception_def UsbException = {"UsbException", &Exception};
 exception_def UsbDisconnectException = {"UsbDisconnectException", &UsbException};
+exception_def UsbStallException = {"UsbStallException", &UsbException};
+exception_def UsbNakException = {"UsbNakException", &UsbException};
 
 static packet_field_t usbdescriptorfields[] = {
 	/** bLength */
@@ -228,6 +230,21 @@ static void usb_set_feature(usb_device_t * device, int feature, int interface, i
 	future_get(f1);
 }
 
+static void usb_set_endpoint_halt(usb_endpoint_t * endpoint, int halted)
+{
+	uint8_t setup[8];
+	usb_request_t request[1];
+	if (halted) {
+		usb_setup_request(setup, 2, 3, 0, endpoint->descriptor->endpoint, 0);
+	} else {
+		usb_setup_request(setup, 2, 1, 0, endpoint->descriptor->endpoint, 0);
+	}
+	usb_control_request(endpoint->device, setup, countof(setup), 0, 0, request);
+	future_t * f1 = usb_submit(request);
+	future_get(f1);
+	endpoint->toggle = 0;
+}
+
 usb_device_descriptor_t * usb_parse_device_descriptor(uint8_t * packet, int packetlen)
 {
 	static packet_field_t usbdevicedescriptorfields[] = {
@@ -296,7 +313,7 @@ static usb_configuration_descriptor_t * usb_parse_configuration_descriptor(usb_d
 	static packet_def_t usbconfigurationdescriptor[]={PACKET_DEF(usbconfigurationdescriptorfields)};
 	usb_configuration_descriptor_t * configuration = calloc(1, sizeof(*configuration));
 	configuration->device = device;
-	configuration->configuration = packet_get(usbconfigurationdescriptor, packet, 5);
+	configuration->configuration = packet_get(usbconfigurationdescriptor, packet, 4);
 	configuration->totallength = packet_get(usbconfigurationdescriptor, packet, 2);
 	configuration->numinterfaces = packet_get(usbconfigurationdescriptor, packet, 3);
 	configuration->interfaces = calloc(configuration->numinterfaces, sizeof(*configuration->interfaces));
@@ -604,9 +621,12 @@ static void * usb_interrupt_thread(void * threadarg)
 			if (0 == future_get(future)) {
 				args->callback(endpoint, args->arg, buffer, bufferlen);
 			}
+		} KCATCH(UsbNakException) {
+			/* Ignore */
 		} KCATCH(UsbDisconnectException) {
+		} KCATCH(UsbStallException) {
+			usb_set_endpoint_halt(endpoint, 0);
 		} KCATCH(UsbException) {
-		} KCATCH(Exception) {
 		}
 	}
 
@@ -636,7 +656,9 @@ char * usb_product_key(int vendor, int product)
 
 static void usb_hid_interrupt(usb_endpoint_t * endpoint, void * arg, void * buffer, int bufferlen)
 {
-	kernel_debug("%p[%d]\n", buffer, bufferlen);
+	uint8_t * p = buffer;
+
+	kernel_debug("Report: %hhx %hhx %hhx %hhx\n", p[0], p[1], p[2], p[3]);
 }
 
 void usb_hid_device_probe(device_t * device)
@@ -645,7 +667,10 @@ void usb_hid_device_probe(device_t * device)
 	usb_endpoint_descriptor_t * descriptor = usbdevice->configuration->interfaces[0]->endpoints[0];
 	usb_endpoint_t endpoint[1] = {{usbdevice, 0, descriptor, descriptor->interval}};
 
-	uint8_t * hid = usb_get_descriptor(usbdevice, usbdevice->configuration->hid->descriptortype, 0, usbdevice->configuration->hid->descriptorlength);
+	KTRY {
+		uint8_t * hid = usb_get_descriptor(usbdevice, usbdevice->configuration->hid->descriptortype, 0, usbdevice->configuration->hid->descriptorlength);
+	} KCATCH(UsbNakException) {
+	}
 	usb_set_idle(usbdevice);	
 	usb_interrupt(mclone(endpoint), 0, usb_hid_interrupt);
 }
