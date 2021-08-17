@@ -211,8 +211,7 @@ static void uhci_reset_port(uhci_hcd_t * hcd, int port)
 		}
 
 		if (status & UHCI_PORTSTS_PED) {
-			usb_device_t * device = calloc(1, sizeof(*device));
-			device_init(&device->device, &hcd->device);
+			usb_device_t * device = usb_new_device(&hcd->device);
 			if (status & UHCI_PORTSTS_LSD) {
 				device->flags |= USB_DEVICE_LOW_SPEED;
 			}

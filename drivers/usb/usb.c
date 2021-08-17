@@ -574,8 +574,12 @@ static void usb_hub_enumerate(usb_hub_t * hub)
 
 void usb_hub_device_probe(device_t * device)
 {
-	if (device->ops) {
-		usb_hub_enumerate(device->ops->query(device, iid_usb_hub_t));
+	KTRY {
+		usb_hub_t * hub = device->ops->query(device, iid_usb_hub_t);
+		if (device->ops) {
+			usb_hub_enumerate(device->ops->query(device, iid_usb_hub_t));
+		}
+	} KCATCH(InterfaceNotFoundException) {
 	}
 }
 
@@ -681,6 +685,25 @@ void usb_init()
 {
 	device_driver_register(usb_class_key(9, 0), usb_hub_device_probe);
 	device_driver_register(usb_class_key(3, 1), usb_hid_device_probe);
+}
+
+static interface_map_t usb_device_t_map [] =
+{
+	INTERFACE_MAP_ENTRY(usb_device_t, iid_device_t, device),
+};
+static INTERFACE_IMPL_QUERY(device_t, usb_device_t, device)
+static INTERFACE_OPS_TYPE(device_t) INTERFACE_IMPL_NAME(device_t, usb_device_t) = {
+        INTERFACE_IMPL_QUERY_METHOD(device_t, usb_device_t)
+        INTERFACE_IMPL_METHOD(probe, 0)
+};
+
+usb_device_t * usb_new_device(device_t * parent)
+{
+	usb_device_t * device = calloc(1, sizeof(*device));
+	device_init(&device->device, parent);
+	device->device.ops = &usb_device_t_device_t;
+
+	return device;
 }
 
 char iid_hcd_t[] = "USB Host Controller Device";
