@@ -121,15 +121,16 @@ void device_probe_unclaimed()
 		device_list_t * next = queue;
 		while(next) {
 			device_list_t * item = next;
-			LIST_NEXT(queue, next);
 
 			if (map_getpp(unclaimed, item->device)) {
 				map_t * probeset = map_getpp(probes, item->key);
 				if (probeset) {
 					map_walkpp(probeset, device_probe_walk, item->device);
 				}
+				LIST_NEXT(queue, next);
 			} else {
 				/* Claimed device, remove this item */
+				LIST_NEXT(queue, next);
 				LIST_DELETE(queue, item);
 			}
 		}
