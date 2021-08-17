@@ -213,7 +213,7 @@ map_t * arraymap_new(int (*comp)(map_key k1, map_key k2), int capacity)
 	map->comp = (comp) ? comp : map_keycmp;
 	map->count = 0;
 
-	return com_query(arraymap_t_map, iid_map_t, map);
+	return com_query(arraymap_t_map, countof(arraymap_t_map), iid_map_t, map);
 }
 
 

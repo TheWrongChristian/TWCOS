@@ -125,7 +125,7 @@ map_t * cache_new(int (*comp)(map_key k1, map_key k2))
 	cache->map.ops = &cache_t_map_t;
 	cache->backing = splay_new(comp);
 
-	return com_query(cache_t_map, iid_map_t, cache);
+	return com_query(cache_t_map, countof(cache_t_map), iid_map_t, cache);
 }
 
 

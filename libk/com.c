@@ -9,7 +9,7 @@ typedef void * (*interface_query_t)(void *, iid_t iid);
 #define INTERFACE_IMPL_QUERY(iface, container, member) \
 void * INTERFACE_IMPL_QUERY_NAME(iface, container)(void * i, iid_t id) \
 { \
-	return com_query(INTERFACE_MAP_NAME(container), id, container_of(i, container, member)); \
+	return com_query(INTERFACE_MAP_NAME(container), countof(INTERFACE_MAP_NAME(container)), id, container_of(i, container, member)); \
 }
 #define INTERFACE_OPS_TYPE(iface) iface ## _ops
 static iface ## _ops container ## _ ## iface 
@@ -58,16 +58,14 @@ struct anon_test_t_ops : query_t_ops {
 
 exception_def InterfaceNotFoundException = {"InterfaceNotFoundException", &Exception};
 
-void * com_query(interface_map_t * map, iid_t id, void * base)
+void * com_query(interface_map_t * map, int mapnum, iid_t id, void * base)
 {
-	interface_map_t * next = map;
-	while(next->id) {
-		if (id == next->id) {
-			return PTR_BYTE_ADDRESS(base, next->offset);
+	for(int i=0; i<mapnum; i++) {
+		if (id == map[i].id) {
+			return PTR_BYTE_ADDRESS(base, map[i].offset);
 		}
-		next++;
 	}
-	KTHROW(InterfaceNotFoundException, "Interface not found");
+	KTHROWF(InterfaceNotFoundException, "Interface not found: %s", id);
 } 
 
 #if 0

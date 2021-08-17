@@ -147,7 +147,7 @@ map_t * vector_new()
 	v->map.ops = &vector_t_map_t;
 	v->table = vector_table_new(0);
 
-	return com_query(vector_t_map, iid_map_t, v);
+	return com_query(vector_t_map, countof(vector_t_map), iid_map_t, v);
 }
 
 void vector_test()

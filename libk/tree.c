@@ -774,7 +774,7 @@ map_t * tree_new(int (*comp)(map_key k1, map_key k2), treemode mode)
 	tree->mode = mode;
 	tree->comp = (comp) ? comp : map_keycmp;
 
-	return com_query(tree_t_map, iid_map_t, tree);
+	return com_query(tree_t_map, countof(tree_t_map), iid_map_t, tree);
 }
 
 map_t * splay_new(int (*comp)(map_key k1, map_key k2))
