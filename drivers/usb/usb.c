@@ -733,6 +733,7 @@ void usb_init()
 {
 	device_driver_register(usb_class_key(9, 0), usb_hub_device_probe);
 	device_driver_register(usb_class_key(3, 1), usb_hid_device_probe);
+	device_driver_register(usb_class_key(8, 6), usb_msd_device_probe);
 }
 
 static interface_map_t usb_device_t_map [] =

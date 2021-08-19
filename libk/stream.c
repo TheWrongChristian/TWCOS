@@ -83,6 +83,8 @@ static void stream_putuint(stream_t * stream, struct fmt_opts * opts)
 		val = (uint64_t)(unsigned long)va_arg(opts->ap, unsigned long);
 	} else if (opts->flags & FMT_FLAG_LL) {
 		val = (uint64_t)(unsigned long)va_arg(opts->ap, unsigned long long);
+	} else if (opts->flags & FMT_FLAG_Z) {
+		val = (uint64_t)(size_t)va_arg(opts->ap, size_t);
 	} else if (opts->flags & FMT_FLAG_H) {
 		val = (uint64_t)(unsigned short)va_arg(opts->ap, unsigned int);
 	} else if (opts->flags & FMT_FLAG_HH) {
@@ -100,6 +102,8 @@ static void stream_putint(stream_t * stream, struct fmt_opts * opts)
 		val = (int64_t)(long)va_arg(opts->ap, long);
 	} else if (opts->flags & FMT_FLAG_LL) {
 		val = (int64_t)(long long)va_arg(opts->ap, long long);
+	} else if (opts->flags & FMT_FLAG_Z) {
+		val = (int64_t)(ssize_t)va_arg(opts->ap, ssize_t);
 	} else if (opts->flags & FMT_FLAG_H) {
 		val = (int64_t)(short)va_arg(opts->ap, int);
 	} else if (opts->flags & FMT_FLAG_HH) {

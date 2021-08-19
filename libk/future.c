@@ -94,3 +94,10 @@ void future_chain(future_t * future, future_t * prev)
 		future->prev = prev;
 	}
 }
+
+future_t * future_static_success()
+{
+	static future_t future[]={{0}};
+
+	return future;
+}
