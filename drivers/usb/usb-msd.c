@@ -9,6 +9,7 @@ typedef struct usb_bbb_device_t usb_bbb_device_t;
 struct usb_bbb_device_t {
 	device_t device;
 	block_t block;
+	cam_capacity_t capacity;
 	/* cdb_transport_t cdb_transport; */
 	struct {
 		usb_request_t request[1];
@@ -127,7 +128,7 @@ static void usb_bbb_device_async(void * p)
 static future_t * usb_bbb_device_request(usb_bbb_device_t * bbb, uint8_t * cmd, size_t cmdlen, void * buf, size_t buflen, int transferin)
 {
 	future_get(bbb->future);
-
+#if 0
 	future_init(bbb->future, 0, 0);
 	future_t * command_future = usb_bbb_command(bbb, cmd, cmdlen, buflen, 0x80, 0);
 	if (buf && buflen) {
@@ -141,6 +142,19 @@ static future_t * usb_bbb_device_request(usb_bbb_device_t * bbb, uint8_t * cmd, 
 	}
 
 	thread_pool_submit(0, usb_bbb_device_async, bbb);
+#else
+	future_init(bbb->future, 0, 0);
+	future_t * command_future = usb_bbb_command(bbb, cmd, cmdlen, buflen, 0x80, 0);
+	future_get(command_future);
+	if (buf && buflen) {
+		future_t * transfer_future = usb_bbb_transfer(bbb, buf, buflen, transferin);
+		future_get(transfer_future);
+		bbb->status_future = usb_bbb_status(bbb);
+	} else {
+		bbb->status_future = usb_bbb_status(bbb);
+	}
+	usb_bbb_transfer_complete(bbb);
+#endif
 
 	return bbb->future;
 }
@@ -152,7 +166,7 @@ static future_t * usb_bbb_device_read(block_t * block, void * buf, size_t buflen
 	future_get(bbb->future);
 
 	uint8_t readcmd[10];
-	cam_cmd_read10(readcmd, countof(readcmd), offset >> 9, buflen);
+	cam_cmd_read10(readcmd, countof(readcmd), offset >> 9, buflen / bbb->capacity.blocksize);
 	return usb_bbb_device_request(bbb, readcmd, countof(readcmd), buf, buflen, 1);
 }
 
@@ -163,7 +177,7 @@ static future_t * usb_bbb_device_write(block_t * block, void * buf, size_t bufle
 	future_get(bbb->future);
 
 	uint8_t writecmd[10];
-	cam_cmd_read10(writecmd, countof(writecmd), offset >> 9, buflen);
+	cam_cmd_read10(writecmd, countof(writecmd), offset >> 9, buflen / bbb->capacity.blocksize);
 	return usb_bbb_device_request(bbb, writecmd, countof(writecmd), buf, buflen, 0);
 }
 
@@ -183,20 +197,27 @@ static void usb_bbb_read_capacity(usb_bbb_device_t * bbb)
 	cam_cmd_read_capacity10(cmd, countof(cmd));
 	future_t * future = usb_bbb_device_request(bbb, cmd, countof(cmd), response, countof(response), 1);
 	future_get(future);
-	cam_capacity_t capacity;
-	cam_response_read_capacity(response, countof(response), &capacity);
+	cam_response_read_capacity(response, countof(response), &bbb->capacity);
+}
+
+static void usb_bbb_test_unit_ready(usb_bbb_device_t * bbb)
+{
+	uint8_t cmd[6];
+	cam_cmd_test_unit_ready(cmd, countof(cmd));
+	future_t * future = usb_bbb_device_request(bbb, cmd, countof(cmd), 0, 0, 0);
+	future_get(future);
 }
 
 static size_t usb_bbb_device_blocksize(block_t * block)
 {
         usb_bbb_device_t * bbb = container_of(block, usb_bbb_device_t, block);
-        return 512;
+        return bbb->capacity.blocksize;
 }
 
 static off64_t usb_bbb_device_getsize(block_t * block)
 {
         usb_bbb_device_t * bbb = container_of(block, usb_bbb_device_t, block);
-        return 1024;
+        return bbb->capacity.blocks * bbb->capacity.blocksize;
 }
 
 
@@ -244,10 +265,11 @@ static void usb_bbb_device_probe(device_t * device, usb_interface_descriptor_t *
 	bbb->epout = epout;
 	usb_bulk_request(bbb->epout, bbb->cbw.buf, countof(bbb->cbw.buf), bbb->cbw.request);
 	usb_bulk_request(bbb->epin, bbb->csw.buf, countof(bbb->csw.buf), bbb->csw.request);
-#if 0
+#if 1
 	usb_bbb_device_inquiry(bbb);
 #endif
 	usb_bbb_read_capacity(bbb);
+	usb_bbb_test_unit_ready(bbb);
 	device_queue(&bbb->device, "block", 0);
 	usb_bbb_test(&bbb->device);
 }

@@ -117,4 +117,9 @@ void cam_response_read_capacity(uint8_t * buf, int buflen, cam_capacity_t * capa
 	capacity->blocksize = packet_get(response, buf, 1);
 }
 
+void cam_cmd_test_unit_ready(uint8_t * buf, int buflen)
+{
+	memset(buf, 0, min(buflen, 6));
+}
+
 iid_t cam_iid="Common Access Method";
