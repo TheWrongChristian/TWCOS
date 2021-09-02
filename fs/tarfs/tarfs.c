@@ -176,7 +176,11 @@ static void tarfs_add_node( vnode_t * root, const char * fullname, vnode_t * vno
 		file = 0;
 	}
 
-	v = vnode_newdir_hierarchy(v, dir);
+	if (0 == strcmp(dir, ".")) {
+		v = root;
+	} else {
+		v = vnode_newdir_hierarchy(v, dir);
+	}
 	if (file && v) {
 		vnode_put_vnode(v, file, vnode);
 	}
