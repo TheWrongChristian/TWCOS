@@ -324,7 +324,7 @@ static ssize_t vnode_readwrite( vnode_t * vnode, off64_t offset, void * buf, siz
 		}
 
 		// map i
-		file_buffer_t * buf = vnode_get_buffer(vnode, from);
+		file_buffer_t * buf = vnode_get_buffer(vnode, ROUNDDOWN(from, VFS_BUFFER_LEN));
 		char * cfrom = buf->p;
 
 		// copy to/from buf
