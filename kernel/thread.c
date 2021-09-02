@@ -91,6 +91,11 @@ enum tpriority {
 
 typedef void * (*thread_func_t)(void * arg);
 
+struct thread_pool_t {
+	queue_t * queue;
+	thread_t * thread;
+};
+
 #endif
 
 int preempt;
@@ -620,6 +625,50 @@ static void thread_update_acct(const void * const p, void * key, void * data)
 
 	int percent = 100 * thread->usage / 1000000;
 	kernel_printk("%s: %d\n", thread->name ? thread->name : "Unknown", percent);
+}
+
+typedef struct thread_pool_request_t thread_pool_request_t;
+struct thread_pool_request_t {
+	void (*function)(void * arg);
+	void * arg;
+};
+
+void * thread_pool_processor(void * p)
+{
+	thread_pool_t * pool = p;
+	while(1) {
+		thread_pool_request_t * request = queue_getp(pool->queue);
+		KTRY {
+			request->function(request->arg);
+		} KCATCH(Throwable) {
+			exception_log();
+		}
+	}
+}
+
+thread_pool_t * thread_pool_create()
+{
+	thread_pool_t * pool = calloc(1, sizeof(*pool));
+	pool->queue = queue_new(16);
+	pool->thread = thread_spawn(thread_pool_processor, pool);
+
+	return pool;
+}
+
+void thread_pool_submit(thread_pool_t * pool, void (*function)(void * arg), void * arg)
+{
+	static GCROOT thread_pool_t * defaultpool;
+
+	if (0 == pool) {
+		if (defaultpool == 0) {
+			defaultpool = thread_pool_create();
+		}
+		pool = defaultpool;
+	}
+
+	thread_pool_request_t request = {.function = function, .arg = arg};
+
+	queue_putp(pool->queue, mclone(&request));
 }
 
 void thread_update_accts()

@@ -119,11 +119,6 @@ user_start:
 	hlt
 	jmp 0b
 
-.global switch
-switch:
-	movl %esp, %eax
-	ret
-
 .global isr
 .type isr, @function
 isr:

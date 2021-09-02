@@ -28,7 +28,6 @@ intptr_t future_get_timeout(future_t * future, timerspec_t timeout)
 
 	INTERRUPT_MONITOR_AUTOLOCK(future->lock) {
 		while(future->pending) {
-			TRACE();
 			interrupt_monitor_wait_timeout(future->lock, timeout);
 		}
 	}
@@ -39,7 +38,12 @@ intptr_t future_get_timeout(future_t * future, timerspec_t timeout)
 	}
 
 	if (future->cause) {
-		KTHROWC(future->cause);
+		/* Suppress further exceptions from this future */
+		exception_cause * cause = future->cause;
+		future->cause = 0;
+
+		/* Throw the original exception */
+		KTHROWC(cause);
 	}
 
 	return future->status;
@@ -97,7 +101,7 @@ void future_chain(future_t * future, future_t * prev)
 
 future_t * future_static_success()
 {
-	static future_t future[]={{0}};
+	static future_t future[]={{{0}}};
 
 	return future;
 }

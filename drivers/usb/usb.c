@@ -178,7 +178,6 @@ static void usb_setup_request(uint8_t * setup, int requesttype, int request, int
 	packet_set(usbsetup, setup, 4, length);
 }
 
-static void usb_control_request(usb_device_t * device, uint8_t * control, int controllen, uint8_t * buffer, int bufferlen, usb_request_t * request);
 uint8_t * usb_get_descriptor(device_t * device, int type, int index, int length)
 {
 	usb_device_t * usbdevice = usb_device(device);
@@ -518,7 +517,7 @@ static device_type_t usb_type()
 	return type;
 }
 
-static void usb_bulk_request(usb_endpoint_t * endpoint, void * buffer, size_t bufferlen, usb_request_t * request)
+void usb_bulk_request(usb_endpoint_t * endpoint, void * buffer, size_t bufferlen, usb_request_t * request)
 {
 	request->endpoint = endpoint;
 	request->buffer = buffer;
@@ -526,7 +525,7 @@ static void usb_bulk_request(usb_endpoint_t * endpoint, void * buffer, size_t bu
 	request->control = 0;
 }
 
-static void usb_interrupt_request(usb_endpoint_t * endpoint, void * buffer, size_t bufferlen, usb_request_t * request)
+void usb_interrupt_request(usb_endpoint_t * endpoint, void * buffer, size_t bufferlen, usb_request_t * request)
 {
 	request->endpoint = endpoint;
 	request->buffer = buffer;
@@ -534,7 +533,7 @@ static void usb_interrupt_request(usb_endpoint_t * endpoint, void * buffer, size
 	request->control = 0;
 }
 
-static void usb_control_request(usb_device_t * device, uint8_t * control, int controllen, uint8_t * buffer, int bufferlen, usb_request_t * request)
+void usb_control_request(usb_device_t * device, uint8_t * control, int controllen, uint8_t * buffer, int bufferlen, usb_request_t * request)
 {
 	request->endpoint = device->controlep;
 	request->control = control;

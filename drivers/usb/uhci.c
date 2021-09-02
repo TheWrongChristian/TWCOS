@@ -106,6 +106,55 @@ struct uhci_hcd_t {
 	uint16_t status;
 };
 
+static void uhci_td_dump(uhci_td * td)
+{
+	uint32_t flags = le32(td->flags);
+	uint32_t address = le32(td->address);
+	kernel_printk(
+		"TD: %s speed, %sinterrupt on complete\n"
+		, bitget(flags, 26, 1) ? "low" : "high", bitget(flags, 24, 1) ? "" : "no "
+	);
+	kernel_printk(
+		"  : status %x, transferred %x\n"
+		, bitget(flags, 23, 8), bitget(flags, 10, 11)
+	);
+	kernel_printk(
+		"  : device %x, endpoint %x\n"
+		, bitget(address, 14, 7), bitget(address, 18, 4)
+	);
+	kernel_printk(
+		"  : max length %x, toggle %x\n"
+		, bitget(address, 31, 10), bitget(address, 19, 1)
+	);
+}
+
+static void uhci_q_dump(uhci_q * qh)
+{
+	uhci_td * td = qh->velementlink.td;
+	while(td) {
+		uhci_td_dump(td);
+		td = td->vlink.td;
+	}
+}
+
+static void uhci_q_remove(uhci_hcd_t * hcd, uhci_q * req);
+static void uhci_q_free(uhci_q * req);
+static void uhci_cleanup_request(uhci_q * qh)
+{
+#ifdef DEBUG
+	if(qh->elementlink != le32(1)) {
+		kernel_wait("UHCI: Cleaning up incomplete QH\n");
+		uhci_q_dump(qh);
+	}
+#endif
+	uhci_hcd_t * uhci_hcd = qh->hcd;
+
+	uhci_q_remove(uhci_hcd, qh);
+	map_removepp(uhci_hcd->pending, qh);
+
+	uhci_q_free(qh);
+}
+
 static void uhci_status_check(uhci_q * q, future_t * future)
 {
 	uhci_td * td = q->velementlink.td;
@@ -118,14 +167,15 @@ static void uhci_status_check(uhci_q * q, future_t * future)
 		} else if (status) {
 			/* Check for errors */
 			exception_cause * cause;
-			if (status & 0x8) {
+			if (status & 0x40) {
 				cause = exception_create(&UsbStallException, __FILE__, __LINE__, "STALL - UHCI status: %x", status);
-			} else if (status & 0x40) {
+			} else if (status & 0x8) {
 				cause = exception_create(&UsbNakException, __FILE__, __LINE__, "NAK - UHCI status: %x", status);
 			} else {
 				cause = exception_create(&UsbException, __FILE__, __LINE__, "UHCI status: %x", status);
 			}
 			future_cancel(future, cause);
+			uhci_cleanup_request(q);
 			return;
 		}
 		td = td->vlink.td;
@@ -133,6 +183,7 @@ static void uhci_status_check(uhci_q * q, future_t * future)
 
 	/* By here, we've checked all the status as successful. */
 	future_set(future, 0);
+	uhci_cleanup_request(q);
 }
 
 static void uhci_walk_pending(const void * const p, void * key, void * data)
@@ -507,31 +558,6 @@ static uhci_hcd_t * uhci_reset(device_t * device, int iobase, int irq)
 	return hcd;
 }
 
-static void uhci_td_dump(uhci_td * td)
-{
-	uint32_t flags = le32(td->flags);
-	uint32_t address = le32(td->address);
-	kernel_printk(
-		"TD: %s speed, %s on complete\n"
-		"  : status %x, transferred %x\n"
-		"  : device %x, endpoint %x\n"
-		"  : max length %x, toggle %x\n"
-		, bitget(flags, 26, 1) ? "low" : "high", bitget(flags, 24, 1) ? "interrupt on complete" : "no interrupt"
-		, bitget(flags, 23, 8), bitget(flags, 10, 11)
-		, bitget(address, 14, 7), bitget(address, 18, 4)
-		, bitget(address, 31, 10), bitget(address, 19, 1)
-	);
-}
-
-static void uhci_q_dump(uhci_q * qh)
-{
-	uhci_td * td = qh->velementlink.td;
-	while(td) {
-		uhci_td_dump(td);
-		td = td->vlink.td;
-	}
-}
-
 static void uhci_td_chain(uhci_td ** phead, uhci_td ** ptail, int interrupt, usbpid_t pid, usb_endpoint_t * endpoint, void * buf, size_t buflen)
 {
 	char * cp = buf;
@@ -659,30 +685,11 @@ static void uhci_q_remove(uhci_hcd_t * hcd, uhci_q * req)
 	}
 }
 
-static void uhci_cleanup_packet(void * p)
-{
-	uhci_q * qh = p;
-#ifdef DEBUG
-	if(qh->elementlink != le32(1)) {
-		kernel_wait("UHCI: Cleaning up incomplete QH");
-		uhci_q_dump(qh);
-	}
-#endif
-	uhci_hcd_t * uhci_hcd = qh->hcd;
-
-	INTERRUPT_MONITOR_AUTOLOCK(uhci_hcd->lock) {
-		uhci_q_remove(uhci_hcd, qh);
-		map_removepp(uhci_hcd->pending, qh);
-	}
-
-	uhci_q_free(qh);
-}
-
 static future_t * uhci_submit(hcd_t * hcd, usb_request_t * request)
 {
 	usb_endpoint_t * endpoint = request->endpoint;
 	uhci_q * qh = uhci_q_chain(request);
-	future_t * future = future_create(uhci_cleanup_packet, qh);
+	future_t * future = future_create(0, 0);
 	enum uhci_queue queue;
 
 	if (request->control) {

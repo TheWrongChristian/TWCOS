@@ -246,7 +246,7 @@ char ** ssplit( const char * str, int sep )
 	return 0;
 }
 
-const char * strchr(const char * s, int c)
+char * strchr(const char * s, int c)
 {
 	for(int i=0; s[i]; i++) {
 		if (c == s[i]) {
@@ -257,7 +257,7 @@ const char * strchr(const char * s, int c)
 	return 0;
 }
 
-const char * strrchr(const char * s, int c)
+char * strrchr(const char * s, int c)
 {
 	const char * last = 0;
 

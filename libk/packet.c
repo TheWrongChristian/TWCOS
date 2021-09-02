@@ -146,6 +146,14 @@ INLINE_FLATTEN uint32_t packet_get(packet_def_t * packet_def, volatile uint8_t *
 
 uint8_t * packet_subpacket(packet_def_t * packet_def, uint8_t * packet, int field, int size)
 {
+	if (field<0) {
+		field += packet_def->fieldcount;
+	}
+
+	if (!packet_def->packetsize) {
+		packet_init(packet_def);
+	}
+
 	check_int_bounds(field, 0, packet_def->fieldcount, "Invalid field number");
 	check_int_is(size, packet_def->fields[field].size, "Invalid field size");
 

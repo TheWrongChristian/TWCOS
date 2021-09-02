@@ -296,17 +296,22 @@ noreturn void exception_panic(const char * fmt, ...)
 	va_end(ap);
 }
 
-noreturn void exception_vpanic(const char * fmt, va_list ap)
+void exception_log()
 {
 	exception_cause * cause = exception_get_cause();
 
 	if (cause) {
 		for(int i=0; i<countof(cause->backtrace) && cause->backtrace[i]; i++) {
-			stream_printf(console_stream(), "%d: %p\n", i, cause->backtrace[i]);
+			kernel_printk("%d: %s\n", i, symbol_lookup(cause->backtrace[i]));
 		}
-		stream_printf(console_stream(), "%s:%d\n", cause->file, cause->line);
-		stream_printf(console_stream(), "%s\n", cause->message);
+		kernel_printk("%s:%d\n", cause->file, cause->line);
+		kernel_printk("%s\n", cause->message);
 	}
+}
+
+noreturn void exception_vpanic(const char * fmt, va_list ap)
+{
+	exception_log();
 	kernel_vpanic(fmt, ap);
 }
 

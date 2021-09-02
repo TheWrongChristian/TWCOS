@@ -157,9 +157,13 @@ void kernel_main()
 			if (devfs) {
 				vfs_mount(devfs, devfs_open());
 			}
+			vnode_t * symbolmap = file_namev("/symbol.map");
+			if (symbolmap) {
+				symbol_load(symbolmap);
+			}
 		}
 	} KCATCH(Throwable) {
-		kernel_printk("Error mounting initrd\n");
+		exception_log("Error mounting initrd\n");
 	}
 
 	KTRY {
@@ -171,7 +175,12 @@ void kernel_main()
 			}
 		}
 	} KCATCH(Throwable) {
-		kernel_printk("Error mounting FATFS\n");
+		exception_log("Error mounting FATFS\n");
+	}
+
+	KTRY {
+	} KCATCH(Throwable) {
+		exception_log("Error probing devices\n");
 	}
 
 	KTRY {
@@ -183,7 +192,7 @@ void kernel_main()
 		}
 #endif
 	} KCATCH(Throwable) {
-		kernel_printk("Error opening serial port\n");
+		exception_log("Error opening serial port\n");
 	}
 
 	KTRY {

@@ -8,3 +8,5 @@ subdir:=$(drivers)/net
 include $(subdir)/subdir.mk
 subdir:=$(drivers)/usb
 include $(subdir)/subdir.mk
+subdir:=$(drivers)/cam
+include $(subdir)/subdir.mk

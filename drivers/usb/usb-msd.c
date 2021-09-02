@@ -10,34 +10,193 @@ struct usb_bbb_device_t {
 	device_t device;
 	block_t block;
 	/* cdb_transport_t cdb_transport; */
+	struct {
+		usb_request_t request[1];
+		uint8_t buf[31];
+	} cbw;
+	struct {
+		usb_request_t request[1];
+		uint8_t * buf;
+	} transfer;
+	struct {
+		usb_request_t request[1];
+		uint8_t buf[13];
+	} csw;
 	usb_endpoint_t * epin;
 	usb_endpoint_t * epout;
+	future_t * status_future;
+	future_t future[1];
 };
 
-static future_t *  usb_bbb_device_read(block_t * block, void * buf, size_t buflen, off64_t offset)
-{
-	usb_bbb_device_t * bbb = container_of(block, usb_bbb_device_t, block);
+static packet_field_t cbwfields[] = {
+	/* dCBWSignature - 0x43425355 */
+	PACKET_LEFIELD(4),
+	/* dCBWTag */
+	PACKET_LEFIELD(4),
+	/* dCBWDataTransferLength */
+	PACKET_LEFIELD(4),
+	/* dCBWFlags */
+	PACKET_LEFIELD(1),
+	/* dCBWLun */
+	PACKET_LEFIELD(1),
+	/* dCBWLength */
+	PACKET_LEFIELD(1),
+	/* Wrapped command */
+	PACKET_FIELD(16)
+};
+static packet_def_t cbw[]={PACKET_DEF(cbwfields)}; 
 
-	return future_static_success();
+static packet_field_t cswfields[] = {
+	/* dCSWSignature - 0x53425355 */
+	PACKET_LEFIELD(4),
+	/* dCSWTag */
+	PACKET_LEFIELD(4),
+	/* dCSWDataResidue */
+	PACKET_LEFIELD(4),
+	/* dCSWStatus */
+	PACKET_LEFIELD(1),
+};
+static packet_def_t csw[]={PACKET_DEF(cswfields)}; 
+
+exception_def UMSException = {"UMSException", &BlockException};
+
+static future_t * usb_bbb_command(usb_bbb_device_t * bbb, uint8_t * cmd, int cmdlen, uint32_t transferlength, uint8_t flags, uint8_t lun)
+{
+	packet_set(cbw, bbb->cbw.buf, 0, 0x43425355);
+	packet_set(cbw, bbb->cbw.buf, 1, (uint32_t)bbb);
+	packet_set(cbw, bbb->cbw.buf, 2, transferlength);
+	packet_set(cbw, bbb->cbw.buf, 3, flags);
+	packet_set(cbw, bbb->cbw.buf, 4, lun);
+	packet_set(cbw, bbb->cbw.buf, 5, cmdlen);
+	void * const wrapped = packet_subpacket(cbw, bbb->cbw.buf, 6, 16);
+	memcpy(wrapped, cmd, cmdlen);
+
+	/* bbb->cbw.buf is now the CBW we want to transfer */
+	return usb_submit(bbb->cbw.request);
 }
 
-static future_t *  usb_bbb_device_write(block_t * block, void * buf, size_t buflen, off64_t offset)
+static future_t * usb_bbb_status(usb_bbb_device_t * bbb)
+{
+	return usb_submit(bbb->csw.request);
+}
+
+exception_def UMSCSWException = {"UMSCSWException", &UMSException};
+static uint8_t usb_bbb_get_status(usb_bbb_device_t * bbb)
+{
+	if (0x53425355 != packet_get(csw, bbb->csw.buf, 0)) {
+		KTHROWF(UMSCSWException, "CSW wrapper signature invalid: Got 0x%x", packet_get(csw, bbb->csw.buf, 0));
+	}
+	if ((uint32_t)bbb != packet_get(csw, bbb->csw.buf, 1)) {
+		KTHROWF(UMSCSWException, "CSW wrapper signature invalid: Expected 0x%x, got 0x%x", (uint32_t)bbb, packet_get(csw, bbb->csw.buf, 1));
+	}
+
+	return (uint8_t)packet_get(csw, bbb->csw.buf, 3);
+}
+
+static future_t * usb_bbb_transfer(usb_bbb_device_t * bbb, void * buf, size_t buflen, int in)
+{
+	if (in) {
+		usb_bulk_request(bbb->epin, buf, buflen, bbb->transfer.request);
+	} else {
+		usb_bulk_request(bbb->epout, buf, buflen, bbb->transfer.request);
+	}
+	return usb_submit(bbb->transfer.request);
+}
+
+static void usb_bbb_transfer_complete(usb_bbb_device_t * bbb)
+{
+	KTRY {
+		future_get_timeout(bbb->status_future, 5000000);
+		future_set(bbb->future, usb_bbb_get_status(bbb));
+	} KCATCH(UsbStallException) {
+		/* Clear stall */
+		usb_set_endpoint_halt(bbb->epin, 0);
+		usb_set_endpoint_halt(bbb->epout, 0);
+	} KCATCH(Throwable) {
+		future_cancel(bbb->future, exception_get_cause());
+	}
+}
+
+static void usb_bbb_device_async(void * p)
+{
+	usb_bbb_device_t * bbb = p;
+
+	usb_bbb_transfer_complete(bbb);
+}
+
+static future_t * usb_bbb_device_request(usb_bbb_device_t * bbb, uint8_t * cmd, size_t cmdlen, void * buf, size_t buflen, int transferin)
+{
+	future_get(bbb->future);
+
+	future_init(bbb->future, 0, 0);
+	future_t * command_future = usb_bbb_command(bbb, cmd, cmdlen, buflen, 0x80, 0);
+	if (buf && buflen) {
+		future_t * transfer_future = usb_bbb_transfer(bbb, buf, buflen, transferin);
+		bbb->status_future = usb_bbb_status(bbb);
+		future_chain(transfer_future, command_future);
+		future_chain(bbb->status_future, transfer_future);
+	} else {
+		bbb->status_future = usb_bbb_status(bbb);
+		future_chain(bbb->status_future, command_future);
+	}
+
+	thread_pool_submit(0, usb_bbb_device_async, bbb);
+
+	return bbb->future;
+}
+
+static future_t * usb_bbb_device_read(block_t * block, void * buf, size_t buflen, off64_t offset)
 {
 	usb_bbb_device_t * bbb = container_of(block, usb_bbb_device_t, block);
 
-	return future_static_success();
+	future_get(bbb->future);
+
+	uint8_t readcmd[10];
+	cam_cmd_read10(readcmd, countof(readcmd), offset >> 9, buflen);
+	return usb_bbb_device_request(bbb, readcmd, countof(readcmd), buf, buflen, 1);
+}
+
+static future_t * usb_bbb_device_write(block_t * block, void * buf, size_t buflen, off64_t offset)
+{
+	usb_bbb_device_t * bbb = container_of(block, usb_bbb_device_t, block);
+
+	future_get(bbb->future);
+
+	uint8_t writecmd[10];
+	cam_cmd_read10(writecmd, countof(writecmd), offset >> 9, buflen);
+	return usb_bbb_device_request(bbb, writecmd, countof(writecmd), buf, buflen, 0);
+}
+
+static void usb_bbb_device_inquiry(usb_bbb_device_t * bbb)
+{
+	uint8_t cmd[6];
+	uint8_t inquirydata[128];
+	cam_cmd_inquiry(cmd, countof(cmd), countof(inquirydata));
+	future_t * future = usb_bbb_device_request(bbb, cmd, countof(cmd), inquirydata, countof(inquirydata), 1);
+	future_get(future);
+}
+
+static void usb_bbb_read_capacity(usb_bbb_device_t * bbb)
+{
+	uint8_t cmd[10];
+	uint8_t response[8] = {0};
+	cam_cmd_read_capacity10(cmd, countof(cmd));
+	future_t * future = usb_bbb_device_request(bbb, cmd, countof(cmd), response, countof(response), 1);
+	future_get(future);
+	cam_capacity_t capacity;
+	cam_response_read_capacity(response, countof(response), &capacity);
 }
 
 static size_t usb_bbb_device_blocksize(block_t * block)
 {
         usb_bbb_device_t * bbb = container_of(block, usb_bbb_device_t, block);
-        return 0;
+        return 512;
 }
 
 static off64_t usb_bbb_device_getsize(block_t * block)
 {
         usb_bbb_device_t * bbb = container_of(block, usb_bbb_device_t, block);
-        return 0;
+        return 1024;
 }
 
 
@@ -60,6 +219,15 @@ static INTERFACE_OPS_TYPE(block_t) INTERFACE_IMPL_NAME(block_t, usb_bbb_device_t
         INTERFACE_IMPL_METHOD(blocksize, usb_bbb_device_blocksize)
 };
 
+static void usb_bbb_test(device_t * device)
+{
+	block_t * block = device->ops->query(device, iid_block_t);
+
+	static char buf[512];
+	future_t * future = block_read(block, buf, countof(buf), 0);
+	future_get_timeout(future, 5000000);
+}
+
 static void usb_bbb_device_probe(device_t * device, usb_interface_descriptor_t * interface)
 {
 	usb_endpoint_t * epin = usb_get_endpoint(device, interface, 1, usbbulk);
@@ -72,6 +240,16 @@ static void usb_bbb_device_probe(device_t * device, usb_interface_descriptor_t *
 	device_init(&bbb->device, device);
 	bbb->device.ops = &usb_bbb_device_t_device_t;
 	bbb->block.ops = &usb_bbb_device_t_block_t;
+	bbb->epin = epin;
+	bbb->epout = epout;
+	usb_bulk_request(bbb->epout, bbb->cbw.buf, countof(bbb->cbw.buf), bbb->cbw.request);
+	usb_bulk_request(bbb->epin, bbb->csw.buf, countof(bbb->csw.buf), bbb->csw.request);
+#if 0
+	usb_bbb_device_inquiry(bbb);
+#endif
+	usb_bbb_read_capacity(bbb);
+	device_queue(&bbb->device, "block", 0);
+	usb_bbb_test(&bbb->device);
 }
 
 void usb_msd_device_probe(device_t * device)
