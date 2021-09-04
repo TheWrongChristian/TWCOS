@@ -144,7 +144,7 @@ static future_t * usb_bbb_device_request(usb_bbb_device_t * bbb, uint8_t * cmd, 
 	thread_pool_submit(0, usb_bbb_device_async, bbb);
 #else
 	future_init(bbb->future, 0, 0);
-	future_t * command_future = usb_bbb_command(bbb, cmd, cmdlen, buflen, 0x80, 0);
+	future_t * command_future = usb_bbb_command(bbb, cmd, cmdlen, buflen, (transferin) ? 0x80 : 0, 0);
 	future_get(command_future);
 	if (buf && buflen) {
 		future_t * transfer_future = usb_bbb_transfer(bbb, buf, buflen, transferin);
@@ -177,7 +177,7 @@ static future_t * usb_bbb_device_write(block_t * block, void * buf, size_t bufle
 	future_get(bbb->future);
 
 	uint8_t cmd[10];
-	cam_cmd_read10(cmd, countof(cmd), offset >> 9, buflen / bbb->capacity.blocksize);
+	cam_cmd_write10(cmd, countof(cmd), offset >> 9, buflen / bbb->capacity.blocksize);
 	return usb_bbb_device_request(bbb, cmd, countof(cmd), buf, buflen, 0);
 }
 
@@ -246,6 +246,9 @@ static void usb_bbb_test(device_t * device)
 
 	static char buf[512];
 	future_t * future = block_read(block, buf, countof(buf), 0);
+	future_get_timeout(future, 5000000);
+	snprintf(buf, countof(buf), "All work and no play makes Jack a dull boy: %p\n", usb_bbb_test);
+	future = block_write(block, buf, countof(buf), 0);
 	future_get_timeout(future, 5000000);
 }
 
